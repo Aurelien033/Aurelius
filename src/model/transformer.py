@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,6 +14,33 @@ from .config import AureliusConfig
 from .ffn import SwiGLUFFN
 from .moe import SparseMoELayer
 from .rms_norm import RMSNorm
+
+
+def _is_tensor_kv_cache(cache: object) -> bool:
+    return (
+        isinstance(cache, tuple)
+        and len(cache) == 2
+        and isinstance(cache[0], torch.Tensor)
+        and isinstance(cache[1], torch.Tensor)
+    )
+
+
+def _past_kv_seq_len(cache: object) -> int:
+    if isinstance(cache, dict):
+        seq_len = cache.get("seq_len", 0)
+        return int(seq_len) if isinstance(seq_len, int) else 0
+    if _is_tensor_kv_cache(cache):
+        tensor_cache = cast(tuple[torch.Tensor, torch.Tensor], cache)
+        return tensor_cache[0].shape[1]
+    return 0
+
+
+def _normalize_past_kv(cache: object) -> tuple[torch.Tensor, torch.Tensor] | dict | None:
+    if isinstance(cache, dict):
+        return cache
+    if _is_tensor_kv_cache(cache):
+        return cast(tuple[torch.Tensor, torch.Tensor], cache)
+    return None
 
 
 def _build_attention(config: AureliusConfig, layer_idx: int, n_layers: int) -> nn.Module:
@@ -203,8 +232,12 @@ class AureliusTransformer(nn.Module):
         input_ids: torch.Tensor,
         mask: torch.Tensor | None = None,
         labels: torch.Tensor | None = None,
-        past_key_values: list[tuple[torch.Tensor, torch.Tensor] | None] | None = None,
-    ) -> tuple[torch.Tensor | None, torch.Tensor, list[tuple[torch.Tensor, torch.Tensor]]]:
+        past_key_values: list[tuple[torch.Tensor, torch.Tensor] | dict | None] | None = None,
+    ) -> tuple[
+        torch.Tensor | None,
+        torch.Tensor,
+        list[tuple[torch.Tensor, torch.Tensor] | dict | None],
+    ]:
         """
         Args:
             input_ids: (batch, seq_len) — token indices.
@@ -216,7 +249,8 @@ class AureliusTransformer(nn.Module):
             Tuple of (loss, logits, present_key_values):
                 loss: Scalar cross-entropy loss if labels provided, else None.
                 logits: (batch, seq_len, vocab_size).
-                present_key_values: List of (k, v) tensors, one per layer.
+                present_key_values: List of cache states, one per layer. Entries may be
+                None when a layer does not produce a reusable KV cache.
         """
         B, S = input_ids.shape
         assert S <= self.config.max_seq_len, (  # noqa: S101
@@ -224,11 +258,8 @@ class AureliusTransformer(nn.Module):
         )
 
         # Compute position offset from KV cache
-        past_len = (
-            past_key_values[0][0].shape[1]
-            if past_key_values is not None and past_key_values[0] is not None
-            else 0
-        )
+        first_past_kv = past_key_values[0] if past_key_values else None
+        past_len = _past_kv_seq_len(first_past_kv)
 
         x = self.embed(input_ids)
         freqs_cis = self.freqs_cis[past_len : past_len + S]
@@ -238,23 +269,28 @@ class AureliusTransformer(nn.Module):
                 "Gradient checkpointing is incompatible with KV cache (past_key_values)"
             )
 
-        present_key_values: list[tuple[torch.Tensor, torch.Tensor]] = []
+        present_key_values: list[tuple[torch.Tensor, torch.Tensor] | dict | None] = []
         moe_aux_loss = torch.tensor(0.0, device=x.device)
         for i, layer in enumerate(self.layers):
-            past_kv = past_key_values[i] if past_key_values is not None else None
+            past_kv = (
+                _normalize_past_kv(past_key_values[i])
+                if past_key_values is not None and i < len(past_key_values)
+                else None
+            )
             if self.config.use_gradient_checkpointing and self.training:
 
                 def make_ckpt_fn(item):
                     def fn(x, freqs_cis, mask):
-                        out, kv, aux = item(x, freqs_cis, mask, None)  # noqa: E741
-                        return out, kv[0], kv[1], aux
+                        out, _kv, aux = item(x, freqs_cis, mask, None)  # noqa: E741
+                        return out, aux
 
                     return fn
 
-                x, k, v, aux = ckpt(make_ckpt_fn(layer), x, freqs_cis, mask, use_reentrant=False)
-                kv = (k, v)
+                x, aux = ckpt(make_ckpt_fn(layer), x, freqs_cis, mask, use_reentrant=False)
+                kv = None
             else:
                 x, kv, aux = layer(x, freqs_cis, mask, past_kv)
+
             moe_aux_loss = moe_aux_loss + aux
             present_key_values.append(kv)
 
