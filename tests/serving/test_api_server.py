@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from src.serving.api_server import (
     AureliusRequestHandler,
@@ -231,6 +232,28 @@ def test_chat_completions_choices_has_message():
     data = json.loads(body)
     assert len(data["choices"]) > 0
     assert "message" in data["choices"][0]
+
+
+def test_streaming_chat_does_not_artificially_sleep():
+    payload = {
+        "model": "aurelius",
+        "messages": [{"role": "user", "content": "Hello"}],
+        "stream": True,
+    }
+
+    with patch("src.serving.api_server.time.sleep") as sleep:
+        status, headers, body = _invoke(
+            AureliusRequestHandler,
+            "POST",
+            "/v1/chat/completions",
+            payload=payload,
+            generate_fn=lambda request: "streamed response",
+        )
+
+    assert status == 200
+    assert headers["Content-Type"].startswith("text/event-stream")
+    assert b"data: [DONE]" in body
+    sleep.assert_not_called()
 
 
 def test_chat_completions_missing_messages_returns_400():
