@@ -31,6 +31,13 @@ from src.safety.admission_controller import (
     SafetyAdmissionController,
     estimate_tokens,
 )
+from src.safety.adversarial_detector_bridge import (
+    AdversarialDetector as AdversarialDetectorBridge,
+)
+from src.safety.adversarial_detector_bridge import (
+    AdversarialPattern,
+    AdversarialResult,
+)
 from src.safety.canary_token_guard import (
     CanaryDetection,
     CanaryTokenGuard,
@@ -223,6 +230,7 @@ SAFETY_FILTER_REGISTRY["prism_security_layer"] = PRISMSecurityLayer
 SAFETY_FILTER_REGISTRY["claw_keeper"] = ClawKeeper
 SAFETY_FILTER_REGISTRY["quantclaw_gate"] = QuantClawGate
 SAFETY_FILTER_REGISTRY["admission_controller"] = SafetyAdmissionController
+SAFETY_FILTER_REGISTRY["adversarial_detector"] = AdversarialDetectorBridge
 
 HARM_CLASSIFIER_REGISTRY["harm_taxonomy"] = HarmTaxonomyClassifier
 HARM_CLASSIFIER_REGISTRY["refusal"] = RefusalClassifier
@@ -341,4 +349,8 @@ __all__ = [
     "GatingContext",
     "GateDecision",
     "QuantLevel",
+    # adversarial_detector_bridge
+    "AdversarialDetectorBridge",
+    "AdversarialPattern",
+    "AdversarialResult",
 ]
