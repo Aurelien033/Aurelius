@@ -5,7 +5,9 @@ import torch
 
 from src.inference.sink_cache import (
     SinkCache,
+    cache_token_capacity,
     compress_kv_cache,
+    estimate_kv_cache_bytes,
     kv_cache_nbytes,
     sink_window_indices,
 )
@@ -45,6 +47,27 @@ def test_kv_cache_nbytes_counts_key_and_value_tensors():
     keys = torch.zeros(1, 4, 2, 4, dtype=torch.float32)
     values = torch.zeros(1, 4, 2, 4, dtype=torch.float32)
     assert kv_cache_nbytes(keys, values) == keys.numel() * 4 + values.numel() * 4
+
+
+def test_estimate_kv_cache_bytes_matches_tensor_layout():
+    assert estimate_kv_cache_bytes(
+        batch_size=1,
+        sequence_length=4,
+        num_heads=2,
+        head_dim=4,
+        dtype_bytes=4,
+    ) == 256
+
+
+def test_cache_token_capacity_counts_whole_tokens():
+    per_token = estimate_kv_cache_bytes(
+        batch_size=1,
+        sequence_length=1,
+        num_heads=2,
+        head_dim=4,
+        dtype_bytes=4,
+    )
+    assert cache_token_capacity(per_token * 7 + per_token // 2, per_token) == 7
 
 
 def test_compress_kv_cache_enforces_byte_budget_while_preserving_memory_tokens():
