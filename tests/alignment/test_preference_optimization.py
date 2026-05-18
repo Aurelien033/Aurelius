@@ -12,9 +12,11 @@ from src.alignment.preference_optimization import (
     PreferenceOptConfig,
     PreferenceOptTrainer,
     compute_sequence_log_probs,
+    dpo_loss,
     kto_loss,
     orpo_loss,
     rrhf_loss,
+    simpo_loss,
 )
 from src.model.config import AureliusConfig
 from src.model.transformer import AureliusTransformer
@@ -70,6 +72,7 @@ def test_config_defaults():
     assert cfg.lambda_ == 1.0
     assert cfg.desirable_weight == 1.0
     assert cfg.undesirable_weight == 1.0
+    assert cfg.gamma == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +156,30 @@ def test_orpo_loss_dict_keys(policy_model):
     assert "ratio" in metrics, "ORPO metrics must include 'ratio'"
     assert isinstance(metrics["sft_loss"], float)
     assert isinstance(metrics["ratio"], float)
+
+
+def test_dpo_loss_prefers_policy_margin_over_reference_margin():
+    policy_chosen = torch.tensor([-1.0, -2.0])
+    policy_rejected = torch.tensor([-3.0, -4.0])
+    ref_chosen = torch.tensor([-1.5, -2.5])
+    ref_rejected = torch.tensor([-2.5, -3.5])
+
+    loss, metrics = dpo_loss(policy_chosen, policy_rejected, ref_chosen, ref_rejected, beta=0.1)
+
+    assert loss.ndim == 0
+    assert torch.isfinite(loss)
+    assert metrics["preference_margin"] == pytest.approx(1.0)
+
+
+def test_simpo_loss_is_reference_free_and_reports_margin():
+    policy_chosen = torch.tensor([-1.0, -2.0])
+    policy_rejected = torch.tensor([-3.0, -4.5])
+
+    loss, metrics = simpo_loss(policy_chosen, policy_rejected, beta=2.0, gamma=0.5)
+
+    assert loss.ndim == 0
+    assert torch.isfinite(loss)
+    assert metrics["preference_margin"] == pytest.approx(1.75)
 
 
 # ---------------------------------------------------------------------------
@@ -331,3 +358,33 @@ def test_trainer_rrhf_returns_keys(policy_model, ref_model):
     assert isinstance(result["loss"], float)
     assert math.isfinite(result["loss"])
     assert result["loss"] >= 0.0, "RRHF loss must be non-negative"
+
+
+def test_trainer_dpo_returns_keys(policy_model, ref_model):
+    cfg = PreferenceOptConfig(method="dpo", beta=0.1)
+    optimizer = optim.SGD(policy_model.parameters(), lr=1e-4)
+    trainer = PreferenceOptTrainer(policy_model, ref_model, cfg, optimizer)
+
+    chosen_ids = _make_ids(batch_size=2, seq_len=16, seed=13)
+    rejected_ids = _make_ids(batch_size=2, seq_len=16, seed=23)
+
+    result = trainer.train_step(chosen_ids, rejected_ids)
+
+    assert result["method"] == "dpo"
+    assert "preference_margin" in result
+    assert math.isfinite(result["loss"])
+
+
+def test_trainer_simpo_returns_keys(policy_model, ref_model):
+    cfg = PreferenceOptConfig(method="simpo", beta=2.0, gamma=0.5)
+    optimizer = optim.SGD(policy_model.parameters(), lr=1e-4)
+    trainer = PreferenceOptTrainer(policy_model, ref_model, cfg, optimizer)
+
+    chosen_ids = _make_ids(batch_size=2, seq_len=16, seed=14)
+    rejected_ids = _make_ids(batch_size=2, seq_len=16, seed=24)
+
+    result = trainer.train_step(chosen_ids, rejected_ids)
+
+    assert result["method"] == "simpo"
+    assert "preference_margin" in result
+    assert math.isfinite(result["loss"])
