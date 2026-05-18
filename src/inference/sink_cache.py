@@ -15,6 +15,39 @@ def kv_cache_nbytes(key_cache: torch.Tensor, value_cache: torch.Tensor) -> int:
     )
 
 
+def estimate_kv_cache_bytes(
+    *,
+    batch_size: int,
+    sequence_length: int,
+    num_heads: int,
+    head_dim: int,
+    dtype_bytes: int = 2,
+    kv_tensors: int = 2,
+) -> int:
+    """Estimate KV-cache bytes for a dense [B, T, H, D] layout."""
+    values = {
+        "batch_size": batch_size,
+        "sequence_length": sequence_length,
+        "num_heads": num_heads,
+        "head_dim": head_dim,
+        "dtype_bytes": dtype_bytes,
+        "kv_tensors": kv_tensors,
+    }
+    for name, value in values.items():
+        if not isinstance(value, int) or value < 0:
+            raise ValueError(f"{name} must be a non-negative int, got {value!r}")
+    return batch_size * sequence_length * num_heads * head_dim * dtype_bytes * kv_tensors
+
+
+def cache_token_capacity(max_cache_bytes: int, per_token_bytes: int) -> int:
+    """Return how many whole sequence tokens fit inside a byte budget."""
+    if max_cache_bytes < 0:
+        raise ValueError(f"max_cache_bytes must be non-negative, got {max_cache_bytes!r}")
+    if per_token_bytes <= 0:
+        raise ValueError(f"per_token_bytes must be positive, got {per_token_bytes!r}")
+    return max_cache_bytes // per_token_bytes
+
+
 def _budgeted_window_indices(
     total_tokens: int,
     sink_tokens: int,
@@ -89,7 +122,7 @@ def compress_kv_cache(
     if max_cache_bytes is not None and indices:
         per_token_bytes = kv_cache_nbytes(key_cache[:, :1], value_cache[:, :1])
         if per_token_bytes > 0:
-            max_token_count = max_cache_bytes // per_token_bytes
+            max_token_count = cache_token_capacity(max_cache_bytes, per_token_bytes)
             if len(indices) > max_token_count:
                 indices = _budgeted_window_indices(
                     total_tokens,

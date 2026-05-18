@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from src.eval.amc_memory_runner import (
+    AMC_BENCHMARK_PROFILES,
     append_jsonl_result,
     build_engine_generate_fn,
     main,
@@ -41,6 +42,27 @@ def test_run_benchmark_null_outputs_zero_score_for_subset():
     assert payload["overall_score"] == 0.0
     assert payload["scores"] == {"contradiction_quarantine": 0.0}
     assert payload["results"]["contradiction_quarantine"]["n"] == 2
+
+
+def test_run_benchmark_profile_applies_defaults_and_gate():
+    payload = run_benchmark(generator="oracle", profile="smoke")
+
+    assert AMC_BENCHMARK_PROFILES["smoke"].context_tokens == 64
+    assert payload["profile"] == "smoke"
+    assert payload["context_tokens"] == 64
+    assert payload["samples_per"] == 1
+    assert payload["gate"] == {
+        "minimum_score": AMC_BENCHMARK_PROFILES["smoke"].minimum_score,
+        "passed": True,
+    }
+
+
+def test_run_benchmark_profile_gate_can_fail():
+    payload = run_benchmark(generator="null", profile="smoke", min_score=0.5)
+
+    assert payload["profile"] == "smoke"
+    assert payload["overall_score"] == 0.0
+    assert payload["gate"] == {"minimum_score": 0.5, "passed": False}
 
 
 def test_engine_generate_fn_wraps_serving_backend_request():
@@ -95,12 +117,10 @@ def test_main_appends_jsonl_output(tmp_path):
         [
             "--generator",
             "oracle",
+            "--profile",
+            "smoke",
             "--tasks",
             "contradiction_quarantine",
-            "--context-tokens",
-            "64",
-            "--samples-per",
-            "1",
             "--jsonl-output",
             str(output_path),
         ]
@@ -110,6 +130,7 @@ def test_main_appends_jsonl_output(tmp_path):
     records = [json.loads(line) for line in output_path.read_text().splitlines()]
     assert len(records) == 1
     assert records[0]["suite"] == "amc_memory"
+    assert records[0]["profile"] == "smoke"
     assert records[0]["scores"] == {"contradiction_quarantine": 1.0}
 
 
