@@ -23,6 +23,8 @@ def test_run_benchmark_oracle_outputs_summary_and_cells():
         "surprise_gate_selectivity",
         "consolidation_preference",
         "contradiction_quarantine",
+        "tool_trace_grounding",
+        "memory_poisoning_resistance",
     }
     assert payload["results"]["cross_session_recall"]["n"] == 1
 

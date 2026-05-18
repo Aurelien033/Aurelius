@@ -37,6 +37,7 @@ class PrefixEntry:
     kv_ref: Any
     last_access: float
     refcount: int = 0
+    memory_priority: float = 0.0
 
 
 def _hash_block(block: tuple[int, ...]) -> str:
@@ -50,6 +51,12 @@ def _hash_block(block: tuple[int, ...]) -> str:
     for tok in block:
         h.update(int(tok).to_bytes(8, "little", signed=True))
     return h.hexdigest()
+
+
+def _clamp_nonnegative(value: float) -> float:
+    """Normalize cache priority knobs without allowing negative eviction priority."""
+
+    return max(0.0, float(value))
 
 
 class _TrieNode:
@@ -154,16 +161,23 @@ class PrefixCache:
     # ------------------------------------------------------------------
     # Insert
     # ------------------------------------------------------------------
-    def insert(self, tokens: list[int], kv_ref: Any) -> None:
+    def insert(self, tokens: list[int], kv_ref: Any, memory_priority: float = 0.0) -> None:
         """Install ``tokens`` -> ``kv_ref`` into the cache.
 
         The full token list is split into ``block_size`` chunks. Each
         block-aligned prefix is inserted (deduping against existing
         entries). Trailing partial tokens are ignored -- the sharing
         unit is the block.
+
+        ``memory_priority`` marks AMC/tool-result prefixes that should be
+        retained ahead of ordinary prompt prefixes under pressure. It is not a
+        hard pin: refcount still controls active-use pinning, while eviction
+        chooses the lowest-priority unpinned entry and then LRU within that
+        priority.
         """
         if not tokens:
             return
+        priority = _clamp_nonnegative(memory_priority)
 
         node = self._root
         path: list[tuple[_TrieNode, str]] = []
@@ -189,6 +203,7 @@ class PrefixCache:
                     kv_ref=kv_ref,
                     last_access=time.monotonic(),
                     refcount=0,
+                    memory_priority=priority,
                 )
                 node.entry = entry
                 self._lru[tokens_hash] = entry
@@ -203,6 +218,7 @@ class PrefixCache:
                 # Duplicate: refresh LRU / timestamp, do not double-store.
                 existing = node.entry
                 existing.last_access = time.monotonic()
+                existing.memory_priority = max(existing.memory_priority, priority)
                 self._lru.move_to_end(existing.tokens_hash)
 
     # ------------------------------------------------------------------
@@ -215,10 +231,13 @@ class PrefixCache:
         entry or ``None`` if every entry is pinned / the cache is empty.
         """
         victim_hash: str | None = None
+        victim_priority: float | None = None
         for tokens_hash, entry in self._lru.items():
-            if entry.refcount <= 0:
+            if entry.refcount > 0:
+                continue
+            if victim_priority is None or entry.memory_priority < victim_priority:
                 victim_hash = tokens_hash
-                break
+                victim_priority = entry.memory_priority
         if victim_hash is None:
             return None
 
@@ -253,6 +272,9 @@ class PrefixCache:
             "misses": self._misses,
             "inserts": self._inserts,
             "evictions": self._evictions,
+            "memory_protected_entries": sum(
+                1 for entry in self._lru.values() if entry.memory_priority > 0.0
+            ),
         }
 
     def __len__(self) -> int:

@@ -82,6 +82,41 @@ class CompositeReward(VerifiableReward):
         return weighted_sum / total_weight
 
 
+class MemoryGroundingReward(VerifiableReward):
+    """Verifiable reward for AMC-grounded responses.
+
+    This lightweight reward is meant for RLVR/GRPO batches where the verifier
+    knows which durable memory/tool-trace terms must appear and which poisoning
+    phrases must not be followed. It intentionally stays deterministic and
+    lexical so it can be composed with math/code verifiers in early training.
+    """
+
+    def __init__(
+        self,
+        required_terms: tuple[str, ...] = (),
+        forbidden_terms: tuple[str, ...] = (),
+    ) -> None:
+        self.required_terms = tuple(term.lower() for term in required_terms if term)
+        self.forbidden_terms = tuple(term.lower() for term in forbidden_terms if term)
+
+    def __call__(self, prompt: str, completion: str, ground_truth: str) -> float:
+        text = completion.lower()
+        if any(term in text for term in self.forbidden_terms):
+            return 0.0
+
+        required = self.required_terms
+        if not required:
+            expected = ground_truth.lower().strip()
+            return 1.0 if expected and expected in text else 0.0
+
+        hits = sum(1 for term in required if term in text)
+        score = hits / len(required)
+        expected = ground_truth.lower().strip()
+        if expected and expected in text:
+            score = min(1.0, score + 0.25)
+        return float(score)
+
+
 def sample_completions(
     model: nn.Module,
     input_ids: Tensor,

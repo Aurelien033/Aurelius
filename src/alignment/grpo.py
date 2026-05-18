@@ -29,6 +29,9 @@ class GRPOConfig:
     kl_coef: float = 0.1  # Additional KL regularization coefficient
     max_new_tokens: int = 64  # Maximum tokens to generate per completion
     temperature: float = 1.0  # Sampling temperature
+    advantage_mode: str = "group"  # "group" | "centered" | "leave_one_out"
+    advantage_clip: float | None = None  # Optional symmetric advantage clamp
+    ratio_cap: float | None = None  # Optional hard cap on importance ratios
 
 
 def sample_completions(
@@ -62,21 +65,45 @@ def sample_completions(
     return completions
 
 
-def group_relative_advantages(rewards: torch.Tensor) -> torch.Tensor:
-    """Normalize rewards within a group to produce advantages.
+def group_relative_advantages(
+    rewards: torch.Tensor,
+    *,
+    mode: str = "group",
+    clip_range: float | None = None,
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """Produce GRPO advantages from rollout rewards.
 
-    Args:
-        rewards: (N,) — scalar reward for each rollout in the group.
-
-    Returns:
-        (N,) — normalized advantages: (r - mean) / (std + 1e-8).
-        Returns zeros when all rewards are identical (std == 0).
+    ``mode='group'`` preserves the original DeepSeek-style within-group
+    z-score. ``mode='centered'`` subtracts only the group mean, and
+    ``mode='leave_one_out'`` uses an RLOO baseline where each rollout is
+    compared against the mean reward of the other rollouts. ``clip_range`` is a
+    symmetric post-normalization clamp used to damp high-variance verifier
+    outliers before the policy loss.
     """
     if rewards.numel() <= 1:
-        return torch.zeros_like(rewards)
-    mean = rewards.mean()
-    std = rewards.std()
-    return (rewards - mean) / (std + 1e-8)
+        advantages = torch.zeros_like(rewards)
+    elif mode == "group":
+        mean = rewards.mean()
+        std = rewards.std()
+        advantages = (rewards - mean) / (std + eps)
+    elif mode == "centered":
+        advantages = rewards - rewards.mean()
+    elif mode in {"leave_one_out", "rloo"}:
+        total = rewards.sum()
+        baseline = (total - rewards) / (rewards.numel() - 1)
+        advantages = rewards - baseline
+    else:
+        raise ValueError(
+            f"unknown advantage mode {mode!r}; expected 'group', 'centered', or 'leave_one_out'"
+        )
+
+    if clip_range is not None:
+        bound = float(clip_range)
+        if bound <= 0:
+            raise ValueError(f"clip_range must be positive when provided, got {clip_range!r}")
+        advantages = torch.clamp(advantages, min=-bound, max=bound)
+    return advantages
 
 
 def grpo_policy_loss(
@@ -84,6 +111,7 @@ def grpo_policy_loss(
     log_probs_old: torch.Tensor,
     advantages: torch.Tensor,
     clip_ratio: float = 0.2,
+    ratio_cap: float | None = None,
 ) -> torch.Tensor:
     """Clipped policy gradient loss (GRPO/PPO style).
 
@@ -92,11 +120,19 @@ def grpo_policy_loss(
         log_probs_old: (N,) — log probs under the old/reference policy (detached).
         advantages: (N,) — group-normalized advantages.
         clip_ratio: PPO clipping epsilon (ε). Ratio is clipped to [1-ε, 1+ε].
+        ratio_cap: Optional hard cap on the importance ratio before PPO clipping.
+            This is useful for verifier-heavy GRPO batches where one extreme
+            sample can otherwise dominate the update.
 
     Returns:
         Scalar loss (negative clipped objective, to minimize).
     """
     ratio = torch.exp(log_probs_new - log_probs_old)
+    if ratio_cap is not None:
+        cap = float(ratio_cap)
+        if cap <= 0:
+            raise ValueError(f"ratio_cap must be positive when provided, got {ratio_cap!r}")
+        ratio = torch.clamp(ratio, max=cap)
     clipped = torch.clamp(ratio, 1.0 - clip_ratio, 1.0 + clip_ratio)
     loss = -torch.min(ratio * advantages, clipped * advantages).mean()
     return loss
@@ -181,7 +217,11 @@ class GRPOTrainer:
         rewards = torch.tensor([float(self.reward_fn(c)) for c in completions], dtype=torch.float32)
 
         # --- Compute group-relative advantages ---------------------------------
-        advantages = group_relative_advantages(rewards)
+        advantages = group_relative_advantages(
+            rewards,
+            mode=cfg.advantage_mode,
+            clip_range=cfg.advantage_clip,
+        )
 
         # --- Collect old log probs (detached, under reference policy) ------------
         old_log_probs_list = []
@@ -217,7 +257,13 @@ class GRPOTrainer:
         new_log_probs = torch.stack(new_log_probs_list)
 
         # --- Policy gradient loss ----------------------------------------------
-        loss = grpo_policy_loss(new_log_probs, old_log_probs, advantages, cfg.clip_ratio)
+        loss = grpo_policy_loss(
+            new_log_probs,
+            old_log_probs,
+            advantages,
+            cfg.clip_ratio,
+            ratio_cap=cfg.ratio_cap,
+        )
 
         # --- Optional KL regularization using beta from config -----------------
         if cfg.beta > 0 and self.ref_model is not None:
@@ -245,6 +291,9 @@ class GRPOTrainer:
             "loss": loss.item(),
             "mean_reward": rewards.mean().item(),
             "advantage_std": advantages.std().item() if advantages.numel() > 1 else 0.0,
+            "advantage_mode": cfg.advantage_mode,
+            "advantage_clip": cfg.advantage_clip,
+            "ratio_cap": cfg.ratio_cap,
         }
 
 
@@ -262,10 +311,7 @@ def compute_advantages(rewards: torch.Tensor, eps: float = 1e-8) -> torch.Tensor
     Returns:
         (N,) — group-normalized advantages: (r - mean) / (std + eps).
     """
-    if rewards.numel() <= 1:
-        return torch.zeros_like(rewards)
-    std = rewards.std()
-    return (rewards - rewards.mean()) / (std + eps)
+    return group_relative_advantages(rewards, eps=eps)
 
 
 def grpo_loss(
@@ -285,7 +331,4 @@ def grpo_loss(
     Returns:
         Scalar loss (to minimize).
     """
-    ratio = torch.exp(log_probs_new - log_probs_old)
-    clipped = torch.clamp(ratio, 1 - clip_eps, 1 + clip_eps)
-    loss = -torch.min(ratio * advantages, clipped * advantages).mean()
-    return loss
+    return grpo_policy_loss(log_probs_new, log_probs_old, advantages, clip_ratio=clip_eps)

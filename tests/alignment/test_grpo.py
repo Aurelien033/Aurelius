@@ -72,6 +72,9 @@ def test_grpo_config_defaults():
     assert cfg.kl_coef == pytest.approx(0.1)
     assert cfg.max_new_tokens == 64
     assert cfg.temperature == pytest.approx(1.0)
+    assert cfg.advantage_mode == "group"
+    assert cfg.advantage_clip is None
+    assert cfg.ratio_cap is None
 
 
 def test_grpo_config_custom():
@@ -127,6 +130,22 @@ def test_group_relative_advantages_output_shape():
     rewards = torch.tensor([1.0, -1.0, 0.5, -0.5, 2.0])
     adv = group_relative_advantages(rewards)
     assert adv.shape == rewards.shape
+
+
+def test_group_relative_advantages_leave_one_out_mode():
+    """RLOO mode uses each other rollout as the baseline for that sample."""
+    rewards = torch.tensor([1.0, 2.0, 5.0])
+    adv = group_relative_advantages(rewards, mode="leave_one_out")
+    expected = torch.tensor([-2.5, -1.0, 3.5])
+    assert torch.allclose(adv, expected, atol=1e-6)
+
+
+def test_group_relative_advantages_clip_range_limits_outliers():
+    """Optional clipping bounds high-variance reward outliers for stable GRPO."""
+    rewards = torch.tensor([0.0, 0.0, 100.0])
+    adv = group_relative_advantages(rewards, clip_range=0.5)
+    assert adv.max().item() <= 0.5
+    assert adv.min().item() >= -0.5
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +213,21 @@ def test_grpo_policy_loss_returns_scalar():
     loss = grpo_policy_loss(log_probs_new, log_probs_old, advantages)
     assert loss.ndim == 0
     assert torch.isfinite(loss)
+
+
+def test_grpo_policy_loss_ratio_cap_limits_extreme_importance_weight():
+    """Optional CISPO-style ratio cap prevents one rollout from dominating."""
+    log_probs_old = torch.tensor([-10.0])
+    log_probs_new = torch.tensor([0.0])
+    advantages = torch.tensor([1.0])
+    loss = grpo_policy_loss(
+        log_probs_new,
+        log_probs_old,
+        advantages,
+        clip_ratio=10.0,
+        ratio_cap=2.0,
+    )
+    assert loss.item() == pytest.approx(-2.0, abs=1e-6)
 
 
 # ---------------------------------------------------------------------------
@@ -290,12 +324,14 @@ def test_train_step_returns_dict(trainer_and_prompt):
 
 
 def test_train_step_has_required_keys(trainer_and_prompt):
-    """train_step dict must contain 'loss', 'mean_reward', 'advantage_std'."""
+    """train_step dict must contain core telemetry keys."""
     trainer, prompt_ids = trainer_and_prompt
     result = trainer.train_step(prompt_ids)
     assert "loss" in result
     assert "mean_reward" in result
     assert "advantage_std" in result
+    assert "advantage_mode" in result
+    assert "ratio_cap" in result
 
 
 def test_train_step_loss_finite(trainer_and_prompt):

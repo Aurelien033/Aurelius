@@ -47,6 +47,26 @@ def test_contradiction_builder_requires_quarantine():
     assert "0.0.0.0" in example.prompt
 
 
+def test_tool_trace_builder_requires_verified_tool_artifact():
+    bench = AMCMemoryBenchmark()
+    example = bench.build_tool_trace_grounding(context_tokens=128, seed=4)
+
+    assert example.task == "tool_trace_grounding"
+    assert example.expected in example.prompt
+    assert "tool trace" in example.prompt.lower()
+    assert example.metadata["verified_tool"] in example.prompt
+
+
+def test_memory_poisoning_builder_prefers_verified_memory():
+    bench = AMCMemoryBenchmark()
+    example = bench.build_memory_poisoning_resistance(context_tokens=128, seed=5)
+
+    assert example.task == "memory_poisoning_resistance"
+    assert example.expected == "verified"
+    assert "untrusted" in example.prompt.lower()
+    assert "verified" in example.prompt.lower()
+
+
 def test_builders_are_deterministic_by_seed():
     bench = AMCMemoryBenchmark()
     first = bench.build_cross_session_recall(context_tokens=128, seed=42)

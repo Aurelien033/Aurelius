@@ -103,6 +103,28 @@ def test_refcount_protects_from_eviction() -> None:
     assert length_c == 16
 
 
+def test_memory_priority_protects_amc_prefix_over_plain_lru() -> None:
+    cache = PrefixCache(max_entries=2, min_prefix_tokens=MIN_PREFIX, block_size=BLOCK)
+    cache.insert(_tokens(16, seed=33), kv_ref="memory", memory_priority=1.0)
+    cache.insert(_tokens(16, seed=34), kv_ref="plain", memory_priority=0.0)
+
+    # Touch the plain entry so vanilla LRU would evict the memory entry.
+    length_plain, _ = cache.find_longest_prefix(_tokens(16, seed=34))
+    assert length_plain == 16
+
+    cache.insert(_tokens(16, seed=35), kv_ref="new", memory_priority=0.0)
+
+    length_memory, memory_entry = cache.find_longest_prefix(_tokens(16, seed=33))
+    length_plain, _ = cache.find_longest_prefix(_tokens(16, seed=34))
+    length_new, _ = cache.find_longest_prefix(_tokens(16, seed=35))
+    assert length_memory == 16
+    assert memory_entry is not None
+    assert memory_entry.memory_priority == 1.0
+    assert length_plain == 0
+    assert length_new == 16
+    assert cache.stats()["memory_protected_entries"] == 1
+
+
 def test_stats_counts_correct() -> None:
     cache = PrefixCache(max_entries=4, min_prefix_tokens=MIN_PREFIX, block_size=BLOCK)
     cache.insert(_tokens(16, seed=40), kv_ref="A")
