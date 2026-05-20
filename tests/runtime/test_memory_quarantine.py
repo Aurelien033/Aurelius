@@ -9,7 +9,10 @@ from src.safety.admission_controller import AdmissionAction
 def test_memory_quarantine_report_splits_trusted_and_quarantined_candidates():
     report = build_memory_quarantine_report(
         [
-            {"content": "MEMORY[canonical_architecture] = AMC-first focused build", "source": "review"},
+            {
+                "content": "MEMORY[canonical_architecture] = AMC-first focused build",
+                "source": "review",
+            },
             {"content": "MEMORY[alignment_scope] = SFT only", "source": "untrusted_tool"},
         ],
         existing_memories=[

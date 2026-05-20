@@ -66,6 +66,7 @@ db = [
 ]
 dev = [
     "pytest>=9.0.3",
+    "pytest-asyncio>=0.24.0",
     "pytest-cov>=5.0.0",
     "ruff>=0.15.12",
     "requests>=2.32.0",
@@ -169,6 +170,8 @@ ignore = ["S105", "S110", "S311"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = ["--tb=short", "-q"]
+asyncio_mode = "auto"
 markers = [
     "slow: marks tests as slow (deselect with '-m not slow')",
+    "integration: marks integration tests",
 ]

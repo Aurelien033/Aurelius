@@ -8,7 +8,9 @@ to write into episodic memory and retrieve a compact prompt context later.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import blake2b
 
+from .amc_runtime_cache import AMCMemoryBlock, TrustState
 from .episodic_memory import EpisodicMemory, MemoryEntry
 
 
@@ -186,6 +188,71 @@ class AMCTier2Hook:
             "average_retrieved_per_call": average_retrieved,
             "retrieval_hit_rate": retrieval_hit_rate,
         }
+
+
+    def build_runtime_blocks(
+        self,
+        entries: list[MemoryEntry],
+        *,
+        policy_version: str = "v0",
+        trust_override: TrustState | None = None,
+        tier: int = 2,
+    ) -> list[AMCMemoryBlock]:
+        """Convert *entries* to AMCMemoryBlock objects usable by AMCPrefixCompiler.
+
+        Deliberately conservative defaults — MemoryEntry has no explicit trust
+        annotation so blocks default to ``TrustState.UNVERIFIED`` unless the
+        caller passes *trust_override*.  This means nothing is silently promoted
+        to a privileged cache segment.
+
+        Provenance is derived from ``role`` and ``session_id`` when present.
+
+        Args:
+            entries: MemoryEntry list from ``retrieve()`` or ``episodic`` .
+            policy_version: Passed through to the cache key.
+            trust_override: If provided, overrides the default UNVERIFIED trust
+                for every block.  Callers that hold explicit admission/trust
+                attestations may set this to TrustState.VERIFIED.
+            tier: AMC tier to stamp on every block (default 2).
+
+        Returns:
+            list[AMCMemoryBlock] in the same order as *entries*.
+        """
+        blocks: list[AMCMemoryBlock] = []
+        default_trust = trust_override if trust_override is not None else TrustState.UNVERIFIED
+        for entry in entries:
+            provenance_parts: list[str] = []
+            if entry.role:
+                provenance_parts.append(entry.role)
+            if entry.session_id:
+                provenance_parts.append(f"session:{entry.session_id[:8]}")
+            provenance = "|".join(provenance_parts) if provenance_parts else "tier2:unknown"
+
+            # Content hash — deterministic content identity over blake2b-16.
+            content_hash = blake2b(entry.content.encode("utf-8"), digest_size=16).hexdigest()  # 32-char hex
+
+            # Derive a pseudo token-id sequence from the content hash
+            # so every unique content maps to a unique-but-deterministic token tuple.
+            token_hash = blake2b(entry.content.encode("utf-8"), digest_size=8).digest()  # 8 bytes
+            token_ids = tuple(token_hash)  # 8 ints in [0,255]
+
+            salience = max(0.0, min(1.0, entry.importance))
+            provenance_hash = blake2b(provenance.encode("utf-8"), digest_size=16).hexdigest()
+
+            block = AMCMemoryBlock(
+                block_id=entry.id,         # stable identifier from MemoryEntry
+                tokens=token_ids,
+                tier=tier,
+                trust_state=default_trust,
+                provenance=provenance,
+                salience=salience,
+                surprise_score=salience,   # reuse importance as initial surprise
+                quarantine_state="",
+                revocation_epoch=0,
+                metadata={"episodic_role": entry.role, "content_hash": content_hash[:12]},
+            )
+            blocks.append(block)
+        return blocks
 
 
 __all__ = ["AMCTier2AblationResult", "AMCTier2Config", "AMCTier2Hook"]

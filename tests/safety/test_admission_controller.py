@@ -76,7 +76,9 @@ def test_memory_candidate_key_value_conflict_is_quarantined() -> None:
     decision = controller.assess_memory_candidate(
         "MEMORY[alignment_scope] = SFT only",
         source="untrusted_tool",
-        existing_memories=["MEMORY[alignment_scope] = SFT DPO GRPO constitutional-memory quarantine"],
+        existing_memories=[
+            "MEMORY[alignment_scope] = SFT DPO GRPO constitutional-memory quarantine"
+        ],
     )
 
     assert decision.action == AdmissionAction.QUARANTINE
