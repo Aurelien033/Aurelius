@@ -24,12 +24,29 @@ __all__ = [
     "RetrievalResult",
     "MemoryRetriever",
     "MEMORY_RETRIEVER",
+    # AMC tiers
     "AMCTier2AblationResult",
     "AMCTier2Config",
     "AMCTier2Hook",
+    "AMCTier3Config",
+    "AMCTier3Hook",
+    "Tier3ConsolidationResult",
+    "DecayPolicy",
+    "Tier3Entry",
+    "Tier3Stats",
+    "TrustLevel",
 ]
 from .episodic_memory import EpisodicMemory, MemoryEntry
 from .amc_tier2 import AMCTier2AblationResult, AMCTier2Config, AMCTier2Hook
+from .amc_tier3 import (
+    AMCTier3Config,
+    AMCTier3Hook,
+    Tier3ConsolidationResult,
+    DecayPolicy,
+    Tier3Entry,
+    Tier3Stats,
+    TrustLevel,
+)
 from .memory_consolidation import (
     ConsolidationPolicy,
     ConsolidationResult,

@@ -98,6 +98,57 @@ def test_engine_generate_fn_wraps_serving_backend_request():
     assert request.system == "AMC benchmark system prompt"
 
 
+def test_engine_generate_fn_forwards_amc_tensor_api():
+    """AMC tensor API: adapter forwards amc dict verbatim to ChatRequest."""
+    captured = {}
+
+    def fake_build_engine(**kwargs):
+        captured["build_kwargs"] = kwargs
+
+        def fake_generate(request):
+            captured["request"] = request
+            return request.messages[-1]["content"]
+
+        return fake_generate, "fake-backend", object()
+
+    amc_config = {"episodic": True, "session_id": "test-s1", "consolidation_threshold": 0.7}
+    generate = build_engine_generate_fn(
+        backend="mock",
+        model_path="/tmp/aurelius-test-checkpoint",
+        amc=amc_config,
+        engine_builder=fake_build_engine,
+    )
+
+    generate("hello")
+    assert captured["request"].amc == amc_config
+    assert captured["request"].amc["episodic"] is True
+    assert captured["request"].amc["session_id"] == "test-s1"
+    assert captured["request"].amc["consolidation_threshold"] == 0.7
+
+
+def test_engine_generate_fn_amc_default_is_none():
+    """AMC tensor API: default is None when adapter is called without amc."""
+    captured = {}
+
+    def fake_build_engine(**kwargs):
+        captured["build_kwargs"] = kwargs
+
+        def fake_generate(request):
+            captured["request"] = request
+            return request.messages[-1]["content"]
+
+        return fake_generate, "fake-backend", object()
+
+    generate = build_engine_generate_fn(
+        backend="mock",
+        model_path="/tmp/aurelius-test-checkpoint",
+        engine_builder=fake_build_engine,
+    )
+
+    generate("hello")
+    assert captured["request"].amc is None
+
+
 def test_jsonl_persistence_appends_compact_records(tmp_path):
     output_path = tmp_path / "benchmark-results" / "amc_memory_runs.jsonl"
     first = {"suite": "amc_memory", "generator": "oracle", "overall_score": 1.0}
