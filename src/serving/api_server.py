@@ -54,6 +54,7 @@ class ChatRequest:
     max_tokens: int = 512
     stream: bool = False
     system: str | None = None
+    amc: dict | None = None
 
 
 @dataclass

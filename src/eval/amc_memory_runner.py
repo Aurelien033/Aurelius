@@ -107,6 +107,7 @@ def build_engine_generate_fn(
     max_tokens: int = 64,
     temperature: float = 0.0,
     system_prompt: str | None = None,
+    amc: dict | None = None,
     engine_builder: EngineBuilder | None = None,
 ) -> Callable[[str], str]:
     """Adapt a serving backend/checkpoint into ``generate_fn(prompt) -> str``.
@@ -133,6 +134,7 @@ def build_engine_generate_fn(
             temperature=temperature,
             max_tokens=max_tokens,
             system=system_prompt,
+            amc=amc,
         )
         return request_generate_fn(request)
 
