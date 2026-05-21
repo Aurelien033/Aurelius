@@ -223,7 +223,7 @@ class TrainConfig:
     model_n_kv_heads: int = 8
     model_head_dim: int = 128
     model_d_ff: int = 5632
-    model_vocab_size: int = 8_192
+    model_vocab_size: int = 128_000
     model_max_seq_len: int = 8192
     model_rope_theta: float = 500_000.0
     model_tie_embeddings: bool = True

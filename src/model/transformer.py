@@ -43,6 +43,26 @@ def _normalize_past_kv(cache: object) -> tuple[torch.Tensor, torch.Tensor] | dic
     return None
 
 
+def _apply_top_p_filter(logits: torch.Tensor, top_p: float) -> torch.Tensor:
+    """Mask logits outside the highest-probability nucleus.
+
+    Keeps tokens in descending probability order until the retained mass reaches
+    ``top_p``. At least one token is always available for sampling.
+    """
+    if top_p >= 1.0:
+        return logits
+    if not 0.0 < top_p <= 1.0:
+        raise ValueError("top_p must be in the interval (0, 1]")
+
+    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+    sorted_probs = sorted_logits.softmax(dim=-1)
+    cumulative_probs = sorted_probs.cumsum(dim=-1)
+    sorted_mask = cumulative_probs - sorted_probs >= top_p
+    sorted_mask[..., 0] = False
+    mask = torch.zeros_like(sorted_mask).scatter(1, sorted_indices, sorted_mask)
+    return logits.masked_fill(mask, float("-inf"))
+
+
 def _build_attention(config: AureliusConfig, layer_idx: int, n_layers: int) -> nn.Module:
     if config.mla_enabled:
         from .mla_wrapper import MLACompatibleAttention
@@ -137,7 +157,8 @@ class TransformerBlock(nn.Module):
                 x = ffn_result
                 aux_loss = x.new_zeros(())
             else:
-                x, aux_loss = self.ffn(self.ffn_norm(x))
+                ffn_out, aux_loss = self.ffn(self.ffn_norm(x))
+                x = x + ffn_out
         else:
             if self.use_mhc:
                 x = self.mhc_ffn(x, self.ffn)
