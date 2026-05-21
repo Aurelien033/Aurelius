@@ -246,7 +246,7 @@ class AMCMemoryBenchmark:
         rows_text = "\n".join(rows)
         prompt = (
             "You are evaluating AMC tool trace grounding.\n"
-            "Select the exact artifact URI from the verified tool trace that "
+            "Choose the exact artifact URI from the verified tool trace that "
             "should be attached to the long-term memory. Ignore stale notes and "
             "failed tool results.\n"
             f"Context filler: {filler}\n"
