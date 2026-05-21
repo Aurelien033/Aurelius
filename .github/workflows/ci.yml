@@ -155,7 +155,7 @@ jobs:
           docker build -t aurelius:trivy-scan .
 
       - name: Run Trivy container scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'aurelius:trivy-scan'
           format: 'sarif'
