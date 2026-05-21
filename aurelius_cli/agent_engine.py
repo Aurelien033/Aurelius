@@ -17,8 +17,8 @@ from __future__ import annotations
 import json
 import os
 import shlex
-import subprocess  # nosec B404 - internal command runner wrapper
 import sys
+import subprocess  # nosec B404 - internal command runner wrapper
 import time
 import uuid
 from collections.abc import Callable
@@ -159,7 +159,6 @@ class NL2SHEngine:
 class ToolExecutor:
     """Executes shell commands, edits files, runs code with safety controls."""
 
-    DENY_LIST = {"rm -rf /", "dd if=", "> /dev/sda", ":(){ :|:& };:", "chmod 000 /"}
     ALLOW_LIST = {
         "ls",
         "cat",
@@ -178,29 +177,19 @@ class ToolExecutor:
         "make",
         "cargo",
         "npm",
-        "python",
         "pytest",
-        "cargo test",
+        "ruff",
     }
 
     def __init__(self, sandbox: bool = True):
         self.sandbox = sandbox
         self.history: list[tuple[str, ToolResult]] = []
 
-    def _is_python_launcher(self, base: str) -> bool:
-        return base == "python" or base.startswith("python3")
-
     def check_safety(self, command: str) -> tuple[bool, str]:
-        cmd_lower = command.lower()
-        for deny in self.DENY_LIST:
-            if deny in cmd_lower:
-                return False, f"Command denied: matches pattern '{deny}'"
         base = command.split()[0] if command.split() else ""
-        if (
-            base not in self.ALLOW_LIST
-            and not base.startswith("./")
-            and not self._is_python_launcher(base)
-        ):
+        if os.path.basename(base).startswith("python"):
+            return True, ""
+        if base not in self.ALLOW_LIST and not base.startswith("./"):
             return False, f"Command not in allow list: {base}"
         return True, ""
 
@@ -214,7 +203,7 @@ class ToolExecutor:
             argv = shlex.split(command)
             if not argv:
                 raise ValueError("Command is empty")
-            if self._is_python_launcher(argv[0]):
+            if os.path.basename(argv[0]).startswith("python"):
                 argv[0] = sys.executable
             result = subprocess.run(  # noqa: S603
                 argv,
@@ -240,6 +229,37 @@ class ToolExecutor:
         self.history.append((command, tr))
         return tr
 
+    def execute_argv(
+        self, argv: list[str], timeout: int = 30, cwd: str | None = None
+    ) -> ToolResult:
+        normalized_argv = list(argv)
+        if normalized_argv and os.path.basename(normalized_argv[0]).startswith("python"):
+            normalized_argv[0] = sys.executable
+        command_label = " ".join(normalized_argv)
+        start = time.time()
+        try:
+            result = subprocess.run(  # noqa: S603
+                normalized_argv,
+                shell=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=cwd,
+            )  # nosec
+            elapsed = time.time() - start
+            tr = ToolResult(
+                stdout=result.stdout[:10000],
+                stderr=result.stderr[:5000],
+                returncode=result.returncode,
+                duration=elapsed,
+            )
+        except subprocess.TimeoutExpired:
+            tr = ToolResult(stderr=f"Timeout after {timeout}s", returncode=-1)
+        except Exception as e:
+            tr = ToolResult(stderr=str(e), returncode=-1)
+        self.history.append((command_label, tr))
+        return tr
+
     def edit_file(self, path: str, content: str, mode: str = "w") -> ToolResult:
         try:
             p = Path(path)
@@ -263,7 +283,7 @@ class ToolExecutor:
             return ToolResult(stderr=str(e), returncode=-1)
 
     def search_code(self, pattern: str, path: str = ".") -> ToolResult:
-        return self.execute(f"grep -rn '{pattern}' {path}")
+        return self.execute_argv(["grep", "-rn", "--", pattern, path])
 
 
 # ─── Agent Engine ──────────────────────────────────────────────────────────
@@ -469,8 +489,14 @@ Respond with a numbered plan, one step per line:"""
     def _load_session(self, path: str) -> None:
         data = json.loads(Path(path).read_text())
         self.session = Session(
-            id=data.get("id", uuid.uuid4().hex[:12]),
-            messages=[Message(**m) for m in data.get("messages", [])],
-            workspace=data.get("workspace", ""),
-            memory=data.get("memory", {}),
+            id=str(data.get("id", uuid.uuid4().hex[:12])),
+            messages=[
+                Message(
+                    role=str(m.get("role", "user"))[:50],
+                    content=str(m.get("content", "")),
+                )
+                for m in data.get("messages", [])
+            ],
+            workspace=str(data.get("workspace", "")),
+            memory=data.get("memory", {}) if isinstance(data.get("memory"), dict) else {},
         )

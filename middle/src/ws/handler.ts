@@ -18,18 +18,32 @@ const MAX_WS_MESSAGE_SIZE = 65536
 const WS_COMMANDS_REQUIRING_ADMIN = new Set(['command', 'agent:terminate', 'config:update'])
 
 export function setupWebSocket(server: Server): WebSocketServer {
-  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_WS_MESSAGE_SIZE })
+  const wss = new WebSocketServer({
+    server,
+    path: '/ws',
+    maxPayload: MAX_WS_MESSAGE_SIZE,
+    handleProtocols: (protocols: Set<string>) => {
+      for (const protocol of protocols) {
+        if (validateApiKey(protocol)) {
+          return protocol
+        }
+      }
+      return false
+    },
+  })
 
   wss.on('connection', (ws: AuthenticatedSocket, req) => {
+    const protocolKey = typeof ws.protocol === 'string' && ws.protocol ? ws.protocol : null
     const apiKey = req.headers['x-api-key'] || req.headers['authorization']
-    const key = typeof apiKey === 'string'
+    const key = protocolKey || (typeof apiKey === 'string'
       ? apiKey.replace(/^Bearer\s+/i, '').trim()
-      : null
-    if (!key || !validateApiKey(key)) {
+      : null)
+    const authUser = key ? validateApiKey(key) : null
+    if (!authUser) {
       ws.close(1008, 'Unauthorized')
       return
     }
-    ws.authUser = validateApiKey(key)
+    ws.authUser = authUser
 
     clients.add(ws)
 

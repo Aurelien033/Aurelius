@@ -15,12 +15,13 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 from pydantic import BaseModel
 
 from gateway.api_server import ChatRequest as EngineChatRequest
+from gateway.auth_middleware import AuthConfig, AuthMiddleware
 from gateway.engine_loader import build_engine, make_mock_generate_fn
 from gateway.metrics_middleware import METRICS
 from gateway.rate_limit import get_rate_limiter
@@ -50,6 +51,53 @@ SAFE_MAX_TOP_P = 1.0
 SAFE_MIN_TOP_P = 0.01
 SAFE_MAX_REP_PENALTY = 2.0
 SAFE_MIN_REP_PENALTY = 1.0
+PUBLIC_HTTP_PATHS = frozenset({"/health", "/health/ready"})
+
+
+def _load_auth_from_env() -> AuthMiddleware:
+    """Build fail-closed API authentication from env-configured keys."""
+    auth = AuthMiddleware(AuthConfig(keys={}, require_auth=True))
+    keys_env = os.environ.get("AURELIUS_API_KEYS", "")
+    if keys_env:
+        for key_def in keys_env.split(";"):
+            key_def = key_def.strip()
+            if not key_def:
+                continue
+            parts = key_def.split(":")
+            if len(parts) < 2:
+                continue
+            key_id, raw_key = parts[0], parts[1]
+            scopes = frozenset(parts[2].split(",")) if len(parts) > 2 and parts[2] else frozenset()
+            auth.add_key(key_id, raw_key, scopes)
+        return auth
+
+    single_key = os.environ.get("AURELIUS_API_KEY", "")
+    if single_key:
+        auth.add_key("default", single_key, frozenset())
+    return auth
+
+
+_auth_middleware = _load_auth_from_env()
+
+
+def _authenticate_headers(headers: dict[str, str]) -> bool:
+    return _auth_middleware.authenticate(headers).authenticated
+
+
+def _workspace_root() -> Path:
+    return Path(os.environ.get("AURELIUS_WORKSPACE_ROOT", os.getcwd())).expanduser().resolve()
+
+
+def _resolve_workspace_path(path: str) -> str:
+    root = _workspace_root()
+    requested = path.strip()
+    candidate = root if not requested else Path(requested).expanduser()
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    resolved = candidate.resolve(strict=False)
+    if resolved != root and root not in resolved.parents:
+        raise HTTPException(403, detail="workspace path must stay within AURELIUS_WORKSPACE_ROOT")
+    return str(resolved)
 
 
 def validate_chat_params(body: dict) -> None:
@@ -133,6 +181,19 @@ app.add_middleware(
 
 
 # ─── Security Hardening Middlewares ─────────────────────────────
+
+
+@app.middleware("http")
+async def require_api_auth(request: Request, call_next):
+    if request.method == "OPTIONS" or request.url.path in PUBLIC_HTTP_PATHS:
+        return await call_next(request)
+    if not _authenticate_headers(dict(request.headers)):
+        return PlainTextResponse(
+            "Unauthorized",
+            status_code=401,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -315,7 +376,7 @@ async def prometheus_metrics() -> PlainTextResponse:
 @app.post("/workspaces")
 async def create_workspace(req: WorkspaceRequest):
     wid = uuid.uuid4().hex[:8]
-    workspaces[wid] = req.path or os.getcwd()
+    workspaces[wid] = _resolve_workspace_path(req.path)
     return {"id": wid, "path": workspaces[wid]}
 
 
@@ -376,6 +437,9 @@ connected_clients: dict[str, WebSocket] = {}
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
+    if not _authenticate_headers(dict(ws.headers)):
+        await ws.close(code=1008)
+        return
     await ws.accept()
     client_id = uuid.uuid4().hex[:8]
     connected_clients[client_id] = ws

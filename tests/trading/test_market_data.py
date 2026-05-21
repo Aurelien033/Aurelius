@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 
 from src.trading.market_data import (
     MarketDataProvider,
@@ -14,7 +14,7 @@ from src.trading.market_data import (
 
 def _make_bar(close: float, timestamp: datetime | None = None) -> OHLCVData:
     return OHLCVData(
-        timestamp=timestamp or datetime.now(UTC),
+        timestamp=timestamp or datetime.now(timezone.utc),
         open=close - 1,
         high=close + 2,
         low=close - 2,
@@ -27,7 +27,7 @@ def _make_bar(close: float, timestamp: datetime | None = None) -> OHLCVData:
 class TestOHLCVData(unittest.TestCase):
     def test_spread(self):
         bar = OHLCVData(
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             open=100,
             high=110,
             low=90,
@@ -38,7 +38,7 @@ class TestOHLCVData(unittest.TestCase):
 
     def test_change(self):
         bar = OHLCVData(
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             open=100,
             high=110,
             low=90,
@@ -49,7 +49,7 @@ class TestOHLCVData(unittest.TestCase):
 
     def test_change_pct_positive(self):
         bar = OHLCVData(
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             open=100,
             high=110,
             low=90,
@@ -60,7 +60,7 @@ class TestOHLCVData(unittest.TestCase):
 
     def test_change_pct_zero_open(self):
         bar = OHLCVData(
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             open=0,
             high=10,
             low=0,

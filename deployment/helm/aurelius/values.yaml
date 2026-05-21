@@ -47,6 +47,7 @@ gateway:
   resources:
     requests: { cpu: "1", memory: "512Mi" }
     limits: { cpu: "2", memory: "1Gi" }
+  jwtSecret: ""  # Required when gateway.enabled=true; name of K8s Secret with jwt-secret key
 
 # --- Middle Layer (Node.js BFF) ---
 middle:

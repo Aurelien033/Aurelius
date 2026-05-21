@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import tempfile
-from datetime import UTC
+from datetime import timezone
 
 import pytest
 
@@ -70,7 +70,7 @@ def test_query_since_filter(pipe):
     from datetime import datetime
 
     pipe.log("u1", "old", {"v": 1})
-    cutoff = datetime.now(UTC).isoformat()
+    cutoff = datetime.now(timezone.utc).isoformat()
     pipe.log("u1", "new", {"v": 2})
 
     events = pipe.query("u1", since=cutoff)

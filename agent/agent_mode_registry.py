@@ -137,3 +137,63 @@ DEFAULT_MODE_REGISTRY.register(
 AGENT_MODE_REGISTRY: dict[str, AgentModeRegistry] = {
     "default": DEFAULT_MODE_REGISTRY,
 }
+
+
+# ── Convenience constants and helpers ───────────────────────────────────────
+
+def _register_builtins() -> None:
+    """Ensure the five production-ready modes are registered."""
+    pass  # already registered at module level
+
+
+def get_mode(mode_id: str) -> AgentMode:
+    """Return the mode identified by *mode_id*, falling back to ``CUSTOM_MODE``.
+
+    Unlike ``DEFAULT_MODE_REGISTRY.get`` this never raises.
+    """
+    if mode_id in DEFAULT_MODE_REGISTRY._modes:
+        return DEFAULT_MODE_REGISTRY.get(mode_id)
+    return CUSTOM_MODE
+
+
+def build_system_prompt(base_prompt: str, mode: AgentMode | str) -> str:
+    """Prepend *mode*'s ``system_prompt_prefix`` to *base_prompt*.
+
+    When the prefix is empty, *base_prompt* is returned unchanged.
+    """
+    if isinstance(mode, str):
+        mode = get_mode(mode)
+    parts = [p for p in (mode.system_prompt_prefix, base_prompt) if p]
+    return "\n\n".join(parts)
+
+
+def filter_tools(
+    tool_registry: dict[str, callable],
+    mode: AgentMode | str,
+) -> dict[str, callable]:
+    """Return *tool_registry* restricted to *mode*'s ``allowed_tools``.
+
+    If ``allowed_tools`` is empty (the convention for "all tools allowed"),
+    the full registry is returned unchanged.
+    """
+    if isinstance(mode, str):
+        mode = get_mode(mode)
+    if not mode.allowed_tools:
+        return tool_registry
+    allow = frozenset(mode.allowed_tools)
+    return {k: v for k, v in tool_registry.items() if k in allow}
+
+
+# --- Named-mode singletons (shallow copies from registry) -------------------
+# These are the same objects as in the registry, just accessible as module
+# constants for callers who don’t want to go through DEFAULT_MODE_REGISTRY.
+
+CODE_MODE: AgentMode = DEFAULT_MODE_REGISTRY.get("code")
+
+ARCHITECT_MODE: AgentMode = DEFAULT_MODE_REGISTRY.get("architect")
+
+ASK_MODE: AgentMode = DEFAULT_MODE_REGISTRY.get("ask")
+
+DEBUG_MODE: AgentMode = DEFAULT_MODE_REGISTRY.get("debug")
+
+CUSTOM_MODE: AgentMode = DEFAULT_MODE_REGISTRY.get("custom")

@@ -324,3 +324,90 @@ def test_max_entries_one():
     assert len(mem) == 1
     result = mem.retrieve_recent(1)
     assert result[0].id == e2.id
+
+
+
+# ---------------------------------------------------------------------------
+# session_id + step deduplication
+# ---------------------------------------------------------------------------
+
+
+def test_store_accepts_session_id() -> None:
+    mem = EpisodicMemory()
+    entry = mem.store("user", "hello", session_id="sess-1", step=5)
+    assert entry.session_id == "sess-1"
+    assert entry.step == 5
+
+
+def test_store_without_session_id_still_works() -> None:
+    mem = EpisodicMemory()
+    e1 = mem.store("user", "a")
+    e2 = mem.store("user", "a")
+    assert e1.id != e2.id  # no dedup without session_id
+
+
+def test_store_dedup_returns_existing_entry() -> None:
+    mem = EpisodicMemory()
+    e1 = mem.store("user", "hello", session_id="s1", step=0)
+    e2 = mem.store("user", "hello", session_id="s1", step=0)
+    assert e1 is e2  # same object returned
+    assert len(mem) == 1
+
+
+def test_store_dedup_different_step_allows_duplicate() -> None:
+    mem = EpisodicMemory()
+    e1 = mem.store("user", "hello", session_id="s1", step=0)
+    e2 = mem.store("user", "hello", session_id="s1", step=1)
+    assert e1 is not e2
+    assert len(mem) == 2
+
+
+def test_store_dedup_different_content_allows_duplicate() -> None:
+    mem = EpisodicMemory()
+    e1 = mem.store("user", "hello", session_id="s1", step=0)
+    e2 = mem.store("user", "world", session_id="s1", step=0)
+    assert e1 is not e2
+    assert len(mem) == 2
+
+
+def test_store_dedup_different_role_treats_as_different() -> None:
+    mem = EpisodicMemory()
+    e1 = mem.store("user", "hello", session_id="s1", step=0)
+    e2 = mem.store("assistant", "hello", session_id="s1", step=0)
+    assert e1 is not e2
+    assert len(mem) == 2
+
+
+def test_store_dedup_window_boundary() -> None:
+    window = 3
+    mem = EpisodicMemory(dedup_window=window)
+    for i in range(window + 2):
+        mem.store("user", f"step {i}", session_id="s1", step=i)
+    # Final step must be present (no prior match in window for a new step)
+    all_steps = [e.step for e in mem._entries]
+    assert window + 1 in all_steps
+    assert len(all_steps) == window + 2  # all distinct entries retained
+
+
+def test_store_dedup_disabled_when_window_zero() -> None:
+    mem = EpisodicMemory(dedup_window=0)
+    e1 = mem.store("user", "dup", session_id="s1", step=0)
+    e2 = mem.store("user", "dup", session_id="s1", step=0)
+    assert e1 is not e2
+
+
+def test_store_dedup_session_boundary() -> None:
+    mem = EpisodicMemory()
+    e1 = mem.store("user", "x", session_id="s1", step=0)
+    e2 = mem.store("user", "x", session_id="s2", step=0)  # different session — no dup
+    assert e1 is not e2
+    assert len(mem) == 2
+
+
+def test_store_retrieve_recent_with_session_data() -> None:
+    mem = EpisodicMemory()
+    mem.store("user", "a", session_id="s1", step=1)
+    mem.store("user", "b", session_id="s1", step=2)
+    recent = mem.retrieve_recent(2)
+    assert recent[0].step == 1
+    assert recent[1].step == 2

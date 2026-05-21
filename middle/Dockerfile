@@ -32,7 +32,8 @@ RUN npm run build -w middle
 FROM node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f
 WORKDIR /app
 
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat \
+    && addgroup -g 1001 -S nodejs && adduser -S appuser -u 1001 -G nodejs
 
 COPY --from=builder /app/node_modules ./node_modules
 RUN mkdir -p ./crates/data-engine
@@ -42,6 +43,9 @@ COPY --from=builder /app/crates/data-engine/index.d.ts ./crates/data-engine/inde
 COPY --from=builder /app/crates/data-engine/aurelius-data-engine.*.node ./crates/data-engine/
 COPY --from=builder /app/middle/dist ./dist
 COPY --from=builder /app/middle/package.json ./
+
+RUN chown -R appuser:nodejs /app
+USER appuser
 
 EXPOSE 3001
 

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 
 
 @dataclass
@@ -34,7 +34,7 @@ class UpgradeProposal:
     test_results: str = ""
     safety_verdict: str = ""
     deployed: bool = False
-    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -44,7 +44,7 @@ class MetricSnapshot:
     cost_per_request: float = 0.0
     user_satisfaction: float = 0.0
     error_rate: float = 0.0
-    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class SelfUpgradeSystem:

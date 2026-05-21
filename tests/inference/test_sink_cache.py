@@ -50,13 +50,16 @@ def test_kv_cache_nbytes_counts_key_and_value_tensors():
 
 
 def test_estimate_kv_cache_bytes_matches_tensor_layout():
-    assert estimate_kv_cache_bytes(
-        batch_size=1,
-        sequence_length=4,
-        num_heads=2,
-        head_dim=4,
-        dtype_bytes=4,
-    ) == 256
+    assert (
+        estimate_kv_cache_bytes(
+            batch_size=1,
+            sequence_length=4,
+            num_heads=2,
+            head_dim=4,
+            dtype_bytes=4,
+        )
+        == 256
+    )
 
 
 def test_cache_token_capacity_counts_whole_tokens():
@@ -110,6 +113,29 @@ def test_sink_cache_append_respects_byte_budget():
     assert cache.value_cache is not None
     assert cache.current_length() <= 3
     assert kv_cache_nbytes(cache.key_cache, cache.value_cache) <= per_token_bytes * 3
+
+
+def test_sink_cache_preserves_absolute_memory_tokens_after_compression():
+    first_key = torch.zeros(1, 1, 1)
+    first_value = torch.zeros(1, 1, 1)
+    per_token_bytes = kv_cache_nbytes(first_key.unsqueeze(1), first_value.unsqueeze(1))
+    cache = SinkCache(
+        sink_tokens=1,
+        window_size=8,
+        memory_token_indices=[5],
+        max_cache_bytes=per_token_bytes * 4,
+    )
+
+    for token_index in range(10):
+        token = torch.ones(1, 1, 1) * float(token_index)
+        cache.append(token, token)
+
+    assert cache.key_cache is not None
+    retained_values = [int(value) for value in cache.key_cache[0, :, 0, 0].tolist()]
+    assert 0 in retained_values
+    assert 5 in retained_values
+    assert cache.token_indices == retained_values
+    assert len(retained_values) <= 4
 
 
 def test_sink_cache_preserves_sink_positions():

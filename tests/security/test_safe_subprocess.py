@@ -308,3 +308,88 @@ def test_bare_command_rejected() -> None:
             timeout=2.0,
             allowed_executables={"/bin/ls"},
         )
+# ---------------------------------------------------------------------------
+# 17. env_override with LD_PRELOAD is rejected
+# ---------------------------------------------------------------------------
+
+
+def test_env_override_blocked_key_rejected() -> None:
+    with pytest.raises(UnsafeSubprocessError, match="LD_PRELOAD"):
+        run_safe(
+            [PY, "-c", "print(1)"],
+            timeout=2.0,
+            allowed_executables={PY},
+            env_override={"LD_PRELOAD": "/tmp/evil.so"},
+        )
+
+
+# ---------------------------------------------------------------------------
+# 18. env_allowlist containing a _BLOCKED_ENV_KEYS member is rejected
+# ---------------------------------------------------------------------------
+
+
+def test_env_allowlist_blocked_keys_are_rejected() -> None:
+    with pytest.raises(UnsafeSubprocessError, match="LD_PRELOAD"):
+        run_safe(
+            [PY, "-c", "print(1)"],
+            timeout=2.0,
+            allowed_executables={PY},
+            env_allowlist={"LD_PRELOAD"},
+        )
+    with pytest.raises(UnsafeSubprocessError, match="PYTHONPATH"):
+        run_safe(
+            [PY, "-c", "print(1)"],
+            timeout=2.0,
+            allowed_executables={PY},
+            env_allowlist={"PYTHONPATH"},
+        )
+
+
+# ---------------------------------------------------------------------------
+# 19. env_override PATH is no longer blocked (PATH is not a dynamic-linker risk)
+#
+
+#---------------------------------------------------------------------------
+
+
+def test_env_override_path_blocked() -> None:
+    # PATH is no longer in _BLOCKED_ENV_KEYS; override should succeed.
+    res = run_safe(
+        [PY, "-c", "print(1)"],
+        timeout=2.0,
+        allowed_executables={PY},
+        env_override={"PATH": "/fake/bin"},
+    )
+    assert res.returncode == 0
+
+
+# ---------------------------------------------------------------------------
+# 20. relative-path arg containing .. traversal is rejected
+# ---------------------------------------------------------------------------
+
+
+def test_path_traversal_in_argv_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An argv element containing '..' as a path component must be rejected."""
+    with pytest.raises(UnsafeSubprocessError, match="path traversal"):
+        run_safe(
+            [PY, "-c", "print(1)", "../etc/shadow"],
+            timeout=2.0,
+            allowed_executables={PY},
+        )
+
+
+# ---------------------------------------------------------------------------
+# 21. sub-result stdout/stderr are always str (not bytes, not None)
+# ---------------------------------------------------------------------------
+
+
+def test_safe_run_result_stdout_stderr_always_str() -> None:
+    res = run_safe(
+        [PY, "-c", "import sys; sys.stdout.write('o'); sys.stderr.write('e')"],
+        timeout=5.0,
+        allowed_executables={PY},
+    )
+    assert isinstance(res.stdout, str)
+    assert isinstance(res.stderr, str)
+    assert res.stdout == "o"
+    assert res.stderr == "e"

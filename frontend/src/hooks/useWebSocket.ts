@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
+import { useApiStore } from '../stores/apiStore'
 
 type MessageHandler = (data: unknown) => void
 
@@ -36,6 +37,7 @@ export function useWebSocket(opts: UseWebSocketOptions = {}): UseWebSocketReturn
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [connected, setConnected] = useState(false)
   const [lastMessage, setLastMessage] = useState<unknown>(null)
+  const apiKey = useApiStore((state) => state.apiKey)
   const onStatusChangeRef = useRef(onStatusChange)
   const connectRef = useRef<() => void>(() => {})
   useEffect(() => {
@@ -59,7 +61,8 @@ export function useWebSocket(opts: UseWebSocketOptions = {}): UseWebSocketReturn
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
     try {
-      const ws = new WebSocket(url)
+      if (!apiKey) return
+      const ws = new WebSocket(url, [apiKey])
       wsRef.current = ws
       ws.onopen = () => { updateConnected(true); reconnectCountRef.current = 0 }
       ws.onmessage = (event) => {
@@ -79,7 +82,7 @@ export function useWebSocket(opts: UseWebSocketOptions = {}): UseWebSocketReturn
     } catch {
       scheduleReconnect()
     }
-  }, [url, updateConnected, scheduleReconnect])
+  }, [url, apiKey, updateConnected, scheduleReconnect])
 
   useEffect(() => {
     connectRef.current = connect

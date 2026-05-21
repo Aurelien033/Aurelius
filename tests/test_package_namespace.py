@@ -146,3 +146,31 @@ def test_deep_serving_alias_identity():
 
     assert aurelius_mod is src_mod
     assert serving_mod is src_mod
+
+
+def test_src_agent_tool_call_parser_importable():
+    """P0-A regression: src.agent.tool_call_parser must be importable."""
+    import src.agent.tool_call_parser as src_tcp
+
+    # The shim must export every public name from the root module
+    import agent.tool_call_parser as root_tcp
+
+    for name in ["JSONToolCallParser", "ParsedToolCall", "ParseResult",
+                 "ToolCallParseError", "UnifiedToolCallParser", "XMLToolCallParser",
+                 "detect_format", "format_json", "format_xml", "parse_json", "parse_xml"]:
+        assert hasattr(src_tcp, name), f"src.tcp missing {name!r}"
+        assert getattr(src_tcp, name) is getattr(root_tcp, name), \
+            f"{name}: src and agent identity must match"
+
+
+def test_src_agent_react_loop_still_imports():
+    """P0-A: react_loop path (absolute import) must stay green after shim."""
+    import src.agent.react_loop  # must not raise
+
+
+def test_package_namespace_tool_call_parser_module_name():
+    """Objects from src.agent.tool_call_parser carry their canonical module name."""
+    from src.agent.tool_call_parser import UnifiedToolCallParser, parse_json
+
+    assert UnifiedToolCallParser.__module__ == "agent.tool_call_parser"
+    assert parse_json.__module__ == "agent.tool_call_parser"

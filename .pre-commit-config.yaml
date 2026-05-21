@@ -22,6 +22,21 @@ repos:
       - id: ruff-format
         types_or: [python, pyi]
 
+  - repo: https://github.com/zricethezav/gitleaks
+    rev: v8.24.0
+    hooks:
+      - id: gitleaks
+        args: [protect, --staged, -c, .gitleaks.toml]
+        pass_filenames: false
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.10
+    hooks:
+      - id: bandit
+        args: [-c, pyproject.toml]
+        additional_dependencies: ["bandit[toml]"]
+        files: ^(src|agent|aurelius_cli|gateway|acp_adapter|cron|plugins|tools|scripts)/
+
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.14.0
     hooks:

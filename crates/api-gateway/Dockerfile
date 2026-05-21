@@ -11,9 +11,11 @@ COPY src/ src/
 RUN cargo build --release
 
 FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata \
+    && addgroup -g 1001 -S gateway && adduser -S gateway -u 1001 -G gateway
 COPY --from=builder /app/target/release/aurelius-gateway /usr/local/bin/
 
+USER gateway
 EXPOSE 8080
 ENV GATEWAY_HOST=0.0.0.0
 ENV GATEWAY_PORT=8080

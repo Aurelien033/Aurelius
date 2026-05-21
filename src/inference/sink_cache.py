@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 
@@ -147,25 +147,49 @@ class SinkCache:
     max_cache_bytes: int | None = None
     key_cache: torch.Tensor | None = None
     value_cache: torch.Tensor | None = None
+    token_indices: list[int] = field(default_factory=list)
 
     def append(self, key: torch.Tensor, value: torch.Tensor) -> None:
-        """Append one timestep and compress to the sink-window view."""
+        """Append one timestep and compress to the sink-window view.
+
+        ``memory_token_indices`` are absolute token positions in the original
+        stream. The compressed tensors only contain a subset of that stream, so
+        this class keeps ``token_indices`` in lockstep with the cached tensors
+        and maps absolute memory positions back to current tensor offsets before
+        each compression pass.
+        """
         if key.dim() != 3 or value.dim() != 3:
             raise ValueError("key and value must be 3D")
+        next_token_index = self.token_indices[-1] + 1 if self.token_indices else 0
         if self.key_cache is None:
             self.key_cache = key.unsqueeze(1)
             self.value_cache = value.unsqueeze(1)
+            self.token_indices = [next_token_index]
         else:
             self.key_cache = torch.cat([self.key_cache, key.unsqueeze(1)], dim=1)
             self.value_cache = torch.cat([self.value_cache, value.unsqueeze(1)], dim=1)
-        self.key_cache, self.value_cache, _ = compress_kv_cache(
+            self.token_indices.append(next_token_index)
+
+        memory_positions = self._current_memory_positions()
+        self.key_cache, self.value_cache, selected_positions = compress_kv_cache(
             self.key_cache,
             self.value_cache,
             sink_tokens=self.sink_tokens,
             window_size=self.window_size,
-            memory_token_indices=self.memory_token_indices,
+            memory_token_indices=memory_positions,
             max_cache_bytes=self.max_cache_bytes,
         )
+        self.token_indices = [self.token_indices[index] for index in selected_positions]
+
+    def _current_memory_positions(self) -> list[int]:
+        if not self.memory_token_indices:
+            return []
+        memory_set = set(self.memory_token_indices)
+        return [
+            position
+            for position, token_index in enumerate(self.token_indices)
+            if token_index in memory_set
+        ]
 
     def current_length(self) -> int:
         return 0 if self.key_cache is None else self.key_cache.size(1)

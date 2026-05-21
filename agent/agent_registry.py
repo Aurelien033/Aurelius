@@ -257,6 +257,150 @@ MEMORY_AGENT_TYPE = AgentType(
     color="white",
 )
 
+
+
+# ---------------------------------------------------------------------------
+# Memory bridge contract — multi-batch write validation
+# ---------------------------------------------------------------------------
+
+class WriteShapeReport:
+    """Result of :meth:`AgentMemoryBridgeContract._verify_write_shape`."""
+
+    def __init__(
+        self,
+        valid: bool = True,
+        violations: list[str] | None = None,
+        total_items: int = 0,
+        valid_items: int = 0,
+    ) -> None:
+        self.valid = valid
+        self.violations: list[str] = violations if violations is not None else []
+        self.total_items = total_items
+        self.valid_items = valid_items
+
+    @property
+    def invalid_count(self) -> int:
+        return self.total_items - self.valid_items
+
+    def __bool__(self) -> bool:
+        return self.valid
+
+    def __repr__(self) -> str:
+        return (
+            f"WriteShapeReport(valid={self.valid}, "
+            f"valid_items={self.valid_items}/{self.total_items}, "
+            f"violations={self.violations!r})"
+        )
+
+
+_VALID_MEMORY_TYPES: frozenset[str] = frozenset(
+    {"observation", "decision", "reflection", "fact", "plan"}
+)
+
+
+class AgentMemoryBridgeContract:
+    """Validates that a memory-write batch conforms to the expected shape for
+    a given ``AgentType`` instance."""
+
+    @staticmethod
+    def _verify_write_shape(
+        batch: list[dict],
+        agent_type: AgentType | None = None,
+    ) -> WriteShapeReport:
+        """Validate *batch* (list of write-shape dicts) against the expected
+        memory-record shape and the optional *agent_type* contract.
+
+        Each dict in *batch* must be one of:
+            ``{"memory_type": str, "content": str, "importance": float, "tags": [...], "tool_name": str}``
+
+        Checks performed:
+            1. Every item is a ``dict`` with at minimum ``memory_type`` + ``content``.
+            2. ``memory_type`` is one of the five recognised types.
+            3. ``importance`` (when present) is within ``[0.0, 1.0]``.
+            4. If ``agent_type`` is provided, warn when ``tool_name`` references a
+               capability the agent type does not list.
+            5. ``tags`` (when present) is a list of strings.
+
+        Args:
+            batch: List of write-shape dicts from a MemoryWriter multi-batch call.
+            agent_type: Optional AgentType to cross-validate tool_name references.
+
+        Returns:
+            :class:`WriteShapeReport` — check ``report.valid`` and inspect
+            ``report.violations`` for details.
+        """
+        violations: list[str] = []
+        valid_count = 0
+        agent_cap_set: set[str] = (
+            set(agent_type.capabilities + agent_type.tools)
+            if agent_type is not None
+            else set()
+        )
+
+        for idx, item in enumerate(batch):
+            batch_ok = True
+            if not isinstance(item, dict):
+                violations.append(f"batch[{idx}]: not a dict: {type(item).__name__}")
+                batch_ok = False
+
+            if batch_ok:
+                missing = [k for k in ("memory_type", "content") if k not in item]
+                if missing:
+                    violations.append(f"batch[{idx}]: missing keys {missing}")
+                    batch_ok = False
+
+            if batch_ok:
+                mt = str(item["memory_type"])
+                if mt.lower() not in _VALID_MEMORY_TYPES:
+                    violations.append(
+                        f"batch[{idx}]: memory_type {mt!r} is unrecognised "
+                        f"(expected one of {sorted(_VALID_MEMORY_TYPES)})"
+                    )
+                    batch_ok = False
+
+            if batch_ok:
+                imp = item.get("importance")
+                if imp is not None:
+                    try:
+                        imp_f = float(imp)
+                        if not (0.0 <= imp_f <= 1.0):
+                            violations.append(
+                                f"batch[{idx}]: importance {imp_f!r} outside [0, 1]"
+                            )
+                            batch_ok = False
+                    except (TypeError, ValueError):
+                        violations.append(
+                            f"batch[{idx}]: importance {imp!r} is not numeric"
+                        )
+                        batch_ok = False
+
+            if batch_ok:
+                tags = item.get("tags")
+                if tags is not None:
+                    if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
+                        violations.append(f"batch[{idx}]: tags must be list[str]")
+                        batch_ok = False
+
+            if batch_ok and agent_type is not None:
+                tool_name = item.get("tool_name")
+                if tool_name and isinstance(tool_name, str) and tool_name not in agent_cap_set:
+                    violations.append(
+                        f"batch[{idx}]: tool_name {tool_name!r} not in "
+                        f"agent_type ({agent_type.agent_id}) capabilities or tools"
+                    )
+                    batch_ok = False
+
+            if batch_ok:
+                valid_count += 1
+
+        total = len(batch)
+        return WriteShapeReport(
+            valid=not violations,
+            violations=violations,
+            total_items=total,
+            valid_items=valid_count,
+        )
+
 # Registry of all agent types
 AGENT_REGISTRY: dict[str, AgentType] = {
     a.agent_id: a

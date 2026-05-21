@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC
+from datetime import timezone
 from pathlib import Path
 
 import pytest
@@ -114,7 +114,7 @@ def test_validator_rejects_invalid_source():
     object.__setattr__(bad, "sample_id", "abc")
     from datetime import datetime
 
-    object.__setattr__(bad, "timestamp", datetime.now(UTC))
+    object.__setattr__(bad, "timestamp", datetime.now(timezone.utc))
     object.__setattr__(bad, "notes", "")
     assert ProvenanceValidator().validate(bad) is False
 

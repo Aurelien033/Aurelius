@@ -28,7 +28,7 @@ describe('Scheduler endpoints', () => {
       body: {
         name: 'Test Task',
         cron: '5 * * * *',
-        command: 'echo "hello"',
+        command: 'status',
       },
     });
     expect(res.status).toBe(200);
@@ -67,7 +67,7 @@ describe('Scheduler endpoints', () => {
       body: {
         name: 'Task to Delete',
         cron: '10 * * * *',
-        command: 'echo "delete me"',
+        command: 'status',
       },
     });
     const created = await createRes.json();
@@ -96,7 +96,7 @@ describe('Scheduler endpoints', () => {
       body: {
         name: 'Task to Toggle',
         cron: '15 * * * *',
-        command: 'echo "toggle me"',
+        command: 'status',
       },
     });
     const created = await createRes.json();

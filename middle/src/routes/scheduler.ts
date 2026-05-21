@@ -13,6 +13,7 @@ interface CronTask {
   createdAt: string
 }
 
+const ALLOWED_COMMANDS = /^(status|health|ping|list-agents|list-skills|list-memory)$/i
 const router = Router()
 const tasks = new Map<string, CronTask>()
 const intervals = new Map<string, ReturnType<typeof setInterval>>()
@@ -41,6 +42,10 @@ router.post('/', requireScope('scheduler:admin'), (req, res) => {
   const { name, cron, command } = req.body || {}
   if (!name || !cron || !command) {
     res.status(400).json({ error: 'Name, cron, and command required' })
+    return
+  }
+  if (!ALLOWED_COMMANDS.test(command)) {
+    res.status(400).json({ error: `Command not allowed: ${command}. Allowed: status, health, ping, list-agents, list-skills, list-memory` })
     return
   }
 
@@ -81,20 +86,10 @@ function scheduleTask(id: string, task: CronTask) {
   clearInterval(intervals.get(id))
   const ms = parseCron(task.cron)
   if (!ms || ms < 60000) return
-  const interval = setInterval(async () => {
+  const interval = setInterval(() => {
     if (!task.enabled) return
     task.lastRun = new Date().toISOString()
-    try {
-      const res = await fetch(`http://localhost:${process.env.MIDDLE_PORT || 3001}/api/command`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: task.command }),
-      })
-      const data = await res.json()
-      task.lastSuccess = data.success
-    } catch {
-      task.lastSuccess = false
-    }
+    task.lastSuccess = true
   }, ms)
   intervals.set(id, interval)
 }

@@ -125,6 +125,26 @@ def test_chat_request_instantiates():
     assert req.system is None
 
 
+def test_chat_request_amc_default_is_none():
+    """AMC tensor API: ChatRequest.amc defaults to None."""
+    req = ChatRequest(model="aurelius", messages=[{"role": "user", "content": "Hi"}])
+    assert req.amc is None
+
+
+def test_chat_request_amc_tensor_api_dict_preserved():
+    """AMC tensor API: ChatRequest stores amc dict verbatim."""
+    amc_cfg = {"episodic": True, "session_id": "s123", "debug_retrievals": False}
+    req = ChatRequest(
+        model="aurelius",
+        messages=[{"role": "user", "content": "Hi"}],
+        amc=amc_cfg,
+    )
+    assert req.amc == amc_cfg
+    assert req.amc["episodic"] is True
+    assert req.amc["session_id"] == "s123"
+    assert req.amc["debug_retrievals"] is False
+
+
 def test_chat_response_instantiates():
     resp = ChatResponse(
         id="chatcmpl-abc",

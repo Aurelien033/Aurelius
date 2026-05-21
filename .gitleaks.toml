@@ -1,0 +1,14 @@
+title = "Aurelius Gitleaks Config"
+
+[allowlist]
+  description = "Allowlist for false positives"
+  paths = [
+    '''bandit-baseline.json''',
+    '''tests/''',
+    '''.github/workflows/''',
+  ]
+
+  regexes = [
+    # Example placeholder keys used in tests
+    '''test_key_placeholder''',
+  ]

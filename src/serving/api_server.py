@@ -54,6 +54,11 @@ class ChatRequest:
     max_tokens: int = 512
     stream: bool = False
     system: str | None = None
+    # AMC tensor API — optional per-request memory control options.
+    # Accepted keys (iana): episodic, long_term, session_id,
+    #   debug_retrievals, consolidation_threshold.
+    # Unknown keys are ignored by the serving path without breaking.
+    amc: dict | None = None
 
 
 @dataclass

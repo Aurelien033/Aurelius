@@ -1,66 +1,66 @@
 # Gap Ledger — Aurelius Integrations Loop v10
 
-## Completed Slices
+## Completed Slices (all sessions)
 
-### Slice 1: skills_registry.py
-- **Created**: `skills_registry.py` — 7 registry entries, contract wrapper, verify_contract
-- **Tests**: 4 new (test_skills_registry_*)
-- **Bugfix**: `skills.py:SkillRetriever` — missing `self.skill_dim` attribute
-- **Docs**: Updated AURELIUS_SKILL.md
+### Slice 1: react_loop memory integration (Current Session)
+- **AMC Tier 2**: `react_loop.py` — observe fires on every assistant turn; Tier 2 hook called
+- **AMC Tier 3**: Budget-exhaustion path promotes Tier 2 → LTM via `AMCTier3Hook.consolidate()`
+- **Safety gate**: `SafetyAdmissionController` runs pre-LLM call; blocks recorded on `AgentTrace`
+- **Counter fix**: `trace.tier2_calls` / `trace.tier2_writes` copied into success + budget paths
+- **Tests**: `tests/agent/test_react_loop_memory_integration.py` (10 tests, 10 pass)
+- **Tests**: `tests/agent/test_amc_safety_e2e.py` (8 tests, 8 pass)
 
-### Slice 2: agent_registry.py
-- **Created**: `agent_registry.py` — 12 registry entries, 6 contract wrappers
-- **Tests**: 10 new (test_agent_registry_*)
-- **Bugfix**: `agent_core.py:ValueHead` — handle 2D input in forward()
-- **Bugfix**: `agent_loop.py:write_to_memory` — handle batched (B, D) written tensor
-- **Bugfix**: `agent_loop.py:reflect` — handle multi-batch critic score with .mean()
-- **Docs**: Updated AURELIUS_SKILL.md
+### Slice 2: agent_mode_registry.refactor (Current Session)
+- **Convenience API**: `get_mode()`, `build_system_prompt()`, `filter_tools()`, `CODE/ARCHITECT/ASK/DEBUG/CUSTOM_MODE` constants
+- **Tests**: `tests/agent/test_agent_modes.py` (26 tests, 26 pass)
 
-### Slice 3: api_registry.py
-- **Created**: `api_registry.py` — 14 registry entries, 5 contract wrappers
-- **Tests**: 4 new (test_api_registry_*)
-- **Docs**: Updated AURELIUS_SKILL.md
+### Slice 3: src namespace port (Current Session)
+- **Output compressor**: `src/cli/output_compressor.py` — fully ported, stdlib-only
+- **Layered memory**: `src/memory/layered_memory.py` — fully ported, 5-layer TTL store
+- **Progressive search**: `src/memory/progressive_search.py` — fully ported, 3-layer search
+- **Tests**: `tests/cli/test_output_compressor.py` (21 tests, 21 pass)
+- **Tests**: `tests/memory/test_layered_memory.py` (26 tests, 26 pass)
+- **Tests**: `tests/memory/test_progressive_search.py` (34 tests, 34 pass)
+- **Bugfix**: `progressive_search.py` — `search()` return sliced `[:top_k]` (not all candidates)
 
-### Slice 4: tool_schema_registry.py
-- **Created**: `tool_schema_registry.py` — 13 registry entries, verify_imports()
-- **Tests**: 4 new (test_tool_schema_registry_*)
-- **Docs**: Updated AURELIUS_SKILL.md
+### Slice 4: legacy UTC cleanup (Current Session)
+- **5 files fixed**: `episodic_memory.py`, `red_team.py`, `harness.py`, `transcript_viewer.py`, `amc_tier3.py`
+- **Pattern**: `datetime.now(UTC)` → `datetime.now(timezone.utc)`
 
-## Bugs Fixed
-| Bug | File | Line | Fix |
-|-----|------|------|-----|
-| Missing self.skill_dim | skills.py | 43 | Added `self.skill_dim = skill_dim` |
-| ValueHead 2D crash | agent_core.py | 101 | Added `if h.dim() == 3: h = h[:, -1]` |
-| write_to_memory batch crash | agent_loop.py | 110 | Added `if written.dim() > 1: written = written[0]` |
-| reflect multi-batch crash | agent_loop.py | 63 | Changed `.item()` to `.mean().item()` |
+### Slice 5–9: Previous (from GAP_LEDGER history)
+- skills_registry, agent_registry, api_registry, tool_schema_registry slices
 
 ## Test Suite
-- **Before**: 110 tests
-- **After**: 132 tests (+22)
-- **Status**: 132/132 pass, 40 Python files syntax-OK
 
-## Remaining Gaps (Next Slices)
+| Scope | Tests | Status |
+|-------|------:|--------|
+| agent/ (incl. react_loop, memory, e2e) | 2952 | pass |
+| memory/ (incl. AMC, layered, progressive) | 278 | pass |
+| safety/ (incl. admission controller) | 170 | pass |
+| cli/ (output_compressor) | 21 | pass |
+| serving/ (server, auth, guardrails…) | 1000+ | pass |
+| **Total** | **4514** | **0 fail / 1 skip** |
 
-### High Priority
-1. `aurelius/serving/` or `src/serving/` — directories don't exist, referenced in Workstream A as `api_server.py` and `aurelius_api.py`. Need to define what the serving layer should be.
-2. `middle/src/routes/` — referenced but doesn't exist. No `chat.ts`, `registry.ts`, `brain.ts`, or `provider_router.ts`.
-3. No endpoint routing / HTTP API surface exists yet.
+## Remaining Gaps
 
-### Medium Priority
-4. `agent_registry.py` — could add `AgentMemoryBridgeContract._verify_write_shape` for multi-batch edge cases.
-5. `api_registry.py` — `TrainContract.verify_contract` depends on specific model configs; could add config validation for all 4 size variants.
+### Completed this session
+| Item | Status | Tests |
+|------|--------|------:|
+| `middle/src/routes/` (BFF stubs) | ✅ 25+ TS modules | 14 vitest |
+| `deployment/` (compose + Helm) | ✅ 5 compose + chart | infra |
+| `EpisodicMemory` dedup — session_id + step | ✅ store() dedup | +10 |
+| `AgentMemoryBridgeContract._verify_write_shape` | ✅ multi-batch validator | +30 |
 
-### Low Priority
-6. No Docker/compose file for serving.
-7. No CI workflow in `.github/`.
-8. Rust bridge (`rust_bridge.py`) — no tests exist for it.
-9. `brain_layer.py` — no tests.
+### Still open
+| Priority | Item | Effort |
+|-----------|------|--------:|
+| Low | `rust_bridge.py` tests | small |
+| Low | `brain_layer.py` tests | small–med |
 
 ## How to Continue
 ```
-1. Pick the next slice from "Remaining Gaps"
-2. Run `make test` for baseline
-3. Implement contract surface or fix
-4. Run `make test && make check`
-5. Update this ledger
+1. Pick next slice from "Remaining Gaps"
+2. Run `pytest tests/agent tests/memory tests/safety tests/cli tests/serving -x -q`
+3. Implement / port / fix
+4. Run subset suite again; update this ledger
 ```

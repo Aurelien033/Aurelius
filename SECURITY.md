@@ -9,9 +9,12 @@
   - `alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc`
 
 ## CI / CD Hardening
-- Added **Trivy** container‑image scanning in the CI workflow (`trivy-scan` job). The scan fails on any **HIGH** or **CRITICAL** findings.
+- Added **Trivy** container-image scanning in the CI workflow (`trivy-scan` job). The scan fails on any **HIGH** or **CRITICAL** findings.
+- Added **npm audit** in the CI workflow for Node.js layers; it now runs with `continue-on-error` to surface issues without breaking the run.
+- Added **Gitleaks** secret scanning in the CI workflow to catch committed secrets.
+- Added **Bandit** SAST scanning and **pip-audit** dependency vulnerability scanning in the CI workflow.
 - Concurrency groups with `cancel-in-progress` prevent duplicate pipeline runs.
-- npm audit steps already present for Node.js layers; they now run with `continue‑on‑error` to surface issues without breaking the run.
+- npm audit steps already present for Node.js layers; they now run with `continue-on-error` to surface issues without breaking the run.
 
 ## Helm Chart
 - Helm `values.yaml` still uses version tags for development, but a comment reminds to replace them with digests (e.g. `tag: "@sha256:<digest>"`) before production deployments.

@@ -20,6 +20,11 @@ class CORSPolicy:
             self.allowed_methods = ["GET", "POST"]
         if self.allowed_headers is None:
             self.allowed_headers = ["Content-Type", "Authorization"]
+        # Hardening: disallow credentials with wildcard origins per CORS spec.
+        if self.allow_credentials and ("*" in self.allowed_origins or not self.allowed_origins):
+            raise ValueError(
+                "allow_credentials=True is not permitted when allowed_origins is empty or contains '*'."
+            )
 
 
 @dataclass

@@ -22,7 +22,7 @@ def _get_fernet():
 class SimpleEncryptor:
     """Simple symmetric encryption for config secrets using Fernet-compatible AES."""
 
-    key: bytes | None = None
+    key: bytes | str | None = None
 
     def __post_init__(self) -> None:
         if self.key is None:
@@ -35,6 +35,7 @@ class SimpleEncryptor:
                     "print(Fernet.generate_key().decode())'"
                 )
             self.key = key.encode() if isinstance(key, str) else key
+        # From here self.key is guaranteed bytes | str (never None)
         Fernet = _get_fernet()
         try:
             Fernet(self.key)

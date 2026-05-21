@@ -22,7 +22,7 @@ export default function Login() {
         body: JSON.stringify({ apiKey: apiKey.trim() || 'demo' }),
       });
       if (!res.ok) throw new Error('Invalid credentials');
-      storeSetApiKey(apiKey.trim());
+      storeSetApiKey(apiKey.trim() || 'demo');
       navigate('/');
     } catch (e: any) { setError(e.message); }
     setLoading(false);

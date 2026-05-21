@@ -30,7 +30,11 @@ _cors_origins = (
     else []
 )
 app.add_middleware(
-    CORSMiddleware, allow_origins=_cors_origins, allow_methods=["*"], allow_headers=["*"]
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
+    allow_credentials=False,
 )
 
 # ─── Data Models ──────────────────────────────────────────

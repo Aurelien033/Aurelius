@@ -24,7 +24,7 @@ import tempfile
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from enum import Enum
 from typing import Any
 
@@ -73,7 +73,7 @@ class DevPlan:
     status: DevTaskStatus = DevTaskStatus.PENDING
     language: str = "python"
     project_type: str = "script"
-    created: datetime = field(default_factory=lambda: datetime.now(UTC))
+    created: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     completed: datetime | None = None
 
 
@@ -130,7 +130,7 @@ class DevSandbox:
 
         Returns: (stdout, stderr, returncode)
         """
-        self._history.append({"command": command, "timestamp": datetime.now(UTC).isoformat()})
+        self._history.append({"command": command, "timestamp": datetime.now(timezone.utc).isoformat()})
 
         if self.use_docker:
             cmd = ["docker", "exec", "-i", "ark-sandbox", "sh", "-c", command]
@@ -245,7 +245,7 @@ class AutoDevAgent:
 
         failed = [op for op in plan.operations if op.status == "blocked"]
         plan.status = DevTaskStatus.FAILED if failed else DevTaskStatus.COMPLETED
-        plan.completed = datetime.now(UTC)
+        plan.completed = datetime.now(timezone.utc)
         return plan
 
     def _default_plan(self, task: str) -> DevPlan:

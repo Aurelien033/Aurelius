@@ -18,6 +18,9 @@ RUN uv sync --no-dev
 # for local-only deployments (not recommended for production).
 ENV AURELIUS_AUTH_REQUIRED=true
 
+RUN useradd --create-home --uid 1000 --no-log-init appuser
+USER appuser
+
 EXPOSE 8080
 
 # Health check against the actual /health endpoint

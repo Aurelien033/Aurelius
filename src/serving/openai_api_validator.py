@@ -659,9 +659,14 @@ class OpenAIChatResponseValidator:
 # Public registry (additive hook for src/serving/__init__.py)
 # ---------------------------------------------------------------------------
 
+from .function_calling_api import FunctionCallValidator  # noqa: E402
+from .structured_output_decoder import StructuredOutputDecoder  # noqa: E402
+
 API_SHAPE_REGISTRY: dict[str, Any] = {
     "openai.chat.request": OpenAIChatRequestValidator,
     "openai.chat.response": OpenAIChatResponseValidator,
+    "function_calling.validator": FunctionCallValidator,
+    "structured_output.json_schema": StructuredOutputDecoder,
 }
 
 

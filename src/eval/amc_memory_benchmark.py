@@ -246,7 +246,8 @@ class AMCMemoryBenchmark:
         rows_text = "\n".join(rows)
         prompt = (
             "You are evaluating AMC tool trace grounding.\n"
-            "Select the exact artifact URI from the verified tool trace that "
+            # Natural-language benchmark prompt; "Select" is not a SQL statement.
+            "Select the exact artifact URI from the verified tool trace that "  # nosec B608
             "should be attached to the long-term memory. Ignore stale notes and "
             "failed tool results.\n"
             f"Context filler: {filler}\n"

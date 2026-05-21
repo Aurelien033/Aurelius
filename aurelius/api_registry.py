@@ -30,9 +30,13 @@ except ImportError:
     ALL_AGENTS = []
     AGENT_REGISTRY = {}
     AGENTS_BY_CATEGORY = {}
+    AGENT_CATEGORIES = []
+    agent_to_dict = lambda a: {}  # noqa: E731
     ALL_SKILLS = []
     SKILL_REGISTRY = {}
     SKILLS_BY_CATEGORY = {}
+    SKILL_CATEGORIES = []
+    skill_to_dict = lambda s: {}  # noqa: E731
 
 
 def get_registry_snapshot(category: str | None = None) -> dict[str, Any]:

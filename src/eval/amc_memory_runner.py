@@ -80,6 +80,13 @@ def _parse_tasks(raw: str | None) -> list[str] | None:
     return [part.strip() for part in raw.split(",") if part.strip()]
 
 
+def _parse_amc(raw: str | None) -> dict | None:
+    """Parse the ``--amc`` CLI argument (JSON object) into a plain dict."""
+    if raw is None or raw.strip() == "":
+        return None
+    return json.loads(raw)
+
+
 def _oracle_generate_fn(
     bench: AMCMemoryBenchmark,
     tasks: Sequence[str] | None,
@@ -107,6 +114,7 @@ def build_engine_generate_fn(
     max_tokens: int = 64,
     temperature: float = 0.0,
     system_prompt: str | None = None,
+    amc: dict | None = None,
     engine_builder: EngineBuilder | None = None,
 ) -> Callable[[str], str]:
     """Adapt a serving backend/checkpoint into ``generate_fn(prompt) -> str``.
@@ -115,6 +123,16 @@ def build_engine_generate_fn(
     serving backends talk to ``ChatRequest`` objects. This adapter is the narrow
     seam between those two surfaces, so real checkpoints can be evaluated
     without changing the deterministic benchmark core.
+
+    Parameters
+    ----------
+    amc:
+        Optional AMC control dict forwarded verbatim to ``ChatRequest.amc``.
+        Keys accepted by the serving path (all optional):
+          ``episodic`` (bool), ``long_term`` (bool),
+          ``session_id`` (str), ``debug_retrievals`` (bool),
+          ``consolidation_threshold`` (float [0,1]).
+        Unknown keys are ignored without error.
     """
     if engine_builder is None:
         from src.serving.engine_loader import build_engine as engine_builder
@@ -133,6 +151,7 @@ def build_engine_generate_fn(
             temperature=temperature,
             max_tokens=max_tokens,
             system=system_prompt,
+            amc=amc,
         )
         return request_generate_fn(request)
 
@@ -153,6 +172,7 @@ def run_benchmark(
     max_tokens: int = 64,
     temperature: float = 0.0,
     system_prompt: str | None = None,
+    amc: dict | None = None,
 ) -> dict[str, Any]:
     """Run AMC-Memory and return a JSON-serializable payload."""
     bench = AMCMemoryBenchmark()
@@ -181,6 +201,7 @@ def run_benchmark(
             max_tokens=max_tokens,
             temperature=temperature,
             system_prompt=system_prompt,
+            amc=amc,
         )
     else:
         raise ValueError(f"unknown generator {generator!r}; expected 'oracle', 'null', or 'engine'")
@@ -277,6 +298,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional system prompt for engine mode",
     )
+    parser.add_argument(
+        "--amc",
+        default=None,
+        help=(
+            "Optional AMC config as a JSON object, e.g. "
+            "{'episodic': true, 'session_id': 's1'}. "
+            "Forwarded verbatim to ChatRequest.amc."
+        ),
+    )
     parser.add_argument("--output", type=Path, default=None, help="Optional JSON output path")
     parser.add_argument(
         "--jsonl-output",
@@ -302,6 +332,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_tokens=args.max_tokens,
         temperature=args.temperature,
         system_prompt=args.system_prompt,
+        amc=_parse_amc(args.amc),
     )
     text = json.dumps(payload, indent=2, sort_keys=True)
     if args.output is not None:

@@ -12,7 +12,7 @@ services:
       AURELIUS_MODEL_PATH: /app/checkpoints/aurelius_1.3b
       AURELIUS_BACKEND: vllm
       TENSOR_PARALLEL_SIZE: "1"
-      CORS_ORIGINS: "*"
+      CORS_ORIGINS: "${CORS_ORIGINS:?CORS_ORIGINS must be set}"
       # Distributed rate limiting (optional):
       # AURELIUS_RATE_LIMIT_REDIS_URL: redis://redis:6379/0
       # AURELIUS_RATE_LIMIT_PREFIX: rl:
