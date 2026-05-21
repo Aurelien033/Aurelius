@@ -3,7 +3,6 @@
 These run with the standard import path, not spec_from_file_location,
 and must continue to pass as __init__.py evolves.
 """
-import pytest
 
 
 class TestAMCMemoryImports:
@@ -42,5 +41,6 @@ class TestAMCMemoryImports:
         via import cache ordering).
         """
         import src.memory as mem
+
         for name in ("AMCTier2Hook", "MEMORY_REGISTRY"):
             assert hasattr(mem, name), f"{name} missing from src.memory"

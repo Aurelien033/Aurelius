@@ -36,17 +36,17 @@ __all__ = [
     "Tier3Stats",
     "TrustLevel",
 ]
-from .episodic_memory import EpisodicMemory, MemoryEntry
 from .amc_tier2 import AMCTier2AblationResult, AMCTier2Config, AMCTier2Hook
 from .amc_tier3 import (
     AMCTier3Config,
     AMCTier3Hook,
-    Tier3ConsolidationResult,
     DecayPolicy,
+    Tier3ConsolidationResult,
     Tier3Entry,
     Tier3Stats,
     TrustLevel,
 )
+from .episodic_memory import EpisodicMemory, MemoryEntry
 from .memory_consolidation import (
     ConsolidationPolicy,
     ConsolidationResult,

@@ -83,9 +83,7 @@ def dpo_loss(
     rejected margin against the same margin under a frozen reference model.
     """
 
-    logits = (policy_chosen_logps - policy_rejected_logps) - (
-        ref_chosen_logps - ref_rejected_logps
-    )
+    logits = (policy_chosen_logps - policy_rejected_logps) - (ref_chosen_logps - ref_rejected_logps)
     loss = -F.logsigmoid(beta * logits).mean()
     return loss, {
         "preference_margin": logits.mean().item(),

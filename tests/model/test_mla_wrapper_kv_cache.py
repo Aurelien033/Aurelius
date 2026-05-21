@@ -10,7 +10,6 @@ Two bugs are known:
 
 from __future__ import annotations
 
-import pytest
 import torch
 
 from src.model.config import AureliusConfig
@@ -175,7 +174,7 @@ def test_mla_both_cache_modes_output_shape():
     x_chunk = torch.randn(B, T_PROMPT, D_MODEL)
 
     with torch.no_grad():
-        mla.absorb()           # absorbed mode — sets absorbed_qk AND absorbed=True
+        mla.absorb()  # absorbed mode — sets absorbed_qk AND absorbed=True
         out_abs, (c_abs, _ra) = mla(x_chunk, past_kv=(c_past, r_past))
 
     with torch.no_grad():

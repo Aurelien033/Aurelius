@@ -50,13 +50,16 @@ def test_kv_cache_nbytes_counts_key_and_value_tensors():
 
 
 def test_estimate_kv_cache_bytes_matches_tensor_layout():
-    assert estimate_kv_cache_bytes(
-        batch_size=1,
-        sequence_length=4,
-        num_heads=2,
-        head_dim=4,
-        dtype_bytes=4,
-    ) == 256
+    assert (
+        estimate_kv_cache_bytes(
+            batch_size=1,
+            sequence_length=4,
+            num_heads=2,
+            head_dim=4,
+            dtype_bytes=4,
+        )
+        == 256
+    )
 
 
 def test_cache_token_capacity_counts_whole_tokens():

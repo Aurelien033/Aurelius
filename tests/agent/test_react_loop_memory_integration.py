@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
+from agent.react_loop import ReActLoop
 from src.memory.amc_tier2 import AMCTier2Config, AMCTier2Hook
-from agent.react_loop import AgentStep, AgentTrace, ReActLoop
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -22,9 +19,9 @@ def _make_loop(
     max_tool_seconds: float = 2.0,
 ) -> ReActLoop:
     """Build a minimal ReActLoop backed by a deterministic generate_fn."""
+
     def generate_fn(messages: list[dict]) -> str:
-        last = messages[-1]["content"] if messages else ""
-        return '<final_answer>done</final_answer>'
+        return "<final_answer>done</final_answer>"
 
     return ReActLoop(
         generate_fn=generate_fn,
@@ -48,14 +45,16 @@ def _tool_generate_fn(
     calls: list = []  # recorder
 
     if responses is not None:
+
         def gen(messages):
             calls.append(messages)
             if responses:
                 return responses.pop(0)
             if final_answer:
                 return f"<final_answer>{final_answer}</final_answer>"
-            return ''
+            return ""
     else:
+
         def gen(messages):
             calls.append(messages)
             if final_answer:
@@ -104,7 +103,7 @@ class TestReActLoopWithMemory:
 
         step_outputs = [
             '{"name": "echo", "arguments": "hello"}',  # tool call
-            '<final_answer>echoed</final_answer>',      # done
+            "<final_answer>echoed</final_answer>",  # done
         ]
 
         def gen(messages):
@@ -131,9 +130,7 @@ class TestReActLoopWithMemory:
         system instruction.  When no admission controller is registered all
         recalled entries are trusted and pass through unchanged.
         """
-        hook = AMCTier2Hook(
-            AMCTier2Config(surprise_threshold=0.0, max_retrieved=2)
-        )
+        hook = AMCTier2Hook(AMCTier2Config(surprise_threshold=0.0, max_retrieved=2))
 
         captured_messages: list[dict] = []
 
@@ -155,11 +152,9 @@ class TestReActLoopWithMemory:
             for msg_list in captured_messages[1:]  # skip first call
             for m in msg_list
             if m.get("role") == "user"
-               and "[Tier-2 episodic memory recall]:" in m.get("content", "")
+            and "[Tier-2 episodic memory recall]:" in m.get("content", "")
         ]
-        assert recall_msgs, (
-            "No Tier-2 recall found in user-role messages in subsequent calls"
-        )
+        assert recall_msgs, "No Tier-2 recall found in user-role messages in subsequent calls"
         assert trace.status == "success"
         assert trace.steps_used == 2
 
@@ -181,14 +176,14 @@ class TestReActLoopWithMemory:
 
         step_outputs = [
             'use tool on "input"',
-            '<final_answer>ok</final_answer>',
+            "<final_answer>ok</final_answer>",
         ]
 
         def gen(messages):
             return step_outputs.pop(0) if step_outputs else ""
 
         loop._generate = gen
-        trace = loop.run("tool task")
+        loop.run("tool task")
 
         stored = hook.stats()["stored_events"]
         assert stored >= 1

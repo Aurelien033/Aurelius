@@ -9,7 +9,7 @@ import re
 import tarfile
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -284,7 +284,7 @@ class ArxivPipeline:
         state = self._load_state(base_dir)
         if arxiv_id not in state["processed_ids"]:
             state["processed_ids"].append(arxiv_id)
-        state["last_run"] = datetime.now(timezone.utc).isoformat()
+        state["last_run"] = datetime.now(UTC).isoformat()
         self._save_state(base_dir, state)
 
     def _is_processed(self, base_dir: Path, arxiv_id: str) -> bool:
@@ -765,7 +765,7 @@ class ArxivPipeline:
         processed.mkdir(parents=True, exist_ok=True)
 
         stats: dict[str, Any] = {
-            "start_time": datetime.now(timezone.utc).isoformat(),
+            "start_time": datetime.now(UTC).isoformat(),
             "downloaded": 0,
             "processed": 0,
             "tokenized": 0,
@@ -803,7 +803,7 @@ class ArxivPipeline:
                 logger.error("Instruction generation failed: %s", exc)
                 stats["errors"].append(f"instruction: {exc}")
 
-        stats["end_time"] = datetime.now(timezone.utc).isoformat()
+        stats["end_time"] = datetime.now(UTC).isoformat()
         stats["output_dir"] = str(out)
 
         # save run stats

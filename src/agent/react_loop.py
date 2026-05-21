@@ -40,10 +40,9 @@ from agent.tool_call_parser import (
     ToolCallParseError,
     UnifiedToolCallParser,
 )
-
-from src.runtime.memory_quarantine import MemoryCandidate, build_memory_quarantine_report
 from src.memory.amc_tier2 import AMCTier2Hook
 from src.memory.amc_tier3 import AMCTier3Hook, TrustLevel
+from src.runtime.memory_quarantine import MemoryCandidate, build_memory_quarantine_report
 from src.safety.admission_controller import (
     AdmissionAction,
     SafetyAdmissionController,
@@ -186,7 +185,7 @@ class ReActLoop:
         self._tier2_writes = 0
         self._tier3_hook = tier3_hook
         self._tier3_promotions = 0
-        self._safe_adm = safety_admission   # alias used by Tier-2 write gating below
+        self._safe_adm = safety_admission  # alias used by Tier-2 write gating below
 
     # ------------------------------------------------------------------
     # Public entry
@@ -226,7 +225,10 @@ class ReActLoop:
                     AgentStep(
                         role="assistant",
                         content="",
-                        error="safety_controller_error: admission controller raised an exception during pre-check",
+                        error=(
+                            "safety_controller_error: admission controller "
+                            "raised an exception during pre-check"
+                        ),
                     )
                 )
                 return trace
@@ -352,11 +354,9 @@ class ReActLoop:
                         )
                 # Now run the Tier 3 lifecycle sweep
                 try:
-                    result = self._tier3_hook.consolidate()
+                    self._tier3_hook.consolidate()
                 except Exception as exc:  # noqa: BLE001
-                    tier3_errors.append(
-                        f"tier3_consolidate_error:{type(exc).__name__}:{exc}"
-                    )
+                    tier3_errors.append(f"tier3_consolidate_error:{type(exc).__name__}:{exc}")
                 self._tier3_promotions = promoted
                 if tier3_errors:
                     if trace.steps:
@@ -366,7 +366,8 @@ class ReActLoop:
                     else:
                         trace.steps.append(
                             AgentStep(
-                                role="assistant", content="",
+                                role="assistant",
+                                content="",
                                 error="; ".join(tier3_errors),
                             )
                         )
@@ -377,9 +378,7 @@ class ReActLoop:
                     sep = " | " if existing else ""
                     trace.steps[-1].error = existing + sep + err_msg
                 else:
-                    trace.steps.append(
-                        AgentStep(role="assistant", content="", error=err_msg)
-                    )
+                    trace.steps.append(AgentStep(role="assistant", content="", error=err_msg))
         trace.tier3_promotions = self._tier3_promotions
         trace.status = "budget"
         return trace
@@ -404,9 +403,7 @@ class ReActLoop:
         messages: list[dict] = []
         # AMC Tier 2: inject episodic retrieval on steps > 0
         if self._tier2_hook is not None and step_idx > 0:
-            recalled = self._tier2_hook.retrieve(
-                task, limit=self._tier2_hook.config.max_retrieved
-            )
+            recalled = self._tier2_hook.retrieve(task, limit=self._tier2_hook.config.max_retrieved)
             if recalled:
                 candidates = [
                     MemoryCandidate(content=entry.content, source=f"tier2:{entry.role}")
@@ -417,8 +414,7 @@ class ReActLoop:
                     build_memory_quarantine_report(candidates, controller=ctrl)
                     if ctrl is not None
                     else {
-                        "trusted": [{"content": c.content, "source": c.source}
-                                     for c in candidates],
+                        "trusted": [{"content": c.content, "source": c.source} for c in candidates],
                         "quarantined": [],
                     }
                 )
@@ -538,20 +534,24 @@ class ReActLoop:
         if self._safe_adm is None:
             if self._tier2_hook is not None:
                 self._tier2_hook.observe(
-                    role, content,
+                    role,
+                    content,
                     surprise=0.5 if role == "assistant" else 0.7,
                 )
             return True
         decision = self._safe_adm.assess_memory_candidate(
-            content, source=f"react_loop:{role}",
+            content,
+            source=f"react_loop:{role}",
         )
         if not decision.allowed or decision.action in (
-            AdmissionAction.QUARANTINE, AdmissionAction.BLOCK,
+            AdmissionAction.QUARANTINE,
+            AdmissionAction.BLOCK,
         ):
             return False
         if self._tier2_hook is not None:
             self._tier2_hook.observe(
-                role, content,
+                role,
+                content,
                 surprise=0.5 if role == "assistant" else 0.7,
             )
         return True

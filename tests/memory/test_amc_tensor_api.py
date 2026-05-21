@@ -7,19 +7,20 @@ Only stdlib + pytest.
 
 from __future__ import annotations
 
+# ── Load amc_tensor_api directly (bypass memory/__init__.py which imports
+#    unified_orchestrator → relative-import beyond top-level-package error) ──
+import importlib.util
+import pathlib as _pl
+import sys as _sys
 from dataclasses import FrozenInstanceError
 from typing import Any
 
 import pytest
 
-# ── Load amc_tensor_api directly (bypass memory/__init__.py which imports
-#    unified_orchestrator → relative-import beyond top-level-package error) ──
-import importlib.util, pathlib as _pl
-
 _src = _pl.Path(__file__).resolve().parents[2] / "src"
-import sys as _sys
+
 _mod_name = "memory.amc_tensor_api"
-_mod_src   = _src / "memory" / "amc_tensor_api.py"
+_mod_src = _src / "memory" / "amc_tensor_api.py"
 _spec = importlib.util.spec_from_file_location(
     _mod_name,
     _mod_src,
@@ -27,26 +28,27 @@ _spec = importlib.util.spec_from_file_location(
 )
 assert _spec is not None and _spec.loader is not None, "could not build spec"
 _mod = importlib.util.module_from_spec(_spec)
-_sys.modules[_mod_name] = _mod   # register before exec so @dataclass can find it
+_sys.modules[_mod_name] = _mod  # register before exec so @dataclass can find it
 _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
 
-AdmissionAction            = _mod.AdmissionAction
-AMCBenchmarkConfig         = _mod.AMCBenchmarkConfig
-AMCMemoryModes             = _mod.AMCMemoryModes
-AMCBenchmarkResult         = _mod.AMCBenchmarkResult
-AMCLayerMemory             = _mod.AMCLayerMemory
-AMCMemoryController        = _mod.AMCMemoryController
-AMCMemoryConsolidate       = _mod.AMCMemoryConsolidate
-AMCMemoryRead              = _mod.AMCMemoryRead
-AMCMemoryWrite             = _mod.AMCMemoryWrite
-AMCTensorState             = _mod.AMCTensorState
-AMCWriteDecision           = _mod.AMCWriteDecision
-MemoryTier                 = _mod.MemoryTier
-build_benchmark_result     = _mod.build_benchmark_result
-score_ablation             = _mod.score_ablation
+AdmissionAction = _mod.AdmissionAction
+AMCBenchmarkConfig = _mod.AMCBenchmarkConfig
+AMCMemoryModes = _mod.AMCMemoryModes
+AMCBenchmarkResult = _mod.AMCBenchmarkResult
+AMCLayerMemory = _mod.AMCLayerMemory
+AMCMemoryController = _mod.AMCMemoryController
+AMCMemoryConsolidate = _mod.AMCMemoryConsolidate
+AMCMemoryRead = _mod.AMCMemoryRead
+AMCMemoryWrite = _mod.AMCMemoryWrite
+AMCTensorState = _mod.AMCTensorState
+AMCWriteDecision = _mod.AMCWriteDecision
+MemoryTier = _mod.MemoryTier
+build_benchmark_result = _mod.build_benchmark_result
+score_ablation = _mod.score_ablation
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
+
 
 def _stub_state(layer_index: int = 0, token_count: int = 4, **kw: Any) -> AMCTensorState:
     """Return an AMCTensorState with lightweight shape-tagged stub objects."""
@@ -63,6 +65,7 @@ def _stub_state(layer_index: int = 0, token_count: int = 4, **kw: Any) -> AMCTen
 # ─────────────────────────────────────────────────────────────────────────────
 # AMCTensorState
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestAMCTensorState:
     def test_is_frozen(self):
@@ -93,8 +96,11 @@ class TestAMCTensorState:
 
     def test_optional_fields(self):
         s = _stub_state(
-            layer_index=0, token_count=4,
-            dtype="float32", device_index=0, metadata={"step": 1},
+            layer_index=0,
+            token_count=4,
+            dtype="float32",
+            device_index=0,
+            metadata={"step": 1},
         )
         assert s.dtype == "float32"
         assert s.device_index == 0
@@ -104,6 +110,7 @@ class TestAMCTensorState:
 # ─────────────────────────────────────────────────────────────────────────────
 # Tier-1 result shapes (AMCReadResult / AMCWriteDecision)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestTier1Results:
     def test_write_decision_is_frozen(self):
@@ -160,6 +167,7 @@ class TestTier1Results:
 # Tier-2 / Tier-3 operation shapes
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestMemoryOpShapes:
     def test_memory_read_default_tier2(self):
         op = AMCMemoryRead(query="deployment region")
@@ -200,9 +208,7 @@ class TestMemoryOpShapes:
         assert op.max_entries is None
 
     def test_memory_consolidate_tier2_plus_tier3(self):
-        op = AMCMemoryConsolidate(
-            tiers=(MemoryTier.TIER_2, MemoryTier.TIER_3), max_entries=500
-        )
+        op = AMCMemoryConsolidate(tiers=(MemoryTier.TIER_2, MemoryTier.TIER_3), max_entries=500)
         assert op.tiers == (MemoryTier.TIER_2, MemoryTier.TIER_3)
         assert op.max_entries == 500
 
@@ -210,6 +216,7 @@ class TestMemoryOpShapes:
 # ─────────────────────────────────────────────────────────────────────────────
 # AMCLayerMemory protocol
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class _ConcreteLayerMemory:
     """Minimal concrete that satisfies the AMCLayerMemory protocol."""
@@ -223,29 +230,37 @@ class _ConcreteLayerMemory:
             raise IndexError("no state stored yet")
         return _mod.AMCReadResult(token_count=self._state.token_count, state=self._state)
 
-    def write(
-        self, state: AMCTensorState, *, step: int, surprise: float = 0.0
-    ) -> AMCWriteDecision:
+    def write(self, state: AMCTensorState, *, step: int, surprise: float = 0.0) -> AMCWriteDecision:
         self._state = state
-        action = (
-            AdmissionAction.QUARANTINE if surprise > 0.9 else AdmissionAction.ALLOW
-        )
+        action = AdmissionAction.QUARANTINE if surprise > 0.9 else AdmissionAction.ALLOW
         return AMCWriteDecision(admitted=True, action=action, surprise_score=surprise)
 
     def write_observation(
-        self, layer_index: int, step: int, content: str,
-        *, surprise: float, importance: float | None = None,
+        self,
+        layer_index: int,
+        step: int,
+        content: str,
+        *,
+        surprise: float,
+        importance: float | None = None,
     ) -> AMCWriteDecision:
         return AMCWriteDecision(admitted=True, surprise_score=surprise)
 
     def read_memory(
-        self, query: str, *, tier: MemoryTier = MemoryTier.TIER_2,
-        limit: int = 5, layer_index: int | None = None, step: int | None = None,
+        self,
+        query: str,
+        *,
+        tier: MemoryTier = MemoryTier.TIER_2,
+        limit: int = 5,
+        layer_index: int | None = None,
+        step: int | None = None,
     ) -> list[dict[str, Any]]:
         return [{"content": "stub", "source": "test", "trust_level": "trusted"}]
 
     def consolidate(
-        self, *, tiers: tuple[MemoryTier, ...] = (MemoryTier.TIER_3,),
+        self,
+        *,
+        tiers: tuple[MemoryTier, ...] = (MemoryTier.TIER_3,),
         max_entries: int | None = None,
     ) -> dict[str, Any]:
         return {"promoted": 0, "quarantined": 0, "expired_pruned": 0, "errors": []}
@@ -260,6 +275,7 @@ class _ConcreteLayerMemory:
 # ─────────────────────────────────────────────────────────────────────────────
 # AMCMemoryController protocol
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class _ConcreteMemoryController:
     """Minimal concrete that satisfies AMCMemoryController protocol."""
@@ -277,8 +293,13 @@ class _ConcreteMemoryController:
         return AMCWriteDecision(admitted=True, surprise_score=surprise)
 
     def write_observation(
-        self, layer_index: int, step: int, content: str,
-        *, surprise: float, importance: float | None = None,
+        self,
+        layer_index: int,
+        step: int,
+        content: str,
+        *,
+        surprise: float,
+        importance: float | None = None,
     ) -> AMCWriteDecision:
         return AMCWriteDecision(admitted=True, surprise_score=surprise)
 
@@ -286,7 +307,11 @@ class _ConcreteMemoryController:
         self._obs.clear()
 
     def observe(
-        self, role: str, content: str, *, surprise: float,
+        self,
+        role: str,
+        content: str,
+        *,
+        surprise: float,
         importance: float | None = None,
     ) -> Any | None:
         return {"role": role, "content": content, "surprise": surprise}
@@ -377,10 +402,12 @@ class TestAMCBenchmarkResult:
     def test_to_dict_serialisable(self):
         r = AMCBenchmarkResult(
             mode=AMCMemoryModes.TIER2_CONTEXT,
-            context_tokens=1024, samples_per=5,
+            context_tokens=1024,
+            samples_per=5,
             overall_score=0.85,
             per_task_scores={"t": 1.0},
-            results={}, elapsed_seconds=12.3,
+            results={},
+            elapsed_seconds=12.3,
         )
         d = r.to_dict()
         assert d["mode"] == "tier2_context"
@@ -391,15 +418,19 @@ class TestAMCBenchmarkResult:
         with pytest.raises(FrozenInstanceError):
             AMCBenchmarkResult(
                 mode=AMCMemoryModes.NO_MEMORY,
-                context_tokens=512, samples_per=1,
-                overall_score=0.0, per_task_scores={},
-                results={}, elapsed_seconds=0.0,
+                context_tokens=512,
+                samples_per=1,
+                overall_score=0.0,
+                per_task_scores={},
+                results={},
+                elapsed_seconds=0.0,
             ).overall_score = 1.0  # type: ignore[misc]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # score_ablation / build_benchmark_result
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestScoreAblation:
     def setup_method(self):
@@ -412,7 +443,8 @@ class TestScoreAblation:
         r = score_ablation(
             self.results,
             mode=AMCMemoryModes.TIER1_TIER2,
-            context_tokens=512, samples_per=3,
+            context_tokens=512,
+            samples_per=3,
         )
         assert isinstance(r, AMCBenchmarkResult)
         assert r.mode == AMCMemoryModes.TIER1_TIER2
@@ -422,7 +454,8 @@ class TestScoreAblation:
         r = score_ablation(
             self.results,
             mode=AMCMemoryModes.NO_MEMORY,
-            context_tokens=512, samples_per=1,
+            context_tokens=512,
+            samples_per=1,
             metadata={"run_id": "test"},
         )
         assert r.metadata["run_id"] == "test"
@@ -435,12 +468,16 @@ class TestBuildBenchmarkResult:
         r1 = score_ablation(
             {k: {"pass_rate": v, "n": 1, "cells": []} for k, v in scores.items()},
             mode=AMCMemoryModes.TIER2_CONTEXT,
-            context_tokens=512, samples_per=1,
+            context_tokens=512,
+            samples_per=1,
         )
         r2 = build_benchmark_result(
             mode=AMCMemoryModes.TIER2_CONTEXT,
-            context_tokens=512, samples_per=1,
-            scores=scores, overall_score=overall, elapsed_seconds=7.5,
+            context_tokens=512,
+            samples_per=1,
+            scores=scores,
+            overall_score=overall,
+            elapsed_seconds=7.5,
         )
         assert r1.overall_score == pytest.approx(r2.overall_score)
         assert r1.per_task_scores == r2.per_task_scores

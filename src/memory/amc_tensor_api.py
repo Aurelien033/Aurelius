@@ -23,16 +23,15 @@ JSON-serialisable payload.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, Protocol, runtime_checkable
-import time
 
+from src._compat import StrEnum
 
 # ── Enumerations ─────────────────────────────────────────────────────────────
 
-class MemoryTier(str, Enum):
+
+class MemoryTier(StrEnum):
     """AMC memory tier identifier."""
 
     TIER_1 = "tier_1"  # per-layer working memory (LM hidden states, KV latent)
@@ -40,7 +39,7 @@ class MemoryTier(str, Enum):
     TIER_3 = "tier_3"  # durable trusted/quarantined store
 
 
-class AdmissionAction(str, Enum):
+class AdmissionAction(StrEnum):
     """Outcome of an admission check (mirrors src.safety.AdmissionAction)."""
 
     ALLOW = "allow"
@@ -51,6 +50,7 @@ class AdmissionAction(str, Enum):
 
 
 # ── Frozen dataclasses ──────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class AMCTensorState:
@@ -87,7 +87,8 @@ class AMCTensorState:
 
     layer_index: int
     token_count: int
-    kvs: tuple[Any, ...]  # (compressed_k, compressed_v) — Any so torch-free consumers can wire stubs
+    # (compressed_k, compressed_v) — Any so torch-free consumers can wire stubs.
+    kvs: tuple[Any, ...]
     rms_norm_stats: tuple[Any, ...] | None = None
     dtype: Any | None = None
     device_index: int | None = None
@@ -103,6 +104,7 @@ class AMCTensorState:
 
 
 # ── Tier-1 results ───────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class AMCWriteDecision:
@@ -162,6 +164,7 @@ class AMCReadResult:
 
 
 # ── Tier-2 / Tier-3 operation shapes ─────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class AMCMemoryRead:
@@ -249,6 +252,7 @@ class AMCMemoryConsolidate:
 
 
 # ── Protocols ────────────────────────────────────────────────────────────────
+
 
 @runtime_checkable
 class AMCLayerMemory(Protocol):
@@ -540,18 +544,19 @@ class AMCMemoryController(Protocol):
 
 # ── Benchmark scaffold ────────────────────────────────────────────────────────
 
-class AMCMemoryModes(str, Enum):
+
+class AMCMemoryModes(StrEnum):
     """The five canonical ablation modes that the benchmark runner evaluates.
 
     The benchmark evaluator uses these as keys in its results dict and
     score table.
     """
 
-    NO_MEMORY = "no_memory"           # zero-shot, no retrieved context
-    TIER2_CONTEXT = "tier2_context"   # Tier-2 episodic context injected into prompt
-    TIER1_ONLY = "tier1_only"         # Tier-1 per-layer working memory; no prompt context
-    TIER1_TIER2 = "tier1_tier2"       # Tier-1 + Tier-2 combined
-    FULL = "full"                     # Tier-1 + Tier-2 + Tier-3 (full AMC pipeline)
+    NO_MEMORY = "no_memory"  # zero-shot, no retrieved context
+    TIER2_CONTEXT = "tier2_context"  # Tier-2 episodic context injected into prompt
+    TIER1_ONLY = "tier1_only"  # Tier-1 per-layer working memory; no prompt context
+    TIER1_TIER2 = "tier1_tier2"  # Tier-1 + Tier-2 combined
+    FULL = "full"  # Tier-1 + Tier-2 + Tier-3 (full AMC pipeline)
 
 
 @dataclass(frozen=True)
@@ -596,9 +601,9 @@ class AMCBenchmarkConfig:
         if self.samples_per <= 0:
             raise ValueError(f"samples_per must be > 0: {self.samples_per}")
         if not 0.0 <= self.tier2_surprise_threshold <= 1.0:
-            raise ValueError(f"tier2_surprise_threshold must be in [0,1]")
+            raise ValueError("tier2_surprise_threshold must be in [0,1]")
         if not 0.0 <= self.tier3_min_confidence <= 1.0:
-            raise ValueError(f"tier3_min_confidence must be in [0,1]")
+            raise ValueError("tier3_min_confidence must be in [0,1]")
 
 
 @dataclass(frozen=True)

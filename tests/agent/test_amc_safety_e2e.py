@@ -10,40 +10,41 @@ Covers:
 
 from __future__ import annotations
 
-import pytest
-
-from agent.react_loop import AgentStep, AgentTrace, ReActLoop
-from src.memory.amc_tier2 import AMCTier2Hook, AMCTier2Config
-from src.memory.amc_tier3 import AMCTier3Hook, AMCTier3Config
+from agent.react_loop import AgentStep, ReActLoop
+from src.memory.amc_tier2 import AMCTier2Config, AMCTier2Hook
+from src.memory.amc_tier3 import AMCTier3Config, AMCTier3Hook
 from src.safety.admission_controller import (
     AdmissionAction,
     SafetyAdmissionController,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _echo(x: str) -> str:
     return f"echoed: {x}"
 
 
 def _msgs(messages, responses, *, total=8):
-    """Return a generate_fn that returns responses in order, then ''. """
+    """Return a generate_fn that returns responses in order, then ''."""
     idx = [0]
+
     def _gen(msgs):
         if idx[0] < len(responses):
             r = responses[idx[0]]
             idx[0] += 1
             return r
         return ""
+
     return _gen
 
 
 # ---------------------------------------------------------------------------
 # Tier 2 + Tier 3 integration
 # ---------------------------------------------------------------------------
+
 
 class TestAMCTier23Integration:
     """Tier 2 must write; Tier 3 must promote on budget exhaust."""
@@ -64,8 +65,8 @@ class TestAMCTier23Integration:
         trace = loop.run("do a multi-step task")
 
         assert trace.status == "budget"
-        assert trace.tier2_calls >= 0        # retrieval may be 0 if build_context returns ""
-        assert trace.tier2_writes >= 1        # at least assistant step stored
+        assert trace.tier2_calls >= 0  # retrieval may be 0 if build_context returns ""
+        assert trace.tier2_writes >= 1  # at least assistant step stored
 
     def test_tier3_promotions_on_budget_exhaust(self) -> None:
         tier2 = AMCTier2Hook(AMCTier2Config(surprise_threshold=0.0))
@@ -97,6 +98,7 @@ class TestAMCTier23Integration:
             "tool call",
             "<final_answer>done</final_answer>",
         ]
+
         def gen(msgs):
             return responses.pop(0) if responses else ""
 
@@ -109,9 +111,12 @@ class TestAMCTier23Integration:
         )
 
         import unittest.mock as mock
-        with mock.patch.object(type(loop), '_dispatch_tool', return_value=AgentStep(
-            role="tool", tool_name="echo", tool_output="result", content=""
-        )):
+
+        with mock.patch.object(
+            type(loop),
+            "_dispatch_tool",
+            return_value=AgentStep(role="tool", tool_name="echo", tool_output="result", content=""),
+        ):
             trace = loop.run("audit task")
 
         # All counters must be non-negative ints visible on the trace
@@ -138,11 +143,13 @@ class TestAMCTier23Integration:
 # Safety gate integration
 # ---------------------------------------------------------------------------
 
+
 class TestSafetyGateIntegration:
     """SafetyAdmissionController must block unsafe inputs before generation."""
 
     def test_jailbreak_input_is_blocked(self) -> None:
         from src.safety.admission_controller import AdmissionPolicy
+
         policy = AdmissionPolicy(injection_threshold=0.3)
         ctrl = SafetyAdmissionController(policy=policy)
         loop = ReActLoop(
@@ -185,6 +192,7 @@ class TestSafetyGateIntegration:
             "thinking step 1",
             "<final_answer>final</final_answer>",
         ]
+
         def gen(msgs):
             return responses.pop(0) if responses else ""
 
@@ -219,16 +227,18 @@ class TestSafetyGateIntegration:
             safety_admission=ctrl,
         )
         # Make assess_input raise to simulate a controller crash
-        with mock.patch.object(ctrl, "assess_input", side_effect=RuntimeError("controller exploded")):
+        with mock.patch.object(
+            ctrl, "assess_input", side_effect=RuntimeError("controller exploded")
+        ):
             trace = loop.run("any user input")
 
         assert trace.safety_blocked is True
         assert trace.safety_action == "error"
         assert trace.status == "error"
         # One error step was recorded before returning
-        assert any(
-            s.error and "safety_controller_error" in s.error for s in trace.steps
-        ), "Expected a safety_controller_error step in trace; no error step found"
+        assert any(s.error and "safety_controller_error" in s.error for s in trace.steps), (
+            "Expected a safety_controller_error step in trace; no error step found"
+        )
 
     def test_tier3_promotion_error_visible_in_trace(self) -> None:
         """If Tier-3 promotion or consolidation raises, the error must appear
@@ -250,10 +260,11 @@ class TestSafetyGateIntegration:
             tier3_hook=tier3,
         )
         # Force promote/consolidate to raise during budget-exhaust path
-        with mock.patch.object(
-            type(tier3), "promote", side_effect=RuntimeError("tier3_db_down")
-        ), mock.patch.object(
-            type(tier3), "consolidate", side_effect=RuntimeError("consolidate_broken")
+        with (
+            mock.patch.object(type(tier3), "promote", side_effect=RuntimeError("tier3_db_down")),
+            mock.patch.object(
+                type(tier3), "consolidate", side_effect=RuntimeError("consolidate_broken")
+            ),
         ):
             trace = loop.run("stress tier-3 path")
 
@@ -261,6 +272,4 @@ class TestSafetyGateIntegration:
         # At least one error string must be present on one of the trace steps
         all_errors = [s.error for s in trace.steps if s.error]
         merged = " ".join(all_errors)
-        assert "tier3_" in merged, (
-            f"No tier3 error marker in trace steps: {all_errors!r}"
-        )
+        assert "tier3_" in merged, f"No tier3 error marker in trace steps: {all_errors!r}"

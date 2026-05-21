@@ -18,19 +18,17 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any
 
 from plugins.memory.long_term_memory import (
-    LTMEntry,
     LongTermMemory,
-    _MAX_VALUE_STR_LEN,
 )
+from src._compat import StrEnum
 
 # ── Trust level ──────────────────────────────────────────────────────────────
 
 
-class TrustLevel(str, Enum):
+class TrustLevel(StrEnum):
     """Confidence tier for a Tier 3 memory entry."""
 
     TRUSTED = "trusted"  # multi-session verified
@@ -127,7 +125,8 @@ class AMCTier3Config:
         if self.max_entries < 1:
             raise ValueError("max_entries must be >= 1")
         # quarantine_threshold must be strictly below min_confidence so the two
-        # gates form a non-empty gap: [0, qt) → quarantine, [qt, mc) → unverified, [mc, 1] → trusted.
+        # gates form a non-empty gap:
+        # [0, qt) → quarantine, [qt, mc) → unverified, [mc, 1] → trusted.
         if self.quarantine_threshold >= self.min_confidence:
             raise ValueError(
                 f"quarantine_threshold ({self.quarantine_threshold}) must be "
@@ -221,9 +220,13 @@ class AMCTier3Hook:
         confidence = max(0.0, min(1.0, confidence))
 
         if confidence < self.config.quarantine_threshold:
-            return self.quarantine(key=key, value=value,
-                                   source_tier2_id=source_tier2_id,
-                                   confidence=confidence, tags=tags)
+            return self.quarantine(
+                key=key,
+                value=value,
+                source_tier2_id=source_tier2_id,
+                confidence=confidence,
+                tags=tags,
+            )
 
         if trust_level is None:
             trust_level = (
@@ -295,9 +298,7 @@ class AMCTier3Hook:
             self._ltm.store(key, entry.value, importance=entry.confidence)
 
         # Active-store expiry sweep
-        expired_keys = [
-            k for k, v in self._store.items() if v.is_expired(now)
-        ]
+        expired_keys = [k for k, v in self._store.items() if v.is_expired(now)]
         for k in expired_keys:
             self._store.pop(k, None)
             result.expired_pruned += 1
@@ -319,9 +320,7 @@ class AMCTier3Hook:
         scored.sort(key=lambda p: p[0], reverse=True)
         return [e for _, e in scored[:limit]]
 
-    def verify_and_promote(
-        self, key: str, confidence: float = 1.0
-    ) -> Tier3Entry | None:
+    def verify_and_promote(self, key: str, confidence: float = 1.0) -> Tier3Entry | None:
         """Manually verify a quarantined entry and promote it to active."""
         if key in self._quarantine:
             entry = self._quarantine.pop(key)
@@ -334,30 +333,16 @@ class AMCTier3Hook:
     # ── Stats ─────────────────────────────────────────────────────────────────
 
     def stats(self) -> Tier3Stats:
-        trusted = sum(
-            1
-            for e in self._store.values()
-            if e.trust_level is TrustLevel.TRUSTED
-        )
-        unverified = sum(
-            1
-            for e in self._store.values()
-            if e.trust_level is TrustLevel.UNVERIFIED
-        )
+        trusted = sum(1 for e in self._store.values() if e.trust_level is TrustLevel.TRUSTED)
+        unverified = sum(1 for e in self._store.values() if e.trust_level is TrustLevel.UNVERIFIED)
         active = trusted + unverified
-        avg_conf = (
-            sum(e.confidence for e in self._store.values()) / active
-            if active
-            else 0.0
-        )
+        avg_conf = sum(e.confidence for e in self._store.values()) / active if active else 0.0
         return Tier3Stats(
             total_entries=len(self._store) + len(self._quarantine),
             trusted=trusted,
             unverified=unverified,
             quarantined=len(self._quarantine),
-            revoked=sum(
-                1 for e in self._store.values() if e.trust_level is TrustLevel.REVOKED
-            ),
+            revoked=sum(1 for e in self._store.values() if e.trust_level is TrustLevel.REVOKED),
             avg_confidence=round(avg_conf, 4),
         )
 

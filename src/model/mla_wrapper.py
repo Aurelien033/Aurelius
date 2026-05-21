@@ -48,7 +48,6 @@ class MLACompatibleAttention(nn.Module):
     ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
         B, S, D = x.shape
 
-
         if past_kv is not None:
             past_c, past_r = past_kv
             c = self.mla._compress_kv(x)

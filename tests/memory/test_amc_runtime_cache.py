@@ -11,17 +11,18 @@ Covers
 - Phase-3: session-affinity cache-key seam
 - Phase-4: chunked prefix prefill seam
 """
-from __future__ import annotations
 
 from __future__ import annotations
 
 import hashlib
 import importlib.util
 import pathlib
+import time
 
 import pytest
 
 # ── Load amc_runtime_cache via spec_from_file_location ───────────────────────
+
 
 def _load(mod_name: str, rel: str):
     spec = importlib.util.spec_from_file_location(
@@ -30,29 +31,32 @@ def _load(mod_name: str, rel: str):
     )
     mod = importlib.util.module_from_spec(spec)
     import sys as _sys
+
     _sys.modules[mod_name] = mod
     assert spec.loader is not None
     spec.loader.exec_module(mod)
     return mod
 
+
 _mod = _load("amc_runtime_cache", "memory/amc_runtime_cache.py")
 
-TrustState            = _mod.TrustState
-WriteAction           = _mod.WriteAction
-AMCWriteDecision      = _mod.AMCWriteDecision
-AMCMemoryCacheKey     = _mod.AMCMemoryCacheKey
-AMCMemoryBlock        = _mod.AMCMemoryBlock
-AMCPrefixSegment      = _mod.AMCPrefixSegment
+TrustState = _mod.TrustState
+WriteAction = _mod.WriteAction
+AMCWriteDecision = _mod.AMCWriteDecision
+AMCMemoryCacheKey = _mod.AMCMemoryCacheKey
+AMCMemoryBlock = _mod.AMCMemoryBlock
+AMCPrefixSegment = _mod.AMCPrefixSegment
 AMCPrefixCompileResult = _mod.AMCPrefixCompileResult
-AMCPrefixCompiler     = _mod.AMCPrefixCompiler
-AMCPrefixChunk        = _mod.AMCPrefixChunk
+AMCPrefixCompiler = _mod.AMCPrefixCompiler
+AMCPrefixChunk = _mod.AMCPrefixChunk
 chunk_prefix_segments = _mod.chunk_prefix_segments
-AMCMetricsCollector   = _mod.AMCMetricsCollector
+AMCMetricsCollector = _mod.AMCMetricsCollector
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _sha(s: str) -> str:
     return hashlib.sha256(s.encode()).hexdigest()[:32]
@@ -94,43 +98,77 @@ def _comp(
 # AMCWriteDecision
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestAMCWriteDecision:
     def test_frozen_dataclass_cannot_be_mutated(self) -> None:
-        d = AMCWriteDecision(action=WriteAction.WRITE, target_tier=2,
-                             confidence=0.9, trust_label=TrustState.VERIFIED,
-                             provenance="ego", reason="ok")
+        d = AMCWriteDecision(
+            action=WriteAction.WRITE,
+            target_tier=2,
+            confidence=0.9,
+            trust_label=TrustState.VERIFIED,
+            provenance="ego",
+            reason="ok",
+        )
         with pytest.raises(AttributeError):
             d.trust_label = TrustState.UNVERIFIED  # type: ignore[misc]
 
     @pytest.mark.parametrize("action", list(WriteAction))
     def test_all_write_actions_accepted(self, action: TrustState) -> None:
-        d = AMCWriteDecision(action=action, target_tier=2,
-                             confidence=0.5, trust_label=TrustState.UNVERIFIED,
-                             provenance="test", reason="test", quarantine_reason="")
+        d = AMCWriteDecision(
+            action=action,
+            target_tier=2,
+            confidence=0.5,
+            trust_label=TrustState.UNVERIFIED,
+            provenance="test",
+            reason="test",
+            quarantine_reason="",
+        )
         assert d.action == action
 
     def test_validation_rejects_empty_reason(self) -> None:
         with pytest.raises((ValueError, TypeError)):
-            AMCWriteDecision(action=WriteAction.WRITE, target_tier=2,
-                             confidence=0.5, trust_label=TrustState.VERIFIED,
-                             provenance="ego", reason="", quarantine_reason="")
+            AMCWriteDecision(
+                action=WriteAction.WRITE,
+                target_tier=2,
+                confidence=0.5,
+                trust_label=TrustState.VERIFIED,
+                provenance="ego",
+                reason="",
+                quarantine_reason="",
+            )
 
     def test_is_safe_true_for_write(self) -> None:
-        d = AMCWriteDecision(action=WriteAction.WRITE, target_tier=2,
-                             confidence=0.9, trust_label=TrustState.VERIFIED,
-                             provenance="ego", reason="ok")
+        d = AMCWriteDecision(
+            action=WriteAction.WRITE,
+            target_tier=2,
+            confidence=0.9,
+            trust_label=TrustState.VERIFIED,
+            provenance="ego",
+            reason="ok",
+        )
         assert d.is_safe is True
 
     def test_is_safe_true_for_non_write_actions(self) -> None:
-        d = AMCWriteDecision(action=WriteAction.QUARANTINE, target_tier=2,
-                             confidence=0.1, trust_label=TrustState.QUARANTINED,
-                             provenance="evil", reason="blocked", quarantine_reason="policy")
+        d = AMCWriteDecision(
+            action=WriteAction.QUARANTINE,
+            target_tier=2,
+            confidence=0.1,
+            trust_label=TrustState.QUARANTINED,
+            provenance="evil",
+            reason="blocked",
+            quarantine_reason="policy",
+        )
         assert d.is_safe is True  # non-WRITE actions bypass write confidence guard
 
     def test_decision_serialisable(self) -> None:
-        d = AMCWriteDecision(action=WriteAction.WRITE, target_tier=2,
-                             confidence=0.8, trust_label=TrustState.VERIFIED,
-                             provenance="ego", reason="ok")
+        d = AMCWriteDecision(
+            action=WriteAction.WRITE,
+            target_tier=2,
+            confidence=0.8,
+            trust_label=TrustState.VERIFIED,
+            provenance="ego",
+            reason="ok",
+        )
         s = str(d)
         assert "WRITE" in s or "write" in s.lower()
 
@@ -138,6 +176,7 @@ class TestAMCWriteDecision:
 # ─────────────────────────────────────────────────────────────────────────────
 # AMCMemoryBlock
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestAMCMemoryBlock:
     def test_create_default(self) -> None:
@@ -168,7 +207,7 @@ class TestAMCMemoryBlock:
     def test_revoke_default_epoch(self) -> None:
         b = _make_block("m1")
         b.revoke()
-        assert b.revocation_epoch == 0   # no epoch given
+        assert b.revocation_epoch == 0  # no epoch given
 
     def test_to_cache_key_changes_after_revoke(self) -> None:
         b = _make_block("m1", trust=TrustState.VERIFIED)
@@ -188,7 +227,7 @@ class TestAMCMemoryBlock:
     def test_mark_used_updates_counter(self) -> None:
         b = _make_block("m1")
         t0 = b.last_used
-        import time; time.sleep(0.01)
+        time.sleep(0.01)
         b.mark_used()
         assert b.last_used >= t0
 
@@ -201,13 +240,16 @@ class TestAMCMemoryBlock:
         assert isinstance(b.tokens, tuple)
 
     def test_metadata_shared_default_bug(self) -> None:
-        b1 = AMCMemoryBlock(block_id="x"); b1.metadata["k"] = "v1"
+        b1 = AMCMemoryBlock(block_id="x")
+        b1.metadata["k"] = "v1"
         b2 = AMCMemoryBlock(block_id="y")
-        assert b2.metadata.get("k") is None   # must NOT share defaults
+        assert b2.metadata.get("k") is None  # must NOT share defaults
 
     def test_salience_clamps(self) -> None:
-        with pytest.raises(ValueError): _make_block("x", salience=1.5)
-        with pytest.raises(ValueError): _make_block("x", salience=-0.1)
+        with pytest.raises(ValueError):
+            _make_block("x", salience=1.5)
+        with pytest.raises(ValueError):
+            _make_block("x", salience=-0.1)
 
     def test_to_cache_key_default_session_fingerprint_none(self) -> None:
         b = _make_block("m1")
@@ -223,6 +265,7 @@ class TestAMCMemoryBlock:
 # ─────────────────────────────────────────────────────────────────────────────
 # Cache-key sensitivity
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestCacheKeySensitivity:
     def test_same_content_same_key(self) -> None:
@@ -277,6 +320,7 @@ class TestCacheKeySensitivity:
 # ─────────────────────────────────────────────────────────────────────────────
 # AMCPrefixCompiler trust routing
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestPrefixCompilerTrustRouting:
     def test_verified_goes_to_trusted(self) -> None:
@@ -360,22 +404,44 @@ class TestPrefixCompilerTrustRouting:
 # WriteDecision payload attrs
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestAMCWriteDecisionAttrs:
     def test_required_fields_present(self) -> None:
-        for cls_field in ("action", "target_tier", "confidence",
-                         "trust_label", "provenance", "reason"):
-            assert hasattr(AMCWriteDecision.__annotations__, cls_field) or cls_field in AMCWriteDecision.__dataclass_fields__  # noqa: E501
+        for cls_field in (
+            "action",
+            "target_tier",
+            "confidence",
+            "trust_label",
+            "provenance",
+            "reason",
+        ):
+            assert (
+                hasattr(AMCWriteDecision.__annotations__, cls_field)
+                or cls_field in AMCWriteDecision.__dataclass_fields__
+            )  # noqa: E501
 
     def test_ttl_optional(self) -> None:
-        d = AMCWriteDecision(action=WriteAction.WRITE, target_tier=2,
-                             confidence=0.9, trust_label=TrustState.VERIFIED,
-                             provenance="ego", reason="ok", ttl_seconds=None)
+        d = AMCWriteDecision(
+            action=WriteAction.WRITE,
+            target_tier=2,
+            confidence=0.9,
+            trust_label=TrustState.VERIFIED,
+            provenance="ego",
+            reason="ok",
+            ttl_seconds=None,
+        )
         assert d.ttl_seconds is None
 
     def test_denied_action_still_valid(self) -> None:
-        d = AMCWriteDecision(action=WriteAction.QUARANTINE, target_tier=2,
-                             confidence=0.1, trust_label=TrustState.QUARANTINED,
-                             provenance="malicious", reason="blocked", quarantine_reason="ea")
+        d = AMCWriteDecision(
+            action=WriteAction.QUARANTINE,
+            target_tier=2,
+            confidence=0.1,
+            trust_label=TrustState.QUARANTINED,
+            provenance="malicious",
+            reason="blocked",
+            quarantine_reason="ea",
+        )
         assert d.action == WriteAction.QUARANTINE
 
 
@@ -386,11 +452,10 @@ class TestAMCWriteDecisionAttrs:
 # (benchmark-scaffold tests kept in test_amc_tensor_api.py)
 
 
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # AMCMetricsCollector
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestAMCMetricsCollector:
     def setup_method(self) -> None:
@@ -421,9 +486,14 @@ class TestAMCMetricsCollector:
         assert self.m._revocation_invalidations == 1
 
     def test_write_decision_recording(self) -> None:
-        d = AMCWriteDecision(action=WriteAction.WRITE, target_tier=2,
-                             confidence=0.9, trust_label=TrustState.VERIFIED,
-                             provenance="ego", reason="ok")
+        d = AMCWriteDecision(
+            action=WriteAction.WRITE,
+            target_tier=2,
+            confidence=0.9,
+            trust_label=TrustState.VERIFIED,
+            provenance="ego",
+            reason="ok",
+        )
         self.m.record_write_decision(d)
         assert self.m._counters["write_write"] == 1
 
@@ -454,6 +524,7 @@ class TestAMCMetricsCollector:
 # Integration-style: compiler + metrics together
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestCompilerMetricsIntegration:
     def test_compiler_populates_metrics(self) -> None:
         m = AMCMetricsCollector()
@@ -468,6 +539,7 @@ class TestCompilerMetricsIntegration:
 # ─────────────────────────────────────────────────────────────────────────────
 # Phase-3: session-affinity cache-key seam
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestAMCSessionAffinity:
     """session_fingerprint must affect cache identity; absence must not."""
@@ -522,6 +594,7 @@ class TestAMCSessionAffinity:
 # Phase-3: metrics-snapshot counter completeness
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestAMCMetricsSnapshotCounters:
     """AMCMetricsCollector.snapshot() must expose every required counter."""
 
@@ -546,15 +619,27 @@ class TestAMCMetricsSnapshotCounters:
         assert s["revocation_invalidations"] >= 1
 
     def test_snapshot_has_write_decision_counters(self) -> None:
-        self.m.record_write_decision(AMCWriteDecision(
-            action=WriteAction.WRITE, target_tier=2, confidence=0.9,
-            trust_label=TrustState.VERIFIED, provenance="test", reason="ok",
-        ))
-        self.m.record_write_decision(AMCWriteDecision(
-            action=WriteAction.QUARANTINE, target_tier=2, confidence=0.1,
-            trust_label=TrustState.QUARANTINED, provenance="malicious",
-            reason="blocked", quarantine_reason="policy",
-        ))
+        self.m.record_write_decision(
+            AMCWriteDecision(
+                action=WriteAction.WRITE,
+                target_tier=2,
+                confidence=0.9,
+                trust_label=TrustState.VERIFIED,
+                provenance="test",
+                reason="ok",
+            )
+        )
+        self.m.record_write_decision(
+            AMCWriteDecision(
+                action=WriteAction.QUARANTINE,
+                target_tier=2,
+                confidence=0.1,
+                trust_label=TrustState.QUARANTINED,
+                provenance="malicious",
+                reason="blocked",
+                quarantine_reason="policy",
+            )
+        )
         s = self.m.snapshot()
         assert "write_actions" in s
         assert s["write_actions"].get("write_write", 0) >= 1
@@ -573,14 +658,21 @@ class TestAMCMetricsSnapshotCounters:
 # Phase-4: chunked prefix prefill seam
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestChunkPrefixSegments:
     """AMCPrefixChunk / chunk_prefix_segments contract."""
 
-    def _seg(self, fp: str, tokens: tuple, trust: TrustState = TrustState.VERIFIED) -> AMCPrefixSegment:
+    def _seg(
+        self, fp: str, tokens: tuple, trust: TrustState = TrustState.VERIFIED
+    ) -> AMCPrefixSegment:
         return AMCPrefixSegment(
             cache_key=AMCMemoryCacheKey.compute(
-                content="x", token_ids=tokens, tier=2,
-                trust_state=trust, provenance="ego", policy_version="v0",
+                content="x",
+                token_ids=tokens,
+                tier=2,
+                trust_state=trust,
+                provenance="ego",
+                policy_version="v0",
             ),
             tokens=tokens,
             trust_state=trust,
@@ -656,5 +748,6 @@ class TestChunkPrefixSegments:
 
     def test_no_torch_or_cuda_required(self) -> None:
         import src.memory.amc_runtime_cache as _mod
+
         assert hasattr(_mod, "AMCPrefixChunk")
         assert hasattr(_mod, "chunk_prefix_segments")

@@ -35,19 +35,20 @@ from __future__ import annotations
 import hashlib
 import time
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any
 
+from src._compat import StrEnum
 
 # ── Trust / quarantine primitives (mirrors amc_tier3.TrustLevel) ─────────────
 
-class TrustState(str, Enum):
+
+class TrustState(StrEnum):
     """Confidence tier for an AMC memory block or entry."""
 
-    VERIFIED  = "verified"   # multi-session, cross-checked
+    VERIFIED = "verified"  # multi-session, cross-checked
     UNVERIFIED = "unverified"  # single source, unconfirmed
     QUARANTINED = "quarantined"  # flagged; excluded from privileged context
-    REVOKED   = "revoked"    # superseded or retracted
+    REVOKED = "revoked"  # superseded or retracted
 
     @property
     def is_privileged(self) -> bool:
@@ -63,13 +64,15 @@ class TrustState(str, Enum):
 # AMCWriteDecision
 # ─────────────────────────────────────────────────────────────────────────────
 
-class WriteAction(str, Enum):
+
+class WriteAction(StrEnum):
     """AMC memory write decision outcomes."""
-    WRITE    = "write"      # persist to target_tier
-    SKIP     = "skip"       # silently drop
+
+    WRITE = "write"  # persist to target_tier
+    SKIP = "skip"  # silently drop
     QUARANTINE = "quarantine"  # redirect to quarantine, no privilege
-    PROMOTE  = "promote"    # move up (e.g. tier-2 → tier-3)
-    REVOKE   = "revoke"     # explicitly invalidate a cached copy
+    PROMOTE = "promote"  # move up (e.g. tier-2 → tier-3)
+    REVOKE = "revoke"  # explicitly invalidate a cached copy
 
 
 @dataclass(frozen=True)
@@ -81,26 +84,22 @@ class AMCWriteDecision:
     """
 
     action: WriteAction
-    target_tier: int            # 1-based tier number (1, 2, or 3)
-    confidence: float           # 0.0 – 1.0
+    target_tier: int  # 1-based tier number (1, 2, or 3)
+    confidence: float  # 0.0 – 1.0
     trust_label: TrustState
-    provenance: str             # human-readable source tag
-    reason: str                 # why this decision was made
+    provenance: str  # human-readable source tag
+    reason: str  # why this decision was made
     quarantine_reason: str = ""
-    ttl_seconds: float | None = None   # optional expiry; None = no expiry
+    ttl_seconds: float | None = None  # optional expiry; None = no expiry
 
     def __post_init__(self) -> None:
         # Fail-closed guards — mutation is needed during validation
         object.__setattr__(self, "action", WriteAction(self.action))
         object.__setattr__(self, "trust_label", TrustState(self.trust_label))
         if self.target_tier not in (1, 2, 3):
-            raise ValueError(
-                f"target_tier must be 1, 2, or 3, got {self.target_tier!r}"
-            )
+            raise ValueError(f"target_tier must be 1, 2, or 3, got {self.target_tier!r}")
         if not 0.0 <= self.confidence <= 1.0:
-            raise ValueError(
-                f"confidence must be in [0.0, 1.0], got {self.confidence!r}"
-            )
+            raise ValueError(f"confidence must be in [0.0, 1.0], got {self.confidence!r}")
         if not self.reason.strip():
             raise ValueError("reason must be a non-empty string")
         if self.ttl_seconds is not None and self.ttl_seconds <= 0:
@@ -116,6 +115,7 @@ class AMCWriteDecision:
 # Cache key — trust/state bound
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class AMCMemoryCacheKey:
     """Immutable, trust/provenance-aware cache key for AMC prefix segments.
@@ -125,14 +125,14 @@ class AMCMemoryCacheKey:
     accidentally.
     """
 
-    content_hash: str          # hash of block content bytes
-    token_hash: str            # hash of the token-id sequence
+    content_hash: str  # hash of block content bytes
+    token_hash: str  # hash of the token-id sequence
     tier: int
     trust_state: TrustState
-    provenance_hash: str       # hash of the provenance record
+    provenance_hash: str  # hash of the provenance record
     policy_version: str
-    quarantine_state: str      # "" if not quarantined
-    revocation_epoch: int      # monotonically increasing; 0 = never revoked
+    quarantine_state: str  # "" if not quarantined
+    revocation_epoch: int  # monotonically increasing; 0 = never revoked
     session_fingerprint: str | None = None  # optional session affinity marker
 
     @classmethod
@@ -149,19 +149,13 @@ class AMCMemoryCacheKey:
         session_fingerprint: str | None = None,
     ) -> AMCMemoryCacheKey:
         """Build a ``AMCMemoryCacheKey`` by hashing the provided fields."""
-        content_hash = hashlib.blake2b(
-            content.encode("utf-8"), digest_size=16
-        ).hexdigest()
+        content_hash = hashlib.blake2b(content.encode("utf-8"), digest_size=16).hexdigest()
         token_hash = hashlib.blake2b(
             b"".join(t.to_bytes(8, "little", signed=True) for t in token_ids),
             digest_size=16,
         ).hexdigest()
-        provenance_hash = hashlib.blake2b(
-            provenance.encode("utf-8"), digest_size=16
-        ).hexdigest()
-        quarantine_state = (
-            trust_state.value if trust_state == TrustState.QUARANTINED else ""
-        )
+        provenance_hash = hashlib.blake2b(provenance.encode("utf-8"), digest_size=16).hexdigest()
+        quarantine_state = trust_state.value if trust_state == TrustState.QUARANTINED else ""
         return cls(
             content_hash=content_hash,
             token_hash=token_hash,
@@ -194,6 +188,7 @@ class AMCMemoryCacheKey:
 # ─────────────────────────────────────────────────────────────────────────────
 # Memory block — paged / block-level abstraction
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class AMCMemoryBlock:
@@ -242,9 +237,7 @@ class AMCMemoryBlock:
         if not 0.0 <= self.salience <= 1.0:
             raise ValueError(f"salience must be in [0.0, 1.0], got {self.salience!r}")
         if not 0.0 <= self.surprise_score <= 1.0:
-            raise ValueError(
-                f"surprise_score must be in [0.0, 1.0], got {self.surprise_score!r}"
-            )
+            raise ValueError(f"surprise_score must be in [0.0, 1.0], got {self.surprise_score!r}")
         if not isinstance(self.provenance, str):
             raise TypeError("provenance must be str")
 
@@ -266,7 +259,11 @@ class AMCMemoryBlock:
         if epoch is not None:
             object.__setattr__(self, "revocation_epoch", epoch)
 
-    def to_cache_key(self, policy_version: str, session_fingerprint: str | None = None) -> AMCMemoryCacheKey:
+    def to_cache_key(
+        self,
+        policy_version: str,
+        session_fingerprint: str | None = None,
+    ) -> AMCMemoryCacheKey:
         return AMCMemoryCacheKey.compute(
             content=self.provenance,
             token_ids=self.tokens,
@@ -282,6 +279,7 @@ class AMCMemoryBlock:
 # ─────────────────────────────────────────────────────────────────────────────
 # Prefix segments — compiled, trust-filtered cache units
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class AMCPrefixSegment:
@@ -314,11 +312,10 @@ class AMCPrefixSegment:
             object.__setattr__(self, "tokens", tuple(self.tokens))
 
 
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Chunked prefix prefill seam
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class AMCPrefixChunk:
@@ -432,18 +429,15 @@ class AMCPrefixCompileResult:
     cache_key_changes: dict[str, str] = field(default_factory=dict)
 
     def total_segments(self) -> int:
-        return sum(
-            len(s)
-            for s in (self.trusted, self.allowed, self.quarantined, self.revoked)
-        )
+        return sum(len(s) for s in (self.trusted, self.allowed, self.quarantined, self.revoked))
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "trusted_count":    len(self.trusted),
-            "allowed_count":    len(self.allowed),
+            "trusted_count": len(self.trusted),
+            "allowed_count": len(self.allowed),
             "quarantined_count": len(self.quarantined),
-            "revoked_count":    len(self.revoked),
-            "stats":            dict(self.stats),
+            "revoked_count": len(self.revoked),
+            "stats": dict(self.stats),
             "cache_key_changes": dict(self.cache_key_changes),
         }
 
@@ -475,7 +469,12 @@ class AMCPrefixCompiler:
                   previous identity)
     """
 
-    def __init__(self, policy_version: str = "v0", *, session_fingerprint: str | None = None) -> None:
+    def __init__(
+        self,
+        policy_version: str = "v0",
+        *,
+        session_fingerprint: str | None = None,
+    ) -> None:
         if not policy_version.strip():
             raise ValueError("policy_version must be a non-empty string")
         self.policy_version = policy_version
@@ -513,10 +512,7 @@ class AMCPrefixCompiler:
             old_key_str = self._cache_key_changes.get(block.block_id, _NO_TRUST_EPOCH)
             new_key_str = cache_key.fingerprint
 
-            key_differs = (
-                block.revocation_epoch > _NO_TRUST_EPOCH
-                or old_key_str != new_key_str
-            )
+            key_differs = block.revocation_epoch > _NO_TRUST_EPOCH or old_key_str != new_key_str
 
             segment = AMCPrefixSegment(
                 cache_key=cache_key,
@@ -561,12 +557,12 @@ class AMCPrefixCompiler:
 
     def _make_stats(self) -> dict[str, object]:
         return {
-            "compilations":      self._compilations,
-            "blocks_seen":       self._blocks_seen,
-            "trusted_segments":  self._trusted_count,
-            "allowed_segments":  self._allowed_count,
+            "compilations": self._compilations,
+            "blocks_seen": self._blocks_seen,
+            "trusted_segments": self._trusted_count,
+            "allowed_segments": self._allowed_count,
             "quarantined_segments": self._quarantined_count,
-            "revoked_segments":  self._revoked_count,
+            "revoked_segments": self._revoked_count,
             "cache_key_changes": len(self._cache_key_changes),
         }
 
@@ -584,6 +580,7 @@ class AMCPrefixCompiler:
 # ─────────────────────────────────────────────────────────────────────────────
 # Metrics helper — future observability surfaces
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class AMCMetricsCollector:
     """Lightweight metrics collector for AMC cache and write operations.
@@ -613,9 +610,7 @@ class AMCMetricsCollector:
     def record_cache_hit(self, trust_state: TrustState) -> None:
         label = f"cache_hit_{trust_state.value}"
         self._counters[label] = self._counters.get(label, 0) + 1
-        self._hit_by_trust[trust_state.value] = (
-            self._hit_by_trust.get(trust_state.value, 0) + 1
-        )
+        self._hit_by_trust[trust_state.value] = self._hit_by_trust.get(trust_state.value, 0) + 1
 
     def record_cache_miss(self, reason: str = "miss") -> None:
         # Count both total misses and per-reason misses for observability.
@@ -634,19 +629,19 @@ class AMCMetricsCollector:
 
     def record_write_decision(self, decision: AMCWriteDecision) -> None:
         key = f"write_{decision.action.value}"
-        self.inc(key)                          # also surface in general counters
+        self.inc(key)  # also surface in general counters
         self._write_actions[key] = self._write_actions.get(key, 0) + 1
 
     # ── snapshots ───────────────────────────────────────────────────────────
 
     def snapshot(self) -> dict[str, Any]:
         return {
-            "counters":                 dict(self._counters),
-            "gauges":                   dict(self._gauges),
-            "hit_by_trust":             dict(self._hit_by_trust),
-            "quarantine_exclusions":    self._quarantine_exclusions,
+            "counters": dict(self._counters),
+            "gauges": dict(self._gauges),
+            "hit_by_trust": dict(self._hit_by_trust),
+            "quarantine_exclusions": self._quarantine_exclusions,
             "revocation_invalidations": self._revocation_invalidations,
-            "write_actions":            dict(self._write_actions),
+            "write_actions": dict(self._write_actions),
         }
 
     def hit_rate_by_trust(self) -> dict[str, float]:
@@ -654,8 +649,7 @@ class AMCMetricsCollector:
         for trust_label, h in self._hit_by_trust.items():
             hits = self._counters.get(f"cache_hit_{trust_label}", 0)
             miss_candidates = [
-                k for k, v in self._counters.items()
-                if k == f"cache_miss_{trust_label}"
+                k for k, v in self._counters.items() if k == f"cache_miss_{trust_label}"
             ]
             total = hits + sum(self._counters[k] for k in miss_candidates)
             out[trust_label] = h / total if total else 0.0

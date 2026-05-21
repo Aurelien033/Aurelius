@@ -28,7 +28,6 @@ import tempfile
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
-from pathlib import PurePath
 
 __all__ = [
     "SafeRunResult",
@@ -160,9 +159,7 @@ def run_safe(
                 _resolved = os.path.realpath(arg)  # noqa: F841
                 parts = os.path.normpath(arg).split(os.sep)
                 if ".." in parts:
-                    raise UnsafeSubprocessError(
-                        f"argv contains path traversal: {arg!r}"
-                    )
+                    raise UnsafeSubprocessError(f"argv contains path traversal: {arg!r}")
             except (ValueError, OSError, AttributeError):
                 pass
     if env_allowlist is not None:
@@ -174,9 +171,7 @@ def run_safe(
     if env_override is not None:
         blocked = set(env_override.keys()) & _BLOCKED_ENV_KEYS
         if blocked:
-            raise UnsafeSubprocessError(
-                f"env_override contains blocked keys: {sorted(blocked)}"
-            )
+            raise UnsafeSubprocessError(f"env_override contains blocked keys: {sorted(blocked)}")
         env = dict(env_override)
     else:
         env = _build_env(env_allowlist, cwd)

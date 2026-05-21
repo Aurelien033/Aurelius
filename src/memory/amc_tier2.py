@@ -189,7 +189,6 @@ class AMCTier2Hook:
             "retrieval_hit_rate": retrieval_hit_rate,
         }
 
-
     def build_runtime_blocks(
         self,
         entries: list[MemoryEntry],
@@ -229,7 +228,10 @@ class AMCTier2Hook:
             provenance = "|".join(provenance_parts) if provenance_parts else "tier2:unknown"
 
             # Content hash — deterministic content identity over blake2b-16.
-            content_hash = blake2b(entry.content.encode("utf-8"), digest_size=16).hexdigest()  # 32-char hex
+            content_hash = blake2b(
+                entry.content.encode("utf-8"),
+                digest_size=16,
+            ).hexdigest()  # 32-char hex
 
             # Derive a pseudo token-id sequence from the content hash
             # so every unique content maps to a unique-but-deterministic token tuple.
@@ -237,16 +239,15 @@ class AMCTier2Hook:
             token_ids = tuple(token_hash)  # 8 ints in [0,255]
 
             salience = max(0.0, min(1.0, entry.importance))
-            provenance_hash = blake2b(provenance.encode("utf-8"), digest_size=16).hexdigest()
 
             block = AMCMemoryBlock(
-                block_id=entry.id,         # stable identifier from MemoryEntry
+                block_id=entry.id,  # stable identifier from MemoryEntry
                 tokens=token_ids,
                 tier=tier,
                 trust_state=default_trust,
                 provenance=provenance,
                 salience=salience,
-                surprise_score=salience,   # reuse importance as initial surprise
+                surprise_score=salience,  # reuse importance as initial surprise
                 quarantine_state="",
                 revocation_epoch=0,
                 metadata={"episodic_role": entry.role, "content_hash": content_hash[:12]},

@@ -10,12 +10,9 @@ from src.memory.amc_tier3 import (
     AMCTier3Config,
     AMCTier3Hook,
     DecayPolicy,
-    Tier3ConsolidationResult,
     Tier3Entry,
-    Tier3Stats,
     TrustLevel,
 )
-
 
 # ── DecayPolicy ───────────────────────────────────────────────────────────────
 
@@ -174,9 +171,7 @@ class TestPromoteAndQuarantine:
 
 class TestConsolidation:
     def setup_method(self):
-        self.hook = AMCTier3Hook(
-            AMCTier3Config(quarantine_threshold=0.3, min_confidence=0.5)
-        )
+        self.hook = AMCTier3Hook(AMCTier3Config(quarantine_threshold=0.3, min_confidence=0.5))
 
     def test_promotes_quarantined_above_threshold(self):
         self.hook.quarantine(key="q1", value="val", confidence=0.7)
@@ -194,7 +189,8 @@ class TestConsolidation:
     def test_prunes_expired_quarantined(self):
         past = time.monotonic() - 2600000.0
         entry = Tier3Entry(
-            key="old_q", value="gone",
+            key="old_q",
+            value="gone",
             trust_level=TrustLevel.QUARANTINED,
             created_at=past,
         )
@@ -206,7 +202,8 @@ class TestConsolidation:
     def test_prunes_expired_active(self):
         past = time.monotonic() - 2600000.0
         entry = Tier3Entry(
-            key="old_active", value="gone",
+            key="old_active",
+            value="gone",
             trust_level=TrustLevel.TRUSTED,
             created_at=past,
         )
@@ -233,8 +230,9 @@ class TestPrioritize:
 
     def test_returns_trusted_over_unverified(self):
         self.hook.promote(key="unv", value="low", confidence=0.55)
-        self.hook.promote(key="trusted", value="high", confidence=0.95,
-                          trust_level=TrustLevel.TRUSTED)
+        self.hook.promote(
+            key="trusted", value="high", confidence=0.95, trust_level=TrustLevel.TRUSTED
+        )
         top = self.hook.prioritize(limit=2)
         keys = [e.key for e in top]
         assert "trusted" in keys

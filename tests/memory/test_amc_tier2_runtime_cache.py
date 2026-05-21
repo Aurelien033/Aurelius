@@ -7,25 +7,23 @@ Covers
 - trust_override=VERIFIED promotes to trusted
 - quarantined / revoked paths via direct AMCPrefixCompiler isolation
 """
-from __future__ import annotations
 
-import time
+from __future__ import annotations
 
 import pytest
 
 from src.memory.amc_runtime_cache import (
     AMCMemoryBlock,
     AMCPrefixCompiler,
-    AMCPrefixCompileResult,
     TrustState,
 )
 from src.memory.amc_tier2 import AMCTier2Hook
-from src.memory.episodic_memory import EpisodicMemory, MemoryEntry
-
+from src.memory.episodic_memory import MemoryEntry
 
 # ─────────────────────────────────────────────────────────────────────────────
 # helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def make_entry(
     content: str = "hello world",
@@ -49,6 +47,7 @@ def make_entry(
 # ─────────────────────────────────────────────────────────────────────────────
 # TestAMCTier2HookBuildRuntimeBlocks
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestAMCTier2HookBuildRuntimeBlocks:
     """AMCTier2Hook.build_runtime_blocks contract."""
@@ -84,9 +83,7 @@ class TestAMCTier2HookBuildRuntimeBlocks:
         assert blocks[0].trust_state == TrustState.UNVERIFIED
 
     def test_trust_override_applied(self) -> None:
-        blocks = self.hook.build_runtime_blocks(
-            [make_entry()], trust_override=TrustState.VERIFIED
-        )
+        blocks = self.hook.build_runtime_blocks([make_entry()], trust_override=TrustState.VERIFIED)
         assert blocks[0].trust_state == TrustState.VERIFIED
 
     # ── provenance ───────────────────────────────────────────────────────────
@@ -100,9 +97,7 @@ class TestAMCTier2HookBuildRuntimeBlocks:
         assert "sess-xyz" in blocks[0].provenance
 
     def test_provenance_both_role_and_session(self) -> None:
-        blocks = self.hook.build_runtime_blocks(
-            [make_entry(role="tool", session_id="s-123")]
-        )
+        blocks = self.hook.build_runtime_blocks([make_entry(role="tool", session_id="s-123")])
         p = blocks[0].provenance
         assert "tool" in p
         assert "s-123" in p
@@ -134,9 +129,7 @@ class TestAMCTier2HookBuildRuntimeBlocks:
 
     def test_verified_blocks_compile_to_trusted(self) -> None:
         entries = [make_entry("safe data", eid="v1")]
-        blocks = self.hook.build_runtime_blocks(
-            entries, trust_override=TrustState.VERIFIED
-        )
+        blocks = self.hook.build_runtime_blocks(entries, trust_override=TrustState.VERIFIED)
         compiler = AMCPrefixCompiler()
         result = compiler.compile(blocks)
         assert len(result.trusted) == 1
@@ -154,9 +147,7 @@ class TestAMCTier2HookBuildRuntimeBlocks:
     def test_quarantined_entry_excluded_from_trusted(self) -> None:
         """blocks created with UNVERIFIED trust must never appear in trusted."""
         entries = [make_entry("stuff", eid="q1")]
-        blocks = self.hook.build_runtime_blocks(
-            entries, trust_override=TrustState.QUARANTINED
-        )
+        blocks = self.hook.build_runtime_blocks(entries, trust_override=TrustState.QUARANTINED)
         compiler = AMCPrefixCompiler()
         result = compiler.compile(blocks)
         assert len(result.quarantined) == 1
@@ -193,6 +184,7 @@ class TestAMCTier2HookBuildRuntimeBlocks:
         """Adapter is pure stdlib — no torch import at module level."""
         import src.memory.amc_runtime_cache as _arc
         import src.memory.amc_tier2 as _t2
+
         # Both modules should be importable without torch
         assert hasattr(_arc, "AMCMemoryBlock")
         assert hasattr(_t2, "AMCTier2Hook")
