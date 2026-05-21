@@ -6,6 +6,8 @@ import json
 import logging
 from typing import Any
 
+from src.security.adversarial_detector import AdversarialDetector
+
 try:
     from fastapi import WebSocket as FastAPIWebSocket  # type: ignore[import-untyped]
 except ImportError:
@@ -13,10 +15,17 @@ except ImportError:
 
 logger = logging.getLogger("ark.serving.ws")
 
+_default_detector = AdversarialDetector(threshold=0.5)
 
-async def handle_agent_ws(websocket: Any, memory_manager: Any = None) -> None:
+
+async def handle_agent_ws(
+    websocket: Any,
+    memory_manager: Any = None,
+    detector: AdversarialDetector | None = None,
+) -> None:
     await websocket.accept()
     logger.info("WebSocket connection accepted")
+    _detector = detector or _default_detector
 
     try:
         while True:
@@ -24,6 +33,24 @@ async def handle_agent_ws(websocket: Any, memory_manager: Any = None) -> None:
             message = json.loads(data)
             task = message.get("task", "")
             mode = message.get("mode", "chat")
+
+            # Adversarial input check before processing
+            result = _detector.detect(task)
+            if result.flagged:
+                logger.warning(
+                    "Adversarial input rejected (score=%.2f): %s",
+                    result.risk_score,
+                    result.details,
+                )
+                await websocket.send_json(
+                    {
+                        "type": "rejected",
+                        "content": "Input rejected by safety filter",
+                        "risk_score": result.risk_score,
+                        "patterns": [p.value for p in result.patterns_detected],
+                    }
+                )
+                continue
 
             await websocket.send_json({"type": "status", "content": "processing"})
 
@@ -35,9 +62,6 @@ async def handle_agent_ws(websocket: Any, memory_manager: Any = None) -> None:
                 tokens = f"Processing: {task}".split()
                 for token in tokens:
                     await websocket.send_json({"type": "token", "content": token + " "})
-                    import asyncio
-
-                    await asyncio.sleep(0.02)
 
             await websocket.send_json({"type": "done", "content": ""})
 

@@ -1,4 +1,4 @@
-"""Preference optimization: ORPO, KTO, and RRHF for alignment without reference models."""
+"""Preference optimization: DPO, SimPO, ORPO, KTO, and RRHF for alignment."""
 
 from __future__ import annotations
 
@@ -15,10 +15,11 @@ import torch.nn.functional as F
 
 @dataclass
 class PreferenceOptConfig:
-    """Configuration for ORPO, KTO, and RRHF preference optimization."""
+    """Configuration for unified preference optimization."""
 
-    method: str = "orpo"  # "orpo" | "kto" | "rrhf"
+    method: str = "orpo"  # "dpo" | "simpo" | "orpo" | "kto" | "rrhf"
     beta: float = 0.1
+    gamma: float = 0.0  # SimPO target margin
     lambda_: float = 1.0  # ORPO SFT loss weight
     desirable_weight: float = 1.0  # KTO weight for chosen responses
     undesirable_weight: float = 1.0  # KTO weight for rejected responses
@@ -62,6 +63,54 @@ def compute_sequence_log_probs(
     token_lp = log_probs.gather(2, gather_labels.unsqueeze(-1)).squeeze(-1)  # (B, seq_len-1)
 
     return (token_lp * pad_mask).sum(dim=-1)  # (B,)
+
+
+# ---------------------------------------------------------------------------
+# DPO and SimPO losses
+# ---------------------------------------------------------------------------
+
+
+def dpo_loss(
+    policy_chosen_logps: torch.Tensor,
+    policy_rejected_logps: torch.Tensor,
+    ref_chosen_logps: torch.Tensor,
+    ref_rejected_logps: torch.Tensor,
+    beta: float,
+) -> tuple[torch.Tensor, dict]:
+    """Direct Preference Optimization loss.
+
+    DPO trains on pairwise preferences by comparing the policy's chosen-vs-
+    rejected margin against the same margin under a frozen reference model.
+    """
+
+    logits = (policy_chosen_logps - policy_rejected_logps) - (ref_chosen_logps - ref_rejected_logps)
+    loss = -F.logsigmoid(beta * logits).mean()
+    return loss, {
+        "preference_margin": logits.mean().item(),
+        "chosen_logp": policy_chosen_logps.mean().item(),
+        "rejected_logp": policy_rejected_logps.mean().item(),
+    }
+
+
+def simpo_loss(
+    policy_chosen_logps: torch.Tensor,
+    policy_rejected_logps: torch.Tensor,
+    beta: float,
+    gamma: float = 0.0,
+) -> tuple[torch.Tensor, dict]:
+    """Simple Preference Optimization loss.
+
+    SimPO is reference-free: it rewards the policy chosen/rejected log-prob
+    margin directly while subtracting an optional target margin ``gamma``.
+    """
+
+    margin = policy_chosen_logps - policy_rejected_logps - gamma
+    loss = -F.logsigmoid(beta * margin).mean()
+    return loss, {
+        "preference_margin": margin.mean().item(),
+        "chosen_logp": policy_chosen_logps.mean().item(),
+        "rejected_logp": policy_rejected_logps.mean().item(),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -267,7 +316,45 @@ class PreferenceOptTrainer:
         chosen_labels = self._build_labels(chosen_ids)
         rejected_labels = self._build_labels(rejected_ids)
 
-        if cfg.method == "orpo":
+        if cfg.method == "dpo":
+            if self.ref_model is None:
+                raise ValueError("DPO requires a frozen reference model")
+            policy_chosen_logps = compute_sequence_log_probs(
+                self.policy_model, chosen_ids, chosen_labels
+            )
+            policy_rejected_logps = compute_sequence_log_probs(
+                self.policy_model, rejected_ids, rejected_labels
+            )
+            with torch.no_grad():
+                ref_chosen_logps = compute_sequence_log_probs(
+                    self.ref_model, chosen_ids, chosen_labels
+                )
+                ref_rejected_logps = compute_sequence_log_probs(
+                    self.ref_model, rejected_ids, rejected_labels
+                )
+            loss, metrics = dpo_loss(
+                policy_chosen_logps,
+                policy_rejected_logps,
+                ref_chosen_logps,
+                ref_rejected_logps,
+                beta=cfg.beta,
+            )
+
+        elif cfg.method == "simpo":
+            policy_chosen_logps = compute_sequence_log_probs(
+                self.policy_model, chosen_ids, chosen_labels
+            )
+            policy_rejected_logps = compute_sequence_log_probs(
+                self.policy_model, rejected_ids, rejected_labels
+            )
+            loss, metrics = simpo_loss(
+                policy_chosen_logps,
+                policy_rejected_logps,
+                beta=cfg.beta,
+                gamma=cfg.gamma,
+            )
+
+        elif cfg.method == "orpo":
             # ORPO: reference-free, uses policy logits directly
             _, chosen_logits, _ = self.policy_model(chosen_ids)
             policy_chosen_logps = compute_sequence_log_probs(
@@ -287,6 +374,8 @@ class PreferenceOptTrainer:
             )
 
         elif cfg.method == "kto":
+            if self.ref_model is None:
+                raise ValueError("KTO requires a frozen reference model")
             policy_chosen_logps = compute_sequence_log_probs(
                 self.policy_model, chosen_ids, chosen_labels
             )
@@ -324,7 +413,9 @@ class PreferenceOptTrainer:
             loss, metrics = rrhf_loss([policy_chosen_logps, policy_rejected_logps])
 
         else:
-            raise ValueError(f"Unknown method: {cfg.method!r}. Choose 'orpo', 'kto', or 'rrhf'.")
+            raise ValueError(
+                f"Unknown method: {cfg.method!r}. Choose 'dpo', 'simpo', 'orpo', 'kto', or 'rrhf'."
+            )
 
         self.optimizer.zero_grad()
         loss.backward()

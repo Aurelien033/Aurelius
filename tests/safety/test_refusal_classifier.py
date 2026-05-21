@@ -83,8 +83,8 @@ def test_length_heuristic_with_short_answer_to_long_question() -> None:
     clf = RefusalClassifier()
     question = (
         "Can you walk me through the detailed reasoning behind quicksort's "
-        "average-case complexity?"  # ~100 chars
-    )
+        "average-case complexity?"
+    )  # ~100 chars
     res = clf.classify("No.", question=question)
     assert "length_heuristic" in res.signals
     # Length alone is only 0.05 and should NOT flag as refusal by itself.

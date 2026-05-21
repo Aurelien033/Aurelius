@@ -54,6 +54,7 @@ class ChatRequest:
     max_tokens: int = 512
     stream: bool = False
     system: str | None = None
+    amc: dict | None = None
 
 
 @dataclass
@@ -233,7 +234,6 @@ class AureliusRequestHandler(BaseHTTPRequestHandler):
             )
             self.wfile.write(f"data: {data}\n\n".encode())
             self.wfile.flush()
-            time.sleep(0.01)
             pos = end
         done = json.dumps(
             {

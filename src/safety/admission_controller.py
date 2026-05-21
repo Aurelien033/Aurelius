@@ -8,6 +8,7 @@ model invocation or before persisting tool output.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -25,6 +26,7 @@ class AdmissionAction(StrEnum):
     WARN = "warn"
     REDACT = "redact"
     BLOCK = "block"
+    QUARANTINE = "quarantine"
 
 
 @dataclass(frozen=True)
@@ -260,6 +262,66 @@ class SafetyAdmissionController:
             historical_risk=historical_risk,
         )
 
+    def assess_memory_candidate(
+        self,
+        content: str,
+        *,
+        source: str = "memory_candidate",
+        existing_memories: list[str] | None = None,
+        historical_risk: float = 0.0,
+    ) -> AdmissionDecision:
+        """Assess a candidate memory before persistence.
+
+        Memory admission is stricter than ordinary prompt admission: any blocked
+        prompt-injection/clawdrain signal becomes a quarantine decision, and
+        direct contradictions with existing durable memories are quarantined
+        until a verifier or human can resolve the conflict.
+        """
+
+        decision = self.assess_input(
+            content,
+            source=source,
+            has_tool_calls=source.startswith("tool") or "tool" in source,
+            historical_risk=historical_risk,
+        )
+        metadata = dict(decision.metadata)
+        metadata["memory_admission"] = True
+        signals = list(decision.signals)
+
+        if decision.action == AdmissionAction.BLOCK:
+            return AdmissionDecision(
+                action=AdmissionAction.QUARANTINE,
+                allowed=False,
+                reason=f"memory quarantine: {decision.reason}",
+                sanitized_input=decision.sanitized_input,
+                quant_decision=decision.quant_decision,
+                signals=signals,
+                metadata=metadata,
+            )
+
+        conflict = _memory_conflict_signal(content, existing_memories or [])
+        if conflict is not None:
+            signals.append(conflict)
+            return AdmissionDecision(
+                action=AdmissionAction.QUARANTINE,
+                allowed=False,
+                reason="memory quarantine: candidate conflicts with existing durable memory",
+                sanitized_input=decision.sanitized_input,
+                quant_decision=decision.quant_decision,
+                signals=signals,
+                metadata=metadata,
+            )
+
+        return AdmissionDecision(
+            action=decision.action,
+            allowed=decision.allowed,
+            reason=decision.reason,
+            sanitized_input=decision.sanitized_input,
+            quant_decision=decision.quant_decision,
+            signals=signals,
+            metadata=metadata,
+        )
+
 
 def estimate_tokens(text: str) -> int:
     """Cheap token estimate used for admission gating."""
@@ -307,6 +369,100 @@ def _signal_from_sanitizer(result: SanitizationResult) -> AdmissionSignal:
             "redaction_count": result.redaction_count,
         },
     )
+
+
+def _memory_conflict_signal(candidate: str, existing_memories: list[str]) -> AdmissionSignal | None:
+    """Detect simple high-confidence contradictions for memory quarantine.
+
+    The first checks handle explicit ``MEMORY[key] = value`` facts, then falls
+    back to conservative endpoint/IP contradictions for deployment notes.
+    """
+
+    candidate_facts = _memory_key_values(candidate)
+    if candidate_facts:
+        for existing in existing_memories:
+            existing_facts = _memory_key_values(existing)
+            for key, candidate_value in candidate_facts.items():
+                existing_value = existing_facts.get(key)
+                if existing_value is None or existing_value == candidate_value:
+                    continue
+                return AdmissionSignal(
+                    name="memory_conflict",
+                    score=0.95,
+                    severity="high",
+                    details={
+                        "conflict_type": "key_value",
+                        "key": key,
+                        "candidate_values": [candidate_value],
+                        "existing_values": [existing_value],
+                    },
+                )
+
+    candidate_ips = set(_IP_RE.findall(candidate))
+    if not candidate_ips:
+        return None
+    candidate_terms = _content_terms(candidate)
+    for existing in existing_memories:
+        existing_ips = set(_IP_RE.findall(existing))
+        if not existing_ips or not candidate_ips.isdisjoint(existing_ips):
+            continue
+        overlap = candidate_terms.intersection(_content_terms(existing))
+        if len(overlap) >= 3:
+            return AdmissionSignal(
+                name="memory_conflict",
+                score=0.95,
+                severity="high",
+                details={
+                    "candidate_values": sorted(candidate_ips),
+                    "existing_values": sorted(existing_ips),
+                    "overlap_terms": sorted(overlap),
+                    "conflict_type": "endpoint",
+                },
+            )
+    return None
+
+
+def _memory_key_values(text: str) -> dict[str, str]:
+    """Extract explicit durable-memory key/value facts from text."""
+    facts: dict[str, str] = {}
+    for match in _MEMORY_FACT_RE.finditer(text):
+        key = match.group("key").strip().lower()
+        value = _normalize_memory_value(match.group("value"))
+        if key and value:
+            facts[key] = value
+    return facts
+
+
+def _normalize_memory_value(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip(" .;\t\r\n").lower())
+
+
+_IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+_MEMORY_FACT_RE = re.compile(
+    r"\bMEMORY\[(?P<key>[A-Za-z0-9_.:-]{2,96})\]\s*=\s*(?P<value>[^\n.;]+)",
+    re.IGNORECASE,
+)
+_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "be",
+    "is",
+    "it",
+    "must",
+    "of",
+    "or",
+    "the",
+    "to",
+}
+
+
+def _content_terms(text: str) -> set[str]:
+    return {
+        term
+        for term in re.findall(r"[a-z0-9_]+", text.lower())
+        if len(term) >= 3 and term not in _STOPWORDS and not _IP_RE.fullmatch(term)
+    }
 
 
 def _clamp01(value: float) -> float:

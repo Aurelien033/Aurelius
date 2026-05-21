@@ -141,6 +141,49 @@ def test_kv_cache_position_offset(small_model, small_cfg):
     assert gen_out.shape == (1, 6)
 
 
+def test_forward_treats_none_kv_entries_as_empty_cache(small_model, small_cfg):
+    """Incomplete cache tuples from callers should be ignored, not unpacked."""
+    tokens = torch.randint(0, small_cfg.vocab_size, (1, 4))
+    past_key_values = [(None, None), None]
+
+    _, logits, pkv = small_model(tokens, past_key_values=past_key_values)
+
+    assert logits.shape == (1, 4, small_cfg.vocab_size)
+    assert len(pkv) == small_cfg.n_layers
+
+
+def test_gradient_checkpointing_handles_layers_without_kv_cache():
+    """Checkpointing should not assume every layer returns a KV cache."""
+    cfg = AureliusConfig(
+        n_layers=1,
+        d_model=64,
+        n_heads=2,
+        n_kv_heads=2,
+        head_dim=32,
+        d_ff=128,
+        vocab_size=256,
+        max_seq_len=64,
+        use_gradient_checkpointing=True,
+    )
+    model = AureliusTransformer(cfg)
+    model.train()
+
+    class NoCacheLayer(torch.nn.Module):
+        def forward(self, x, freqs_cis, mask, past_kv):
+            return x * 1.0, None, x.new_zeros(())
+
+    model.layers[0] = NoCacheLayer()
+    tokens = torch.randint(0, cfg.vocab_size, (2, 8))
+    labels = torch.randint(0, cfg.vocab_size, (2, 8))
+
+    loss, logits, pkv = model(tokens, labels=labels)
+    loss.backward()
+
+    assert torch.isfinite(loss)
+    assert logits.shape == (2, 8, cfg.vocab_size)
+    assert pkv == [None]
+
+
 def test_gradient_checkpointing_reduces_memory():
     """With gradient checkpointing enabled, forward+backward must complete and weights must update."""  # noqa: E501
     import torch.optim as optim

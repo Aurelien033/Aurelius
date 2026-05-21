@@ -28,7 +28,6 @@ import tempfile
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
-from pathlib import PurePath
 
 __all__ = [
     "SafeRunResult",
@@ -110,8 +109,6 @@ _BLOCKED_ENV_KEYS = frozenset(
         "DYLD_FRAMEWORK_PATH",
         "PYTHONPATH",
         "PYTHONHOME",
-        "PATH",
-        "HOME",
         "SHELL",
         "TMPDIR",
         "LD_AUDIT",
@@ -158,11 +155,19 @@ def run_safe(
     for arg in argv_list[1:]:
         if "/" in arg or "\\" in arg:
             try:
-                _resolved = PurePath(arg).resolve()  # noqa: F841
-                if ".." in PurePath(arg).parts:
+                # Use os.path.realpath to canonicalise symlinks / .. components.
+                _resolved = os.path.realpath(arg)  # noqa: F841
+                parts = os.path.normpath(arg).split(os.sep)
+                if ".." in parts:
                     raise UnsafeSubprocessError(f"argv contains path traversal: {arg!r}")
-            except (ValueError, OSError):
+            except (ValueError, OSError, AttributeError):
                 pass
+    if env_allowlist is not None:
+        blocked = set(env_allowlist) & _BLOCKED_ENV_KEYS
+        if blocked:
+            raise UnsafeSubprocessError(
+                f"_BLOCKED_ENV_KEYS member(s) in env_allowlist: {sorted(blocked)}"
+            )
     if env_override is not None:
         blocked = set(env_override.keys()) & _BLOCKED_ENV_KEYS
         if blocked:

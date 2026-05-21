@@ -35,10 +35,17 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from .tool_call_parser import (
+from agent.tool_call_parser import (
     ParsedToolCall,
     ToolCallParseError,
     UnifiedToolCallParser,
+)
+from src.memory.amc_tier2 import AMCTier2Hook
+from src.memory.amc_tier3 import AMCTier3Hook, TrustLevel
+from src.runtime.memory_quarantine import MemoryCandidate, build_memory_quarantine_report
+from src.safety.admission_controller import (
+    AdmissionAction,
+    SafetyAdmissionController,
 )
 
 # ---------------------------------------------------------------------------
@@ -72,6 +79,12 @@ class AgentTrace:
     final_answer: str | None = None
     status: str = "no_answer"  # one of {success, budget, error, no_answer}
     steps_used: int = 0
+    # AMC Tier 2 usage counters
+    tier2_calls: int = 0
+    tier2_writes: int = 0
+    tier3_promotions: int = 0
+    safety_blocked: bool = False
+    safety_action: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +163,9 @@ class ReActLoop:
         max_steps: int = 8,
         max_tool_seconds: float = 5.0,
         parser: Any = None,
+        tier2_hook: AMCTier2Hook | None = None,
+        tier3_hook: AMCTier3Hook | None = None,
+        safety_admission: SafetyAdmissionController | None = None,
     ) -> None:
         if not callable(generate_fn):
             raise TypeError("generate_fn must be callable")
@@ -164,6 +180,12 @@ class ReActLoop:
         self._max_steps = max_steps
         self._tool_timeout = float(max_tool_seconds)
         self._parser = parser if parser is not None else UnifiedToolCallParser()
+        self._tier2_hook = tier2_hook
+        self._tier2_calls = 0  # number of times recall was inserted
+        self._tier2_writes = 0
+        self._tier3_hook = tier3_hook
+        self._tier3_promotions = 0
+        self._safe_adm = safety_admission  # alias used by Tier-2 write gating below
 
     # ------------------------------------------------------------------
     # Public entry
@@ -178,6 +200,39 @@ class ReActLoop:
 
         trace = AgentTrace(task=task, system_prompt=system_prompt)
 
+        # Safety pre-check: assess user input before any generation
+        if self._safe_adm is not None:
+            try:
+                decision = self._safe_adm.assess_input(task)
+                if not decision.allowed:
+                    trace.safety_blocked = True
+                    trace.safety_action = decision.action.value
+                    trace.status = "blocked"
+                    trace.steps.append(
+                        AgentStep(
+                            role="assistant",
+                            content="",
+                            error=f"safety_blocked: {decision.reason}",
+                        )
+                    )
+                    return trace
+            except Exception:  # noqa: BLE001
+                # Safety controller crash → fail closed; do not proceed to generation
+                trace.safety_blocked = True
+                trace.safety_action = "error"
+                trace.status = "error"
+                trace.steps.append(
+                    AgentStep(
+                        role="assistant",
+                        content="",
+                        error=(
+                            "safety_controller_error: admission controller "
+                            "raised an exception during pre-check"
+                        ),
+                    )
+                )
+                return trace
+
         # Handle empty task upfront: we still make one call so callers
         # relying on system_prompt-only flows are supported, but if the
         # task is empty AND there is no system prompt we short-circuit.
@@ -190,6 +245,7 @@ class ReActLoop:
                 task=task,
                 system_prompt=system_prompt,
                 steps=trace.steps,
+                step_idx=step_idx,
             )
             try:
                 raw = self._generate(messages)
@@ -224,6 +280,9 @@ class ReActLoop:
                 trace.final_answer = final
                 trace.status = "success"
                 trace.steps_used = len([s for s in trace.steps if s.role == "assistant"])
+                trace.tier2_calls = self._tier2_calls
+                trace.tier2_writes = self._tier2_writes
+                trace.tier3_promotions = self._tier3_promotions
                 return trace
 
             # Parse any tool calls in the assistant output.
@@ -242,6 +301,9 @@ class ReActLoop:
                 # turn as history and can self-correct. If we exhaust
                 # budget in this state we return "budget".
                 trace.steps.append(assistant_step)
+                if self._tier2_hook is not None:
+                    if self._write_to_tier2(assistant_step.content, "assistant"):
+                        self._tier2_writes += 1
                 continue
 
             # Attach the first tool's bookkeeping to the assistant step
@@ -254,9 +316,70 @@ class ReActLoop:
             for call in tool_calls:
                 obs = self._dispatch_tool(call)
                 trace.steps.append(obs)
+                if self._tier2_hook is not None:
+                    obs_text = obs.tool_output or obs.error or ""
+                    if self._write_to_tier2(obs_text, "tool"):
+                        self._tier2_writes += 1
 
         # Budget exhausted without final answer.
         trace.steps_used = len([s for s in trace.steps if s.role == "assistant"])
+        trace.tier2_calls = self._tier2_calls
+        trace.tier2_writes = self._tier2_writes
+        trace.tier3_promotions = self._tier3_promotions
+        # Tier 3: promote Tier 2 entries into LTM on budget exhaust
+        if self._tier3_hook is not None and self._tier2_hook is not None:
+            tier3_errors: list[str] = []
+            try:
+                promoted = 0
+                for ev in list(self._tier2_hook.episodic._entries):
+                    try:
+                        confidence = ev.importance
+                        trust = None
+                        if confidence >= 0.8:
+                            trust = TrustLevel.TRUSTED
+                        elif confidence < 0.3:
+                            trust = TrustLevel.UNVERIFIED
+                        entry = self._tier3_hook.promote(
+                            key=ev.id,
+                            value=ev.content,
+                            source_tier2_id=ev.id,
+                            confidence=confidence,
+                            trust_level=trust,
+                        )
+                        if entry is not None:
+                            promoted += 1
+                    except Exception as exc:  # noqa: BLE001
+                        tier3_errors.append(
+                            f"tier3_promote_error:{ev.id}:{type(exc).__name__}:{exc}"
+                        )
+                # Now run the Tier 3 lifecycle sweep
+                try:
+                    self._tier3_hook.consolidate()
+                except Exception as exc:  # noqa: BLE001
+                    tier3_errors.append(f"tier3_consolidate_error:{type(exc).__name__}:{exc}")
+                self._tier3_promotions = promoted
+                if tier3_errors:
+                    if trace.steps:
+                        existing = trace.steps[-1].error or ""
+                        sep = " | " if existing else ""
+                        trace.steps[-1].error = existing + sep + "; ".join(tier3_errors)
+                    else:
+                        trace.steps.append(
+                            AgentStep(
+                                role="assistant",
+                                content="",
+                                error="; ".join(tier3_errors),
+                            )
+                        )
+            except Exception as exc:
+                err_msg = f"tier3_outer_error:{type(exc).__name__}:{exc}"
+                if trace.steps:
+                    existing = trace.steps[-1].error or ""
+                    sep = " | " if existing else ""
+                    trace.steps[-1].error = existing + sep + err_msg
+                else:
+                    trace.steps.append(AgentStep(role="assistant", content="", error=err_msg))
+        trace.tier3_promotions = self._tier3_promotions
         trace.status = "budget"
         return trace
 
@@ -269,6 +392,7 @@ class ReActLoop:
         task: str,
         system_prompt: str,
         steps: list[AgentStep],
+        step_idx: int = 0,
     ) -> list[dict]:
         """Render the full conversation as a plain list-of-dicts.
 
@@ -277,6 +401,34 @@ class ReActLoop:
         list to whatever wire format its model demands.
         """
         messages: list[dict] = []
+        # AMC Tier 2: inject episodic retrieval on steps > 0
+        if self._tier2_hook is not None and step_idx > 0:
+            recalled = self._tier2_hook.retrieve(task, limit=self._tier2_hook.config.max_retrieved)
+            if recalled:
+                candidates = [
+                    MemoryCandidate(content=entry.content, source=f"tier2:{entry.role}")
+                    for entry in recalled
+                ]
+                ctrl = self._safe_adm
+                report = (
+                    build_memory_quarantine_report(candidates, controller=ctrl)
+                    if ctrl is not None
+                    else {
+                        "trusted": [{"content": c.content, "source": c.source} for c in candidates],
+                        "quarantined": [],
+                    }
+                )
+                trusted = report.get("trusted", [])
+                if trusted:
+                    lines = ["[Tier-2 episodic memory recall]:"]
+                    for rec in trusted:
+                        source = rec.get("source", "tier2")
+                        body = rec.get("content", "")
+                        if body:
+                            lines.append(f"- [{source}] {body}")
+                    preamble = "\n".join(lines)
+                    messages.append({"role": "user", "content": preamble})
+                    self._tier2_calls += 1
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": task})
@@ -371,6 +523,38 @@ class ReActLoop:
                 return step
         step.content = step.tool_output
         return step
+
+    def _write_to_tier2(self, content: str, role: str) -> bool:
+        """Write *content* to Tier-2 only if the admission controller approves it.
+
+        Returns True when the observation was stored, False when it was
+        quarantined or blocked.  When no controller is registered (legacy /
+        test mode) all writes are allowed.
+        """
+        if self._safe_adm is None:
+            if self._tier2_hook is not None:
+                self._tier2_hook.observe(
+                    role,
+                    content,
+                    surprise=0.5 if role == "assistant" else 0.7,
+                )
+            return True
+        decision = self._safe_adm.assess_memory_candidate(
+            content,
+            source=f"react_loop:{role}",
+        )
+        if not decision.allowed or decision.action in (
+            AdmissionAction.QUARANTINE,
+            AdmissionAction.BLOCK,
+        ):
+            return False
+        if self._tier2_hook is not None:
+            self._tier2_hook.observe(
+                role,
+                content,
+                surprise=0.5 if role == "assistant" else 0.7,
+            )
+        return True
 
 
 __all__ = ["AgentStep", "AgentTrace", "ReActLoop"]
