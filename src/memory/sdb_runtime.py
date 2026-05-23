@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -484,6 +485,33 @@ class SDBMemoryRuntime:
         if self.persistent_log is not None:
             return self.persistent_log.replay_from(0)
         return list(self._events)
+
+    def record_slr_selection(
+        self,
+        *,
+        session_id: str,
+        step: int,
+        trial: Any,
+        recalled_entry_ids: Sequence[str],
+    ) -> ReplayEvent:
+        """Append an SLR selection audit event (proposal-only; no memory commit)."""
+        selection = trial.selection
+        replay = trial.replay
+        event = _build_replay_event(
+            event_type="slr_selection",
+            proposal_id=selection.selection_id,
+            metadata={
+                "session_id": session_id,
+                "step": step,
+                "selected_candidate_id": selection.selected_candidate_id,
+                "recalled_entry_ids": list(recalled_entry_ids),
+                "selection": selection.to_dict(),
+                "replay": replay.to_dict(),
+                "proposal_only": True,
+            },
+        )
+        self._record_event(event)
+        return event
 
     def recover_from_crash(
         self,

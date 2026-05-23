@@ -40,8 +40,11 @@ from agent.tool_call_parser import (
     ToolCallParseError,
     UnifiedToolCallParser,
 )
+from src.agent.slr_integration import prepare_slr_recall_context
 from src.memory.amc_tier2 import AMCTier2Hook
 from src.memory.amc_tier3 import AMCTier3Hook, TrustLevel
+from src.memory.sdb_runtime import SDBMemoryRuntime
+from src.reasoning.stochastic_latent_recall import SLRConfig, default_slr_config
 from src.runtime.memory_quarantine import MemoryCandidate, build_memory_quarantine_report
 from src.safety.admission_controller import (
     AdmissionAction,
@@ -166,6 +169,9 @@ class ReActLoop:
         tier2_hook: AMCTier2Hook | None = None,
         tier3_hook: AMCTier3Hook | None = None,
         safety_admission: SafetyAdmissionController | None = None,
+        slr_config: SLRConfig | None = None,
+        sdb_runtime: SDBMemoryRuntime | None = None,
+        session_id: str = "react-session",
     ) -> None:
         if not callable(generate_fn):
             raise TypeError("generate_fn must be callable")
@@ -186,6 +192,9 @@ class ReActLoop:
         self._tier3_hook = tier3_hook
         self._tier3_promotions = 0
         self._safe_adm = safety_admission  # alias used by Tier-2 write gating below
+        self._slr_config = slr_config if slr_config is not None else default_slr_config()
+        self._sdb_runtime = sdb_runtime
+        self._session_id = session_id
 
     # ------------------------------------------------------------------
     # Public entry
@@ -401,6 +410,19 @@ class ReActLoop:
         list to whatever wire format its model demands.
         """
         messages: list[dict] = []
+        if self._slr_config.enabled and step_idx > 0:
+            slr_context = prepare_slr_recall_context(
+                config=self._slr_config,
+                query_text=task,
+                query_id=f"{self._session_id}:step:{step_idx}",
+                tier2_hook=self._tier2_hook,
+                tier3_hook=self._tier3_hook,
+                sdb_runtime=self._sdb_runtime,
+                session_id=self._session_id,
+                step_idx=step_idx,
+            )
+            if slr_context is not None:
+                messages.append({"role": "user", "content": slr_context.preamble})
         # AMC Tier 2: inject episodic retrieval on steps > 0
         if self._tier2_hook is not None and step_idx > 0:
             recalled = self._tier2_hook.retrieve(task, limit=self._tier2_hook.config.max_retrieved)
