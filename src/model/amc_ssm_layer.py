@@ -20,6 +20,7 @@ from src.memory.amc_tensor_api import (
     AMCWriteDecision,
     MemoryTier,
 )
+from src.model.amc_surprise import SurpriseHead, SurpriseHeadConfig
 from src.model.mamba2_block import Mamba2Block, Mamba2Config
 
 
@@ -71,13 +72,11 @@ class AMCSSMLayer(nn.Module):
         self.layer_index = layer_index
         self.ssm = Mamba2Block(config.to_mamba_config())
 
-        hidden = config.surprise_head_hidden
-        if hidden is None:
-            raise ValueError("surprise_head_hidden must be set")
-        self.surprise_head = nn.Sequential(
-            nn.Linear(config.d_model, hidden),
-            nn.ReLU(),
-            nn.Linear(hidden, 1),
+        self.surprise_head = SurpriseHead(
+            SurpriseHeadConfig(
+                d_model=config.d_model,
+                hidden_dim=config.surprise_head_hidden or 0,
+            )
         )
 
         gate_out = config.gate_hidden
@@ -109,7 +108,6 @@ class AMCSSMLayer(nn.Module):
         )
 
         surprise = self.surprise_head(x.detach())
-        surprise = torch.sigmoid(surprise).squeeze(-1)
         mean_surprise = float(surprise[:, -1].mean().item()) if surprise.numel() else 0.0
 
         x_last = x[:, -1, :]
