@@ -10,10 +10,13 @@ import hashlib
 import json
 import uuid
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from src._compat import StrEnum
+
+if TYPE_CHECKING:
+    from src.memory.sdb_persistent_log import SDBPersistentLog
 
 REDACTED = "[REDACTED]"
 
@@ -79,7 +82,7 @@ class MemoryTargetTier(StrEnum):
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _is_secret_key(key: str) -> bool:
@@ -241,8 +244,14 @@ def _build_replay_event(
 class SDBMemoryRuntime:
     """Minimal orchestration for SDB memory-affecting actions."""
 
+    persistent_log: SDBPersistentLog | None = field(default=None, repr=False)
     _events: list[ReplayEvent] = field(default_factory=list)
     _commits: dict[str, MemoryCommitRecord] = field(default_factory=dict)
+
+    def _record_event(self, event: ReplayEvent) -> None:
+        self._events.append(event)
+        if self.persistent_log is not None:
+            self.persistent_log.append(event)
 
     def propose(
         self,
@@ -307,7 +316,7 @@ class SDBMemoryRuntime:
                 "idempotency_key": idempotency_key,
             },
         )
-        self._events.append(event)
+        self._record_event(event)
         return proposal
 
     def verify(
@@ -343,7 +352,7 @@ class SDBMemoryRuntime:
                 "reason": reason,
             },
         )
-        self._events.append(event)
+        self._record_event(event)
         return result
 
     def _ensure_commit_allowed(
@@ -433,7 +442,7 @@ class SDBMemoryRuntime:
             metadata=replay_body,
             replay_hash=replay_hash,
         )
-        self._events.append(event)
+        self._record_event(event)
         return record
 
     def reject(
@@ -462,8 +471,10 @@ class SDBMemoryRuntime:
             proposal_id=proposal.proposal_id,
             metadata=metadata,
         )
-        self._events.append(event)
+        self._record_event(event)
         return event
 
     def replay_events(self) -> list[ReplayEvent]:
+        if self.persistent_log is not None:
+            return self.persistent_log.replay_from(0)
         return list(self._events)
