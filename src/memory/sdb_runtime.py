@@ -416,6 +416,9 @@ class SDBMemoryRuntime:
             "idempotency_key": proposal.idempotency_key,
             "memory_entry_id": memory_entry_id,
             "affected_entry_ids": list(affected),
+            "payload": dict(proposal.payload),
+            "session_id": proposal.session_id,
+            "step": proposal.step,
         }
         replay_hash = stable_hash(
             _canonical_replay_body("committed", proposal.proposal_id, replay_body)
