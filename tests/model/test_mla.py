@@ -10,6 +10,7 @@ from src.model.mla import (
     MLABlock,
     MLAConfig,
     MultiHeadLatentAttention,
+    MultiheadLatentAttention,
     UpProjectKV,
     compute_kv_cache_savings,
 )
@@ -201,3 +202,68 @@ def test_mla_block_past_kv_two_steps():
     out2, cache2 = block(x2, past_kv=cache1)
     assert out2.shape == (B, 1, D_MODEL)
     assert cache2.shape == (B, T + 1, KV_LORA_RANK)
+
+
+# ---------------------------------------------------------------------------
+# T07 — MultiheadLatentAttention (expanded KV cache API)
+# ---------------------------------------------------------------------------
+def _make_t07_mla(**overrides) -> MultiheadLatentAttention:
+    cfg = make_config(**overrides)
+    return MultiheadLatentAttention(cfg)
+
+
+def test_t07_mla_output_shape() -> None:
+    mla = _make_t07_mla()
+    x = torch.randn(2, 8, D_MODEL)
+    out = mla(x)
+    assert out.shape == (2, 8, D_MODEL)
+
+
+def test_t07_mla_kvcache_returns_tuple() -> None:
+    mla = _make_t07_mla()
+    x = torch.randn(2, 8, D_MODEL)
+    out, cache = mla(x, return_cache=True)
+    assert out.shape == (2, 8, D_MODEL)
+    assert isinstance(cache, tuple) and len(cache) == 2
+
+
+def test_t07_mla_kvcache_continuation_matches_full() -> None:
+    torch.manual_seed(42)
+    mla = _make_t07_mla()
+    mla.eval()
+    x = torch.randn(1, 16, D_MODEL)
+    full_out = mla(x)
+    first_half, cache = mla(x[:, :8], return_cache=True)
+    second_half = mla(x[:, 8:], kv_cache=cache)
+    combined = torch.cat([first_half, second_half], dim=1)
+    assert torch.allclose(full_out, combined, atol=1e-5)
+
+
+def test_t07_mla_cache_reduction() -> None:
+    cfg = make_config(d_model=512, n_heads=8, head_dim=64, kv_lora_rank=64)
+    mla = MultiheadLatentAttention(cfg)
+    reduction = mla.cache_reduction_vs_mha()
+    assert reduction < 0.5
+
+
+def test_t07_mla_causality() -> None:
+    mla = _make_t07_mla(d_model=32, n_heads=2, head_dim=16, kv_lora_rank=8)
+    mla.eval()
+    x = torch.randn(1, 8, 32)
+    out_full = mla(x)
+    x_zeroed = x.clone()
+    x_zeroed[0, 5, :] = 0
+    out_zeroed = mla(x_zeroed)
+    assert torch.allclose(out_full[0, :5], out_zeroed[0, :5], atol=1e-6)
+    assert not torch.allclose(out_full[0, 5:], out_zeroed[0, 5:], atol=1e-6)
+
+
+def test_t07_mla_gradients() -> None:
+    mla = _make_t07_mla(d_model=32, n_heads=2, head_dim=16, kv_lora_rank=8)
+    x = torch.randn(1, 4, 32, requires_grad=True)
+    out = mla(x)
+    assert isinstance(out, torch.Tensor)
+    out.sum().backward()
+    for name, param in mla.named_parameters():
+        if "weight" in name:
+            assert param.grad is not None, f"no grad on {name}"

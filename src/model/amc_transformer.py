@@ -20,6 +20,7 @@ from src.model.amc_ssm_layer import AMCForwardOutput, AMCSSMConfig, AMCSSMLayer
 from src.model.attention import apply_rope, precompute_rope_frequencies
 from src.model.config import AureliusConfig
 from src.model.ffn import SwiGLUFFN
+from src.model.mla import MLAConfig, MultiheadLatentAttention
 from src.model.rms_norm import RMSNorm
 
 if TYPE_CHECKING:
@@ -138,8 +139,38 @@ class _AMCGroupedQueryAttention(nn.Module):
         return self.o_proj(attn)
 
 
+class MLAAttentionLayer(nn.Module):
+    """Pre-norm MLA + FFN block for even-index layers (compressed KV cache)."""
+
+    def __init__(self, config: AMCTransformerConfig, layer_index: int) -> None:
+        super().__init__()
+        self.layer_index = layer_index
+        head_dim = config.head_dim or (config.d_model // config.n_heads)
+        aurelius = config.to_aurelius_config()
+        mla_cfg = MLAConfig(
+            d_model=config.d_model,
+            n_heads=config.n_heads,
+            head_dim=head_dim,
+            kv_lora_rank=config.kv_lrank,
+            dropout=config.dropout,
+        )
+        self.attn_norm = RMSNorm(config.d_model, eps=config.rms_norm_eps)
+        self.mla = MultiheadLatentAttention(mla_cfg)
+        self.ffn_norm = RMSNorm(config.d_model, eps=config.rms_norm_eps)
+        self.ffn = SwiGLUFFN(aurelius)
+
+    def forward(self, hidden: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
+        _ = freqs_cis  # RoPE on MLA Q/K is wired in T08
+        mla_out = self.mla(self.attn_norm(hidden))
+        if isinstance(mla_out, tuple):
+            mla_out = mla_out[0]
+        hidden = hidden + mla_out
+        hidden = hidden + self.ffn(self.ffn_norm(hidden))
+        return hidden
+
+
 class StandardAttentionLayer(nn.Module):
-    """Pre-norm attention + FFN block with RoPE (even-index layers only)."""
+    """Pre-norm GQA + FFN with RoPE (legacy fallback; even layers use MLAAttentionLayer)."""
 
     def __init__(self, config: AMCTransformerConfig, layer_index: int) -> None:
         super().__init__()
@@ -180,7 +211,7 @@ class AMCTransformer(nn.Module):
                 )
                 self.layers.append(AMCSSMLayer(ssm_cfg, layer_index=layer_idx))
             else:
-                self.layers.append(StandardAttentionLayer(config, layer_index=layer_idx))
+                self.layers.append(MLAAttentionLayer(config, layer_index=layer_idx))
 
         self.norm = RMSNorm(config.d_model, eps=config.rms_norm_eps)
         self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
@@ -299,5 +330,6 @@ __all__ = [
     "AMCTransformer",
     "AMCTransformerConfig",
     "AMCModelOutput",
+    "MLAAttentionLayer",
     "StandardAttentionLayer",
 ]

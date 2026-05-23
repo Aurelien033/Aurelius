@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import torch
@@ -161,6 +162,86 @@ class MLABlock(nn.Module):
         x = x + h
 
         return x, latent_cache
+
+
+class MultiheadLatentAttention(nn.Module):
+    """MLA with expanded K/V cache API for AMC incremental decode (T07)."""
+
+    def __init__(self, config: MLAConfig) -> None:
+        super().__init__()
+        self.cfg = config
+        self.n_heads = config.n_heads
+        self.head_dim = config.head_dim
+        kv_lrank = config.kv_lora_rank or max(32, config.d_model // 8)
+        q_lrank = config.q_lora_rank or kv_lrank
+
+        self.q_down = nn.Linear(config.d_model, q_lrank, bias=False)
+        self.q_up = nn.Linear(q_lrank, config.d_model, bias=False)
+        self.kv_down = nn.Linear(config.d_model, kv_lrank, bias=False)
+        self.k_up = nn.Linear(kv_lrank, config.d_model, bias=False)
+        self.v_up = nn.Linear(kv_lrank, config.d_model, bias=False)
+        self.o_proj = nn.Linear(config.d_model, config.d_model, bias=False)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        *,
+        kv_cache: tuple[torch.Tensor, torch.Tensor] | None = None,
+        return_cache: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+        batch, seq_len, dim = x.shape
+        cfg = self.cfg
+
+        latents = self.kv_down(x)
+        key = self.k_up(latents)
+        value = self.v_up(latents)
+
+        if kv_cache is not None:
+            key = torch.cat([kv_cache[0], key], dim=1)
+            value = torch.cat([kv_cache[1], value], dim=1)
+
+        query = self.q_up(self.q_down(x))
+        total_len = key.shape[1]
+
+        query = query.view(batch, seq_len, cfg.n_heads, cfg.head_dim).transpose(1, 2)
+        key = key.view(batch, total_len, cfg.n_heads, cfg.head_dim).transpose(1, 2)
+        value = value.view(batch, total_len, cfg.n_heads, cfg.head_dim).transpose(1, 2)
+
+        scale = 1.0 / math.sqrt(cfg.head_dim)
+        attn = (query @ key.transpose(-2, -1)) * scale
+
+        if kv_cache is not None:
+            past_len = kv_cache[0].shape[1]
+            mask = torch.triu(
+                torch.ones(seq_len, total_len, device=x.device, dtype=torch.bool),
+                diagonal=past_len + 1,
+            )
+            attn = attn.masked_fill(mask.unsqueeze(0).unsqueeze(0), float("-inf"))
+        else:
+            mask = torch.triu(
+                torch.ones(seq_len, seq_len, device=x.device, dtype=torch.bool),
+                diagonal=1,
+            )
+            attn = attn.masked_fill(mask.unsqueeze(0).unsqueeze(0), float("-inf"))
+
+        attn = F.softmax(attn, dim=-1)
+        out = attn @ value
+        out = out.transpose(1, 2).reshape(batch, seq_len, dim)
+        out = self.o_proj(out)
+
+        if return_cache:
+            key_cache = key.transpose(1, 2).reshape(batch, total_len, dim)
+            value_cache = value.transpose(1, 2).reshape(batch, total_len, dim)
+            return out, (key_cache, value_cache)
+        return out
+
+    @property
+    def cache_size_per_token(self) -> int:
+        return 2 * self.cfg.kv_lora_rank
+
+    def cache_reduction_vs_mha(self) -> float:
+        mha_size = 2 * self.cfg.d_model
+        return self.cache_size_per_token / mha_size
 
 
 def compute_kv_cache_savings(config: MLAConfig) -> dict[str, int | float]:

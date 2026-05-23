@@ -106,7 +106,7 @@ def test_gradient_flows_to_all_components() -> None:
             assert isinstance(layer, AMCSSMLayer)
             assert layer.gates.decay.net[0].weight.grad is not None
         else:
-            assert layer.attn.q_proj.weight.grad is not None
+            assert layer.mla.q_down.weight.grad is not None
 
     for gate in model.promotion_gates.values():
         assert gate.gate_net[0].weight.grad is not None
