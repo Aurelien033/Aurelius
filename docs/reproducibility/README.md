@@ -89,5 +89,13 @@ pytest tests/reproducibility/test_reproducibility_bundle.py -q
 
 ## Cross-validation (T31)
 
-Run this README on a clean machine and record deviations in
-`docs/reproducibility/CROSS_VALIDATION_REPORT.md`.
+Smoke cross-validation (local CI, no GPU):
+
+```bash
+bash docs/reproducibility/scripts/cross_validate.sh smoke
+# or: python scripts/run_cross_validation.py --profile smoke
+```
+
+Writes `CROSS_VALIDATION_REPORT.md` and `results/cross_validation.json`.
+
+For full GPU validation, repeat on a fresh cloud instance per the report’s manual section.

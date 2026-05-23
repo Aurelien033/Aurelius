@@ -23,6 +23,7 @@ REQUIRED_FILES = (
     "scripts/evaluate.sh",
     "scripts/ablation.sh",
     "scripts/plot_results.py",
+    "scripts/cross_validate.sh",
     "results/model_card.md",
     "checkpoint/README.md",
 )
