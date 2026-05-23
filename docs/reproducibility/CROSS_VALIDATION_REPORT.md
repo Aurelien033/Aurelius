@@ -1,5 +1,13 @@
 # AMC Reproducibility Cross-Validation Report (T31)
 
+## External clean-machine status
+
+**NOT EXECUTED ON EXTERNAL MACHINE** — only local structural smoke on this host.
+Use `docs/reproducibility/scripts/cross_validate_clean_machine.sh` on a fresh VM
+to record external evidence.
+
+---
+
 - **Date (UTC):** 2026-05-23T22:17:38.154030+00:00
 - **Host:** Sapphire.local
 - **Python:** 3.12.12
