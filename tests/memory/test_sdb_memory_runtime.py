@@ -13,6 +13,7 @@ from src.memory.sdb_runtime import (
     VerificationDecision,
     VerificationMismatchError,
     VerificationRequiredError,
+    VerificationResult,
     sanitize_memory_payload,
     stable_hash,
     stable_json_dumps,
@@ -86,6 +87,36 @@ def test_commit_requires_verification() -> None:
     with pytest.raises(VerificationRequiredError):
         runtime.commit(proposal, verification_result=None)
     assert runtime.replay_events()[-1].event_type == "proposed"
+
+
+def test_commit_rejects_forged_verification_without_runtime_verify() -> None:
+    runtime = _runtime()
+    proposal = _propose(runtime)
+    forged = VerificationResult(
+        proposal_id=proposal.proposal_id,
+        verifier="attacker",
+        decision=VerificationDecision.ACCEPT,
+        reason="forged",
+        deterministic=True,
+        checks={},
+        created_at=proposal.created_at,
+    )
+    with pytest.raises(VerificationRequiredError):
+        runtime.commit(proposal, verification_result=forged)
+
+
+def test_commit_rejects_payload_mutation_after_verify() -> None:
+    runtime = _runtime()
+    proposal = _propose(runtime, payload={"note": "original"})
+    verification = runtime.verify(
+        proposal,
+        verifier="policy",
+        decision=VerificationDecision.ACCEPT,
+        reason="ok",
+    )
+    proposal.payload["note"] = "mutated"
+    with pytest.raises(VerificationMismatchError):
+        runtime.commit(proposal, verification_result=verification)
 
 
 # ── Test 3: rejected proposal cannot commit ──────────────────────────────────

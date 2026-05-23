@@ -251,6 +251,7 @@ class SDBMemoryRuntime:
     persistent_log: SDBPersistentLog | None = field(default=None, repr=False)
     _events: list[ReplayEvent] = field(default_factory=list)
     _commits: dict[str, MemoryCommitRecord] = field(default_factory=dict)
+    _verified_proposal_ids: set[str] = field(default_factory=set)
 
     def _record_event(self, event: ReplayEvent) -> None:
         self._events.append(event)
@@ -357,6 +358,7 @@ class SDBMemoryRuntime:
             },
         )
         self._record_event(event)
+        self._verified_proposal_ids.add(proposal.proposal_id)
         return result
 
     def _ensure_commit_allowed(
@@ -375,6 +377,10 @@ class SDBMemoryRuntime:
                 f"verification for {verification_result.proposal_id!r} "
                 f"cannot commit proposal {proposal.proposal_id!r}"
             )
+        if proposal.proposal_id not in self._verified_proposal_ids:
+            raise VerificationRequiredError(
+                f"proposal {proposal.proposal_id!r} must be verified through runtime.verify()"
+            )
         if verification_result.decision != VerificationDecision.ACCEPT:
             raise ProposalRejectedError(
                 f"proposal {proposal.proposal_id!r} has decision "
@@ -386,6 +392,23 @@ class SDBMemoryRuntime:
             )
         return verification_result
 
+    def _verify_proposal_integrity(self, proposal: MemoryProposal) -> None:
+        """Reject commits when proposal fields changed after :meth:`propose`."""
+        expected_key = _proposal_idempotency_key(
+            proposal_id=proposal.proposal_id,
+            session_id=proposal.session_id,
+            step=proposal.step,
+            proposer=proposal.proposer,
+            source_type=str(proposal.source_type),
+            target_tier=str(proposal.target_tier),
+            operation=str(proposal.operation),
+            payload=dict(proposal.payload),
+        )
+        if expected_key != proposal.idempotency_key:
+            raise VerificationMismatchError(
+                f"proposal {proposal.proposal_id!r} payload changed after verification"
+            )
+
     def commit(
         self,
         proposal: MemoryProposal,
@@ -395,6 +418,7 @@ class SDBMemoryRuntime:
         affected_entry_ids: tuple[str, ...] | list[str] | None = None,
         deterministic_required: bool = False,
     ) -> MemoryCommitRecord:
+        self._verify_proposal_integrity(proposal)
         verification = self._ensure_commit_allowed(
             proposal,
             verification_result,
