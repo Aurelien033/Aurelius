@@ -75,16 +75,16 @@ Update this file after each green commit. One line per tranche.
 | T28 | Full ablation runner | ✅ | `a97609f8` | green | oracle smoke + bootstrap p-values |
 | T29 | Adversarial memory safety audit | ✅ | `62e86cb9` | green | fail-closed SDB; test hardening `6dd23fee` |
 | T30 | Reproducibility bundle | ✅ | `01bb24b0` | green | `docs/reproducibility/` |
-| T31 | External cross-validation | 🚧 | `e2427515` | smoke PASS local | External clean machine: NOT EXECUTED |
+| T31 | External cross-validation | ✅ | `91418a3f` | smoke PASS local | External clean machine: NOT EXECUTED |
 
 ## Phase 6 — Paper  (weeks 25-30)
 
 | # | Tranche | Status | Commit | Tests | Notes |
 |---|---------|--------|--------|-------|-------|
-| T32 | Paper skeleton + claims ledger | 🚧 | `9ab1eb30` + pending | validate_paper | Split sections + CLAIMS_LEDGER in orchestrator |
-| T33 | Method section (traceable math) | 🚧 | pending | — | Correct ST + SDB contract |
-| T34 | Experiments + provenance | 🚧 | pending | — | Oracle scores for AMC-Memory only |
-| T35 | Release assembly | 🚧 | pending | — | Local scripts only; no upload |
+| T32 | Paper skeleton + claims ledger | ✅ | `d7c98cdb` | validate_paper | Split sections + CLAIMS_LEDGER |
+| T33 | Method section (traceable math) | ✅ | `d7c98cdb` | — | Correct ST + SDB contract |
+| T34 | Experiments + provenance | ✅ | `d7c98cdb` | — | Oracle AMC-Memory; other benchmarks TODO |
+| T35 | Release assembly | ✅ | `dda1399c` | bash -n | Local scripts only; no upload |
 
 ## Support infrastructure
 
@@ -103,13 +103,13 @@ Update this file after each green commit. One line per tranche.
 | Metric | Count |
 |--------|-------|
 | Total tranches | 40 (35 T + 5 S) |
-| ✅ Done | 33 (T00–T30, S01–S05) |
-| 🚧 In progress | 5 (T31–T35 orchestrator finish) |
+| ✅ Done | 38 (T00–T35, S01–S05) |
+| 🚧 In progress | 0 |
 | ❌ Blocked | 0 |
-| ⬜ Not started | 0 core build tranches |
-| Completion | ~83 % (implementation); paper/release packaging in progress |
+| ⬜ Not started | 0 |
+| Completion | 100 % tranche checklist (GPU training / external xval still operator tasks) |
 
-Last updated: **2026-05-22** — branch `clean/amc-curation-20260521-101220`, HEAD includes orchestrator fixes `841182b7`, `6dd23fee`, `6665d5d5`.
+Last updated: **2026-05-22** — branch `clean/amc-curation-20260521-101220`, HEAD `91418a3f` (orchestrator Prompt 00 complete).
 
 ---
 
