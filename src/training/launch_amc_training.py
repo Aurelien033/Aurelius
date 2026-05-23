@@ -23,24 +23,24 @@ import json
 import os
 import sys
 import time
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-import torch
-import yaml
-from torch.utils.data import DataLoader
+import torch  # noqa: E402
+import yaml  # noqa: E402
+from torch.utils.data import DataLoader  # noqa: E402
 
-from src.memory.amc_tier2 import AMCTier2Hook
-from src.memory.amc_tier3 import AMCTier3Hook
-from src.model.amc_transformer import AMCTransformer, AMCTransformerConfig
-from src.training.amc_data import AMCTrainBatch, AMCDataCollator
-from src.training.amc_dataset import AMCDataset
-from src.training.amc_trainer import AMCTrainConfig, AMCTrainer
-
+from src.memory.amc_tier2 import AMCTier2Hook  # noqa: E402
+from src.memory.amc_tier3 import AMCTier3Hook  # noqa: E402
+from src.model.amc_transformer import AMCTransformer, AMCTransformerConfig  # noqa: E402
+from src.training.amc_data import AMCDataCollator, AMCTrainBatch  # noqa: E402
+from src.training.amc_dataset import AMCDataset  # noqa: E402
+from src.training.amc_trainer import AMCTrainConfig, AMCTrainer  # noqa: E402
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

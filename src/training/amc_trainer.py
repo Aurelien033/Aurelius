@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator, Protocol
+from typing import Any, Protocol
 
 import torch
 import torch.nn as nn
@@ -198,7 +199,10 @@ class CheckpointManager:
                 oldest.unlink()
         if self.keep_best and metrics and self.best_metric in metrics:
             value = float(metrics[self.best_metric])
-            is_better = value > self._best_value if self.best_mode == "max" else value < self._best_value
+            if self.best_mode == "max":
+                is_better = value > self._best_value
+            else:
+                is_better = value < self._best_value
             if is_better:
                 self._best_value = value
                 torch.save(payload, self.save_dir / "checkpoint-best.pt")

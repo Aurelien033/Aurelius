@@ -116,7 +116,11 @@ def stable_hash(value: Any) -> str:
     return hashlib.sha256(stable_json_dumps(value).encode("utf-8")).hexdigest()
 
 
-def _canonical_replay_body(event_type: str, proposal_id: str, body: dict[str, Any]) -> dict[str, Any]:
+def _canonical_replay_body(
+    event_type: str,
+    proposal_id: str,
+    body: dict[str, Any],
+) -> dict[str, Any]:
     return {
         "event_type": event_type,
         "proposal_id": proposal_id,
@@ -483,7 +487,10 @@ class SDBMemoryRuntime:
         verification_result: VerificationResult | None = None,
         reason: str | None = None,
     ) -> ReplayEvent:
-        if verification_result is not None and verification_result.proposal_id != proposal.proposal_id:
+        if (
+            verification_result is not None
+            and verification_result.proposal_id != proposal.proposal_id
+        ):
             raise VerificationMismatchError(
                 f"verification for {verification_result.proposal_id!r} "
                 f"cannot reject proposal {proposal.proposal_id!r}"

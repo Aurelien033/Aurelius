@@ -15,8 +15,8 @@ from typing import Any
 from src.memory.amc_runtime_cache import (
     AMCMemoryBlock,
     AMCMemoryCacheKey,
-    AMCPrefixCompileResult,
     AMCPrefixCompiler,
+    AMCPrefixCompileResult,
     AMCPrefixSegment,
     TrustState,
 )

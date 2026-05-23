@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import random
 import statistics
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -128,7 +129,12 @@ def _oracle_amc_memory_scores(config_name: str, *, n_samples: int, seed: int) ->
     return scores
 
 
-def _build_ruler_oracle(bench: Any, tasks: Sequence[str], context_lengths: Sequence[int], samples_per: int):
+def _build_ruler_oracle(
+    bench: Any,
+    tasks: Sequence[str],
+    context_lengths: Sequence[int],
+    samples_per: int,
+):
     lookup: dict[str, str] = {}
 
     def register(task: str, length: int, sample_idx: int) -> None:
@@ -173,7 +179,11 @@ def _run_ruler_niah_scores(
     elif mode == "oracle":
         generate_fn = _build_ruler_oracle(bench, tasks, context_lengths, samples_per=1)
     else:
-        generate_fn = lambda _prompt: "unknown"
+
+        def _unknown_generate(_prompt: str) -> str:
+            return "unknown"
+
+        generate_fn = _unknown_generate
 
     scores: list[float] = []
     for _ in range(n_samples):
@@ -315,7 +325,6 @@ def run_ablation_study(
     baseline_by_benchmark: dict[str, list[float]] = {}
 
     for config_name in config_names:
-        cfg = CONFIGS[config_name]
         for bench_name in bench_names:
             raw_scores = run_benchmark_scores(
                 config_name=config_name,
@@ -371,7 +380,8 @@ def summarize_results(results: Sequence[AblationResult]) -> str:
         lines.append(f"{benchmark}:")
         rows = [result for result in results if result.benchmark == benchmark]
         for row in sorted(rows, key=lambda item: -item.score):
-            sig = " *" if row.p_value_vs_baseline is not None and row.p_value_vs_baseline < 0.05 else ""
+            p_val = row.p_value_vs_baseline
+            sig = " *" if p_val is not None and p_val < 0.05 else ""
             lines.append(f"  {row.config:<12} {row.score:.3f} ± {row.stderr:.3f}{sig}")
         lines.append("")
     return "\n".join(lines)
