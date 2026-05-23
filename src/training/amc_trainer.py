@@ -67,6 +67,18 @@ class AMCModelProtocol(Protocol):
   ) -> AMCModelOutput: ...
 
 
+def _batch_step(batch: AMCTrainBatch) -> int:
+    if isinstance(batch.step, list):
+        return int(batch.step[0]) if batch.step else 0
+    return int(batch.step)
+
+
+def _batch_session_id(batch: AMCTrainBatch) -> str | None:
+    if isinstance(batch.session_id, list):
+        return str(batch.session_id[0]) if batch.session_id else None
+    return batch.session_id
+
+
 class JSONLLogger:
     """Append-only JSONL metrics log."""
 
@@ -240,8 +252,8 @@ class AMCTrainer:
         self.model.train()
         output = self.model(
             batch.input_ids,
-            session_id=batch.session_id,
-            step=batch.step,
+            session_id=_batch_session_id(batch),
+            step=_batch_step(batch),
             use_amc=True,
             return_memory=True,
         )
@@ -298,7 +310,9 @@ class AMCTrainer:
 
         promotion_rate = 0.0
         if output.gate_outputs:
-            promotion_rate = float(torch.stack([gate[0].mean() for gate in output.gate_outputs]).item())
+            promotion_rate = float(
+                torch.stack([gate[0].mean() for gate in output.gate_outputs]).mean().item()
+            )
 
         tier2_entries = 0
         tier2_hook = getattr(self.model, "_tier2_hook", None)
