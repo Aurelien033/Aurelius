@@ -16,7 +16,10 @@ from typing import TYPE_CHECKING, Any
 from src._compat import StrEnum
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from src.memory.sdb_persistent_log import SDBPersistentLog
+    from src.memory.state_reconstruction import ReconstructedState
 
 REDACTED = "[REDACTED]"
 
@@ -481,3 +484,41 @@ class SDBMemoryRuntime:
         if self.persistent_log is not None:
             return self.persistent_log.replay_from(0)
         return list(self._events)
+
+    def recover_from_crash(
+        self,
+        *,
+        checkpoint_path: str | Path | None = None,
+    ) -> ReconstructedState:
+        """Recover Tier-2/Tier-3 by loading a checkpoint and replaying WAL tail events.
+
+        Requires ``persistent_log``. When ``checkpoint_path`` is omitted, the latest
+        row in ``amc_checkpoints`` may supply ``amc_checkpoint_path`` in its blob.
+        """
+        from pathlib import Path as PathLib
+
+        from plugins.memory.episodic_memory import EpisodicMemory
+        from src.memory.amc_checkpoint import load_amc_checkpoint
+        from src.memory.amc_tier3 import AMCTier3Config, AMCTier3Hook
+        from src.memory.state_reconstruction import StateReconstructor
+
+        if self.persistent_log is None:
+            raise RuntimeError("recover_from_crash requires persistent_log")
+
+        tier2 = EpisodicMemory()
+        tier3 = AMCTier3Hook(AMCTier3Config())
+        from_seq = 0
+        ckpt_path = PathLib(checkpoint_path) if checkpoint_path is not None else None
+
+        loaded = self.persistent_log.load_latest_checkpoint()
+        if loaded is not None:
+            from_seq = int(loaded[0])
+            blob = loaded[1]
+            if ckpt_path is None and isinstance(blob.get("amc_checkpoint_path"), str):
+                ckpt_path = PathLib(blob["amc_checkpoint_path"])
+
+        if ckpt_path is not None:
+            tier2, tier3, _header = load_amc_checkpoint(ckpt_path)
+
+        recon = StateReconstructor(self.persistent_log)
+        return recon.reconstruct_with_base(tier2, tier3, from_seq=from_seq)

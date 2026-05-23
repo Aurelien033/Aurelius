@@ -70,12 +70,26 @@ class StateReconstructor:
         ``target_seq`` is the number of events to apply (first N in log order).
         ``None`` replays all events.
         """
-        events = self.log.replay_from(0)
+        return self.reconstruct_with_base(
+            EpisodicMemory(),
+            AMCTier3Hook(AMCTier3Config()),
+            from_seq=0,
+            target_seq=target_seq,
+        )
+
+    def reconstruct_with_base(
+        self,
+        tier2: EpisodicMemory,
+        tier3: AMCTier3Hook,
+        *,
+        from_seq: int = 0,
+        target_seq: int | None = None,
+    ) -> ReconstructedState:
+        """Apply committed events after ``from_seq`` onto existing Tier-2/Tier-3 state."""
+        events = self.log.replay_from(from_seq)
         if target_seq is not None:
             events = events[:target_seq]
 
-        tier2 = EpisodicMemory()
-        tier3 = AMCTier3Hook(AMCTier3Config())
         committed_tier2_payloads: dict[str, dict[str, Any]] = {}
         committed_tier3_payloads: dict[str, dict[str, Any]] = {}
 
@@ -97,6 +111,7 @@ class StateReconstructor:
             tier2_count=len(tier2),
             tier3_store_count=len(tier3._store),
             tier3_quarantine_count=len(tier3._quarantine),
+            metadata={"from_seq": from_seq},
         )
 
     def _apply_committed(
