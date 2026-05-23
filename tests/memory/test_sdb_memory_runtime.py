@@ -196,6 +196,26 @@ def test_verification_must_match_proposal() -> None:
         runtime.commit(proposal_b, verification_result=verification_a)
 
 
+def test_wrong_proposal_verification_is_mismatch_even_when_target_unverified() -> None:
+    """Mismatch on proposal_id is raised before 'must verify through runtime'."""
+    runtime = _runtime()
+    proposal_a = _propose(runtime, proposal_id="verified-only")
+    proposal_b = _propose(runtime, proposal_id="never-verified")
+    verification_a = runtime.verify(
+        proposal_a,
+        verifier="v",
+        decision=VerificationDecision.ACCEPT,
+        reason="ok",
+        checks={},
+        deterministic=True,
+    )
+    assert "never-verified" not in runtime._verified_proposal_ids  # noqa: SLF001
+    with pytest.raises(VerificationMismatchError) as exc_info:
+        runtime.commit(proposal_b, verification_result=verification_a)
+    assert "never-verified" in str(exc_info.value)
+    assert "verified-only" in str(exc_info.value)
+
+
 # ── Test 7: replay hashes are stable ─────────────────────────────────────────
 
 
