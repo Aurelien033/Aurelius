@@ -1,0 +1,25 @@
+# TIER-1 ONLY: SSM working memory, no episodic or long-term promotion
+model:
+  name: aurelius-forge-1b-tier1
+  vocab_size: 128000
+  d_model: 1792
+  n_layers: 24
+  n_heads: 16
+  kv_lrank: 64
+  ssm_d_state: 64
+  ssm_expand: 2
+  ssm_headdim: 64
+  d_conv: 4
+  max_seq_len: 4096
+  tie_embeddings: true
+  promotion_temperature: 1000000.0
+
+amc:
+  disable_promotion: true
+  disable_tier3: true
+  policy_version: "amc/v1"
+  loss_weights:
+    sft: 1.0
+    surprise: 0.0
+    consistency: 0.0
+    promotion: 0.0

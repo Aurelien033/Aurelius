@@ -1,0 +1,25 @@
+# TIER-1+2: SSM + episodic promotion, no long-term Tier-3
+model:
+  name: aurelius-forge-1b-tier12
+  vocab_size: 128000
+  d_model: 1792
+  n_layers: 24
+  n_heads: 16
+  kv_lrank: 64
+  ssm_d_state: 64
+  ssm_expand: 2
+  ssm_headdim: 64
+  d_conv: 4
+  max_seq_len: 4096
+  tie_embeddings: true
+  promotion_temperature: 0.5
+
+amc:
+  disable_promotion: false
+  disable_tier3: true
+  policy_version: "amc/v1"
+  loss_weights:
+    sft: 0.80
+    surprise: 0.15
+    consistency: 0.05
+    promotion: 0.0
