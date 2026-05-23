@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 from scripts.run_cross_validation import (
     CONFIG_ORDER,
     run_cross_validation,
@@ -17,7 +14,11 @@ def test_smoke_cross_validation_passes() -> None:
 
 
 def test_render_report_contains_check_table() -> None:
-    from scripts.run_cross_validation import CrossValidationCheck, CrossValidationResult, render_report
+    from scripts.run_cross_validation import (
+        CrossValidationCheck,
+        CrossValidationResult,
+        render_report,
+    )
 
     result = CrossValidationResult(
         profile="smoke",

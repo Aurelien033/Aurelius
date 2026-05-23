@@ -11,8 +11,9 @@ import json
 import random
 import statistics
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from src.eval.mmlu_scorer import CANONICAL_EXEMPLARS, MMLUProblem, MMLUScorer
 

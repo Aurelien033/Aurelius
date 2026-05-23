@@ -65,7 +65,7 @@ def test_reflect_promotes_to_tier3(agent: ConsolidationAgent, tier3: AMCTier3Hoo
 def test_reflect_quarantines_contradictions(agent: ConsolidationAgent, tier3: AMCTier3Hook) -> None:
     existing = tier3.promote(key="old_fact", value="Old architecture choice", confidence=0.9)
     assert existing is not None
-    output = f"""
+    output = """
 FACT: User switched to full SSM stack.
 CONFIDENCE: 0.88
 TAGS: architecture

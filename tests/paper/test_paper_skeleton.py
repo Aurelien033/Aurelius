@@ -83,7 +83,7 @@ def test_makefile_exists() -> None:
 @pytest.mark.skipif(shutil.which("pdflatex") is None, reason="pdflatex not installed")
 def test_latex_compiles() -> None:
     proc = subprocess.run(
-        ["pdflatex", "-interaction=nonstopmode", "main.tex"],
+        ["pdflatex", "-interaction=nonstopmode", "main.tex"],  # noqa: S607 - test invokes the user-installed pdflatex via PATH; skipif guard above ensures presence
         cwd=PAPER,
         capture_output=True,
         text=True,

@@ -11,7 +11,7 @@ from src.agent.slr_integration import prepare_slr_recall_context, resolve_recall
 from src.memory.amc_tier2 import AMCTier2Hook
 from src.memory.amc_tier3 import AMCTier3Hook, TrustLevel
 from src.memory.consolidation_agent import ConsolidationAgent
-from src.memory.constitutional_memory import ConstitutionalMemory, DEFAULT_PRINCIPLES
+from src.memory.constitutional_memory import DEFAULT_PRINCIPLES, ConstitutionalMemory
 from src.memory.sdb_runtime import SDBMemoryRuntime
 from src.reasoning.stochastic_latent_recall import default_slr_config
 

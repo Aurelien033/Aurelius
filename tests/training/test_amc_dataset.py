@@ -31,7 +31,7 @@ def _prepare_fixture(tmp_path: Path) -> Path:
         "--train-split",
         "0.8",
     ]
-    subprocess.run(cmd, check=True, cwd=_REPO_ROOT)
+    subprocess.run(cmd, check=True, cwd=_REPO_ROOT)  # noqa: S603 - cmd is built from trusted repo paths and literals
     return out_dir
 
 

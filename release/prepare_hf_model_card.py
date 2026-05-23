@@ -12,7 +12,11 @@ OUT = _REPO / "release/dist/README_HF.md"
 
 def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    body = SRC.read_text(encoding="utf-8") if SRC.is_file() else "# AMC Model Card\n\nTODO: model_card.md missing\n"
+    body = (
+        SRC.read_text(encoding="utf-8")
+        if SRC.is_file()
+        else "# AMC Model Card\n\nTODO: model_card.md missing\n"
+    )
     header = (
         "# Hugging Face README (generated)\n\n"
         "> TODO: set `weights_path` when checkpoints are available.\n\n"

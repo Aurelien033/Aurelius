@@ -12,7 +12,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from src.security.amc_security_audit import AMCSecurityAudit
+from src.security.amc_security_audit import (  # noqa: E402 - must follow sys.path bootstrap above
+    AMCSecurityAudit,
+)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

@@ -10,7 +10,6 @@ from pathlib import Path
 import yaml
 
 from src.training.launch_amc_training import (
-    model_config_from_yaml,
     train_config_from_yaml,
     validate_data_dir,
 )
@@ -34,7 +33,7 @@ def _prepare_fixture(tmp_path: Path) -> Path:
         "--train-split",
         "0.8",
     ]
-    subprocess.run(cmd, check=True, cwd=_REPO_ROOT)
+    subprocess.run(cmd, check=True, cwd=_REPO_ROOT)  # noqa: S603 - cmd is built from trusted repo paths and literals
     return out_dir
 
 
@@ -117,7 +116,7 @@ def test_launch_amc_training_sanity_run(tmp_path: Path) -> None:
         "--num-workers",
         "0",
     ]
-    subprocess.run(cmd, check=True, cwd=_REPO_ROOT)
+    subprocess.run(cmd, check=True, cwd=_REPO_ROOT)  # noqa: S603 - cmd is built from trusted repo paths and literals
     metrics_path = log_dir / "training.jsonl"
     assert metrics_path.is_file()
     lines = [json.loads(line) for line in metrics_path.read_text(encoding="utf-8").splitlines() if line.strip()]

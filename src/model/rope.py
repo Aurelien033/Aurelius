@@ -38,7 +38,7 @@ class RotaryEmbedding(nn.Module):
         dtype: torch.dtype,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         self._update_cache(seq_len, device, dtype)
-        assert self._cos_cache is not None and self._sin_cache is not None
+        assert self._cos_cache is not None and self._sin_cache is not None  # noqa: S101 - invariant guaranteed by _update_cache; cheap runtime guard for type-narrowing
         return self._cos_cache[:seq_len], self._sin_cache[:seq_len]
 
 
@@ -63,7 +63,11 @@ def apply_rope(
     k_cos = cos[:k_len]
     k_sin = sin[:k_len]
 
-    def _rotate(tensor: torch.Tensor, cos_slice: torch.Tensor, sin_slice: torch.Tensor) -> torch.Tensor:
+    def _rotate(
+        tensor: torch.Tensor,
+        cos_slice: torch.Tensor,
+        sin_slice: torch.Tensor,
+    ) -> torch.Tensor:
         cos_b = cos_slice.view(1, 1, -1, cos_slice.shape[-1])
         sin_b = sin_slice.view(1, 1, -1, sin_slice.shape[-1])
         return tensor * cos_b + rotate_half(tensor) * sin_b

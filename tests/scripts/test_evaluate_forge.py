@@ -26,7 +26,7 @@ def test_evaluate_forge_smoke_writes_summary(tmp_path: Path) -> None:
         "--mode",
         "oracle",
     ]
-    subprocess.run(cmd, check=True, cwd=_REPO_ROOT)
+    subprocess.run(cmd, check=True, cwd=_REPO_ROOT)  # noqa: S603 - cmd is built from trusted repo paths and literals
     summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
     assert "amc_memory" in summary["results"]
     assert "gsm8k" in summary["results"]

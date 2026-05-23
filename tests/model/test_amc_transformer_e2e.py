@@ -7,7 +7,7 @@ from pathlib import Path
 
 import torch
 
-from src.model.amc_transformer import AMCTransformer, AMCTransformerConfig, AMCModelOutput
+from src.model.amc_transformer import AMCModelOutput, AMCTransformer, AMCTransformerConfig
 
 
 def _small_config() -> AMCTransformerConfig:

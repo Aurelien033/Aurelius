@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
 
 from src.memory.amc_tier2 import AMCTier2Hook
 from src.memory.amc_tier3 import AMCTier3Hook

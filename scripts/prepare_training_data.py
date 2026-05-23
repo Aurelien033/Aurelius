@@ -18,8 +18,9 @@ import os
 import random
 import re
 import sys
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import numpy as np
 
@@ -194,7 +195,7 @@ def pack_sequences(
             continue
         try:
             tokens = tokenizer.encode(doc, add_special_tokens=False)
-        except Exception:
+        except Exception:  # noqa: S112 - tokenizer errors on malformed docs are skipped by design during data prep
             continue
         if not tokens:
             continue

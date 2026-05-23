@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from src.security.amc_security_audit import AMCSecurityAudit, AuditResult
+from src.security.amc_security_audit import AMCSecurityAudit
 
 
 @pytest.fixture
