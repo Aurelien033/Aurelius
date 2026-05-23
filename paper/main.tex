@@ -1,8 +1,5 @@
 \documentclass{article}
 
-% Conference template — swap for ICLR/NeurIPS as needed
-% NeurIPS: \usepackage[final]{neurips_2026}
-% ICLR 2027: \usepackage{iclr2027_conference}
 \usepackage{hyperref}
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
@@ -24,255 +21,30 @@
 
 \begin{abstract}
 We present the Aurelian Memory Core (AMC), a per-layer differentiable
-three-tier memory hierarchy integrated directly into the transformer
-forward pass. Unlike retrieval-augmented approaches that bolt memory
-onto frozen models, AMC makes the \emph{what to remember} decision a
-learned, end-to-end differentiable component via surprise prediction
-heads and Gumbel-softmax promotion gates. The three-tier
-hierarchy---working memory (selective state spaces at each layer),
-episodic memory (surprise-gated storage across turns), and long-term
-storage (trust-aware consolidation with quarantine)---produces a model
-that improves memory-specific task performance while maintaining
-parity on general benchmarks.
-
-We further introduce two novel contributions to memory system design:
-(1) the \textbf{trust-aware memory contract}, a data structure that
-binds each memory entry to its trust state, provenance, and safety
-classification, enabling fail-closed memory systems where quarantined
-entries \emph{cannot silently influence generation}; and (2)
-\textbf{constitutional memory alignment}, which encodes safety
-principles as permanent, non-evictable long-term entries always
-retrieved during generation---making alignment a property of memory
-retrieval rather than a separate classifier.
-
-We release the AMC-Memory benchmark suite (six tasks targeting
-cross-session recall, surprise selectivity, consolidation preference,
-contradiction quarantine, tool-trace grounding, and poisoning
-resistance) and a reproducible training and evaluation pipeline.
+three-tier memory hierarchy integrated into the transformer forward pass.
+Tier-1 working memory uses Mamba-2 selective state spaces; Tier-2 episodic
+memory uses surprise heads and Gumbel-softmax promotion gates; Tier-3
+long-term storage uses trust-aware consolidation with quarantine.
+On AMC-Memory (oracle smoke, $n{=}5$), scores increase from
+TODO\_BASELINE to TODO\_FULL\_AMC (see
+\texttt{ablation\_scores.jsonl}); GPU-trained deltas are
+\textbf{TODO\_DELTA}. Standard-benchmark parity (GSM8K, MMLU) is
+\textbf{TODO\_PVALUE} until engine evaluation on trained
+\textbf{TODO\_MODEL\_SIZE} checkpoints. We release reproducibility
+scripts, a claims ledger, and adversarial safety probes (6/6 PASS in
+structural audit).
 \end{abstract}
 
-\section{Introduction}
-\label{sec:intro}
-
-Modern language models treat memory as an afterthought: the model is
-trained on one-shot next-token prediction, and retrieval is added as a
-post-hoc component (RAG, MemGPT). This split creates three problems:
-\begin{enumerate}
-  \item \textbf{Memory is not learned}. The retrieval module cannot
-        influence what the model encodes.
-  \item \textbf{Memory is unsafe}. Retrieved passages are injected
-        into context without trust verification---the source of many
-        RAG poisoning attacks.
-  \item \textbf{Memory is opaque}. There is no gradient signal
-        telling the model which stored facts were helpful.
-\end{enumerate}
-
-We argue that memory should be \emph{native to the architecture}:
-every layer should decide, via a learned mechanism, what to hold in
-working memory, what to promote to episodic storage, and what to
-consolidate into long-term store.
-
-We introduce the \textbf{Aurelian Memory Core (AMC)}, a per-layer
-differentiable three-tier memory hierarchy in which:
-\begin{itemize}
-  \item \textbf{Tier-1} (working memory) uses Mamba-2 selective state
-        spaces~\citep{dao2024transformers} with learned decay, erase,
-        and write gates.
-  \item \textbf{Tier-2} (episodic memory) is gated by a learned
-        surprise head and a Gumbel-softmax promotion gate.
-  \item \textbf{Tier-3} (long-term store) is a trust-aware consolidated
-        store with quarantine, decay, and consolidation policies.
-\end{itemize}
-
-\paragraph{Contributions.}
-\begin{enumerate}
-  \item A hybrid transformer with per-layer differentiable memory
-        (surprise heads, promotion gates, three-tier hierarchy).
-  \item Trust-aware memory contracts and constitutional alignment as
-        retrieval-native safety.
-  \item AMC-Memory benchmark suite and open reproducibility bundle.
-\end{enumerate}
-
-\paragraph{Outline.}
-Section~\ref{sec:related} reviews related work.
-Section~\ref{sec:architecture} describes the architecture.
-Section~\ref{sec:training} covers training objectives.
-Section~\ref{sec:experiments} presents ablations and safety audits.
-Section~\ref{sec:analysis} discusses qualitative analysis (T34).
-Section~\ref{sec:conclusion} concludes.
-
-\section{Related Work}
-\label{sec:related}
-
-\paragraph{Memory-augmented language models.}
-MemGPT/Letta~\citep{packer2023memgpt}, Generative
-Agents~\citep{park2023generative}, and
-RAG~\citep{lewis2020rag} demonstrate multi-tier or retrieval-based
-memory without differentiable promotion through the forward pass.
-
-\paragraph{Learned memory in the forward pass.}
-Titans~\citep{bulian2025titans} introduces per-layer learned memory
-with surprise-driven gating. AMC extends this with explicit Tier-2/3
-stores, trust contracts, and constitutional alignment.
-
-\paragraph{Selective state space models.}
-Mamba~\citep{gu2023mamba} and Mamba-2~\citep{dao2024transformers}
-provide the Tier-1 substrate.
-
-\paragraph{Constitutional AI.}
-Constitutional AI~\citep{bai2022constitutional} encodes safety in reward
-signals; AMC encodes principles as permanent retrievable memory.
-
-\section{Architecture}
-\label{sec:architecture}
-
-\subsection{Tier-1: Per-Layer SSM Working Memory}
-
-Every other layer uses a Mamba-2 selective state space block with
-state $h_t^{(l)}$ updated via
-\begin{equation}
-  h_{t+1}^{(l)} = d_t \odot h_t^{(l)} - e_t \odot h_t^{(l)} + w_t \odot x_t
-\end{equation}
-where $d_t, e_t, w_t \in [0, 1]^N$ are learned gates.
-
-\subsection{Tier-2: Surprise-Gated Episodic Memory}
-
-A surprise head produces $s_t = \sigma(\mathrm{MLP}(\mathrm{sg}[h_t]))$.
-A Gumbel-softmax promotion gate writes to Tier-2 when the hard decision
-exceeds threshold $\tau$, with straight-through gradients.
-
-\subsection{Tier-3: Trust-Aware Consolidation}
-
-Tier-3 stores consolidated facts with trust level, confidence, decay
-policy, and provenance. Cache keys bind content to trust state:
-\begin{equation}
-  k = \mathrm{BLAKE2b}(\text{content} \| \text{tier} \| \text{trust} \| \text{revocation\_epoch})
-\end{equation}
-Quarantined entries are excluded from retrieval.
-
-\subsection{Constitutional Memory}
-
-Safety principles are permanent Tier-3 entries (infinite half-life,
-TRUSTED) that cannot be evicted and are always retrieved.
-
-\section{Training}
-\label{sec:training}
-
-\begin{equation}
-  \mathcal{L} = \alpha \mathcal{L}_{\text{SFT}} + \beta \mathcal{L}_{\text{surprise}} + \gamma \mathcal{L}_{\text{consistency}} + \delta \mathcal{L}_{\text{promotion}}
-\end{equation}
-
-Separate optimizers: main model ($3\times10^{-4}$), promotion gate
-($1\times10^{-4}$), surprise head ($1\times10^{-5}$).
-
-\section{Experiments}
-\label{sec:experiments}
-
-\subsection{Ablation Study}
-
-Four 1B-parameter configurations: baseline (all attention), Tier-1 only,
-Tier-1+2, and full AMC. Table~\ref{tab:ablation} reports five benchmarks
-(T34 fills final GPU numbers).
-
-\begin{table}[t]
-\centering
-\caption{Ablation study outline (numbers: T34). Full AMC should improve
-memory benchmarks without degrading GSM8K/MMLU.}
-\label{tab:ablation}
-\begin{tabular}{lccccc}
-\toprule
-Config & AMC-Memory & RULER & LongBench & GSM8K & MMLU \\
-\midrule
-Baseline    & 0.XX & 0.XX & 0.XX & 0.XX & 0.XX \\
-Tier-1 only & 0.XX & 0.XX & 0.XX & 0.XX & 0.XX \\
-Tier-1+2    & 0.XX & 0.XX & 0.XX & 0.XX & 0.XX \\
-Full AMC    & \textbf{0.XX} & \textbf{0.XX} & \textbf{0.XX} & 0.XX & 0.XX \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Adversarial Safety}
-
-Six probes verify fail-closed memory (Table~\ref{tab:safety}).
-
-\begin{table}[t]
-\centering
-\caption{Adversarial safety audit (T29).}
-\label{tab:safety}
-\begin{tabular}{ll}
-\toprule
-Probe & Result \\
-\midrule
-Forged verification & Blocked \\
-Mutation after verify & Blocked \\
-Secret leakage in replay & Redacted \\
-Memory poisoning & Quarantined / gated \\
-Constitutional integrity & Preserved \\
-Replay chain tamper & Detected \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\section{Analysis}
-\label{sec:analysis}
-
-\paragraph{Placeholder (T34).}
-Surprise-head calibration, promotion gate statistics, and cross-session
-memory growth curves.
-
-\section{Conclusion}
-\label{sec:conclusion}
-
-AMC makes memory native to the transformer via differentiable surprise,
-promotion, and trust-aware consolidation, with verifiable safety
-properties and constitutional alignment as retrieval.
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_method}
+\input{sections/04_training}
+\input{sections/05_experiments}
+\input{sections/06_analysis}
+\input{sections/07_conclusion}
+\input{sections/appendix}
 
 \bibliographystyle{plainnat}
-\begin{thebibliography}{99}
-
-\bibitem[Bai et al.(2022)]{bai2022constitutional}
-Bai, Y., Kadavath, S., Kundu, S., et al.
-2022.
-Constitutional AI: Harmlessness from AI Feedback.
-\emph{arXiv:2212.08073}.
-
-\bibitem[Bulian et al.(2025)]{bulian2025titans}
-Bulian, J., et al.
-2025.
-Titans: Learning to Memorize at Test Time.
-\emph{Meta FAIR Technical Report}.
-
-\bibitem[Dao and Gu(2024)]{dao2024transformers}
-Dao, T. and Gu, A.
-2024.
-Transformers are SSMs: Generalized Models and Efficient Algorithms
-Through Structured State Space Duality.
-\emph{ICML 2024}.
-
-\bibitem[Gu and Dao(2023)]{gu2023mamba}
-Gu, A. and Dao, T.
-2023.
-Mamba: Linear-Time Sequence Modeling with Selective State Spaces.
-\emph{arXiv:2312.00752}.
-
-\bibitem[Lewis et al.(2020)]{lewis2020rag}
-Lewis, P., Perez, E., Piktus, A., et al.
-2020.
-Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks.
-\emph{NeurIPS 2020}.
-
-\bibitem[Packer et al.(2023)]{packer2023memgpt}
-Packer, C., Shao, S., and Zhan, S.
-2023.
-MemGPT: Towards LLMs as Operating Systems.
-\emph{arXiv:2310.08560}.
-
-\bibitem[Park et al.(2023)]{park2023generative}
-Park, J. S., O'Brien, J. C., Cai, C. J., et al.
-2023.
-Generative Agents: Interactive Simulacra of Human Behavior.
-\emph{UIST 2023}.
-
-\end{thebibliography}
+\bibliography{references}
 
 \end{document}

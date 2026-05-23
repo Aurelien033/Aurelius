@@ -1,0 +1,17 @@
+\begin{table}[t]
+\centering
+\caption{Adversarial safety audit (T29, 6/6 PASS).}
+\label{tab:safety}
+\begin{tabular}{ll}
+\toprule
+Probe & Result \\
+\midrule
+Forged verification & Blocked \\
+Mutation after verify & Blocked \\
+Secret leakage in replay & Redacted \\
+Memory poisoning & Quarantined / gated \\
+Constitutional integrity & Preserved \\
+Replay chain tamper & Detected \\
+\bottomrule
+\end{tabular}
+\end{table}

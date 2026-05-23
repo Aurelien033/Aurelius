@@ -1,0 +1,49 @@
+\section{Introduction}
+\label{sec:intro}
+
+Modern language models treat memory as an afterthought: the model is
+trained on one-shot next-token prediction, and retrieval is added as a
+post-hoc component (RAG, MemGPT). This split creates three problems:
+\begin{enumerate}
+  \item \textbf{Memory is not learned}. The retrieval module cannot
+        influence what the model encodes.
+  \item \textbf{Memory is unsafe}. Retrieved passages are injected
+        into context without trust verification---the source of many
+        RAG poisoning attacks.
+  \item \textbf{Memory is opaque}. There is no gradient signal
+        telling the model which stored facts were helpful.
+\end{enumerate}
+
+We argue that memory should be \emph{native to the architecture}:
+every layer should decide, via a learned mechanism, what to hold in
+working memory, what to promote to episodic storage, and what to
+consolidate into long-term store.
+
+We introduce the \textbf{Aurelian Memory Core (AMC)}, a per-layer
+differentiable three-tier memory hierarchy in which:
+\begin{itemize}
+  \item \textbf{Tier-1} (working memory) uses Mamba-2 selective state
+        spaces~\citep{dao2024transformers} with learned decay, erase,
+        and write gates.
+  \item \textbf{Tier-2} (episodic memory) is gated by a learned
+        surprise head and a Gumbel-softmax promotion gate.
+  \item \textbf{Tier-3} (long-term store) is a trust-aware consolidated
+        store with quarantine, decay, and consolidation policies.
+\end{itemize}
+
+\paragraph{Contributions.}
+\begin{enumerate}
+  \item A hybrid transformer with per-layer differentiable memory
+        (surprise heads, promotion gates, three-tier hierarchy).
+  \item Trust-aware memory contracts and constitutional alignment as
+        retrieval-native safety.
+  \item AMC-Memory benchmark suite and open reproducibility bundle.
+\end{enumerate}
+
+\paragraph{Outline.}
+Section~\ref{sec:related} reviews related work.
+Section~\ref{sec:method} describes the method.
+Section~\ref{sec:training} covers training objectives.
+Section~\ref{sec:experiments} presents ablations and safety audits.
+Section~\ref{sec:analysis} discusses qualitative analysis.
+Section~\ref{sec:conclusion} concludes.

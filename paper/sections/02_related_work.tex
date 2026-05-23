@@ -1,0 +1,21 @@
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Memory-augmented language models.}
+MemGPT/Letta~\citep{packer2023memgpt}, Generative
+Agents~\citep{park2023generative}, and
+RAG~\citep{lewis2020rag} demonstrate multi-tier or retrieval-based
+memory without differentiable promotion through the forward pass.
+
+\paragraph{Learned memory in the forward pass.}
+Titans~\citep{bulian2025titans} introduces per-layer learned memory
+with surprise-driven gating. AMC extends this with explicit Tier-2/3
+stores, trust contracts, and constitutional alignment.
+
+\paragraph{Selective state space models.}
+Mamba~\citep{gu2023mamba} and Mamba-2~\citep{dao2024transformers}
+provide the Tier-1 substrate.
+
+\paragraph{Constitutional AI.}
+Constitutional AI~\citep{bai2022constitutional} encodes safety in reward
+signals; AMC encodes principles as permanent retrievable memory.

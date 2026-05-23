@@ -1,0 +1,15 @@
+\section{Training}
+\label{sec:training}
+
+% Evidence: src/training/amc_trainer.py; src/training/launch_amc_training.py
+
+We train Aurelius-Forge 1B-AMC with the composite loss in
+Section~\ref{sec:method}. Optimizer groups: main model
+($3\times10^{-4}$), promotion gate ($1\times10^{-4}$), surprise head
+($1\times10^{-5}$). DeepSpeed ZeRO-2 is used for multi-GPU runs
+(\texttt{configs/deepspeed\_zero2.json}).
+
+Dataset packing, importance labels, and memmap loaders are documented in
+the reproducibility bundle (\texttt{docs/reproducibility/README.md}).
+Final checkpoint quality metrics are \textbf{TODO\_MODEL\_SIZE} until a
+full GPU training run completes.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate paper/main.tex skeleton (T32)."""
+"""Validate paper skeleton (T32–T34)."""
 
 from __future__ import annotations
 
@@ -8,21 +8,31 @@ import sys
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parents[1]
-MAIN = _REPO / "paper" / "main.tex"
+PAPER = _REPO / "paper"
+
+
+def _collect_tex() -> str:
+    parts = [(PAPER / "main.tex").read_text(encoding="utf-8")]
+    for path in sorted(PAPER.rglob("*.tex")):
+        if path.name == "main.tex":
+            continue
+        parts.append(path.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 def main() -> int:
-    if not MAIN.is_file():
-        print(f"MISSING {MAIN}", file=sys.stderr)
+    if not (PAPER / "main.tex").is_file():
+        print(f"MISSING {PAPER / 'main.tex'}", file=sys.stderr)
         return 1
 
-    text = MAIN.read_text(encoding="utf-8")
+    text = _collect_tex()
     required = [
         r"\begin{abstract}",
         r"\section{Introduction}",
         r"\section{Experiments}",
-        r"tab:ablation",
-        r"tab:safety",
+        "tab:ablation",
+        "tab:safety",
+        "TODO",
     ]
     missing = [token for token in required if token not in text]
     if missing:
