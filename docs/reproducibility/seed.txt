@@ -1,0 +1,23 @@
+# Aurelius AMC reproducibility seeds (T30)
+# Re-running with these seeds reproduces smoke/oracle evaluation paths.
+# GPU BF16 kernels may introduce minor non-determinism on hardware.
+
+training.global_seed=42
+training.data_shuffle_seed=42
+training.dataloader_seed=42
+
+data.tokenization_seed=42
+data.train_split_seed=42
+
+evaluation.gsm8k_seed=42
+evaluation.mmlu_seed=42
+evaluation.amc_memory_seed=42
+
+ablation.random_seed=42
+ablation.n_bootstrap=10000
+ablation.bootstrap_seed=42
+
+slr.replay_seed=7
+slr.noise_sigma_smoke=0.1
+
+security_audit.replay_chain_steps=10
