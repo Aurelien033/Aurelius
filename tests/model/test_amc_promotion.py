@@ -40,6 +40,34 @@ def test_soft_is_in_unit_interval() -> None:
     assert soft.max() <= 1.0
 
 
+def test_straight_through_forward_equals_hard_not_soft() -> None:
+    store_hard = torch.tensor([1.0, 0.0])
+    store_soft = torch.tensor([0.2, 0.8], requires_grad=True)
+    gate = PromotionGate(d_model=64)
+    st = gate.straight_through_store(store_hard, store_soft)
+    assert torch.equal(st, store_hard)
+    assert not torch.allclose(st, store_soft)
+
+
+def test_straight_through_backward_uses_soft_gradient() -> None:
+    store_hard = torch.tensor([1.0, 0.0])
+    store_soft = torch.tensor([0.2, 0.8], requires_grad=True)
+    gate = PromotionGate(d_model=64)
+    st = gate.straight_through_store(store_hard, store_soft)
+    st.sum().backward()
+    assert store_soft.grad is not None
+    assert torch.allclose(store_soft.grad, torch.ones_like(store_soft))
+
+
+def test_training_forward_hard_output_binary_soft_trainable() -> None:
+    gate = PromotionGate(d_model=64)
+    gate.train()
+    hard, soft = gate(torch.randn(4, 64), torch.rand(4))
+    assert torch.all((hard == 0.0) | (hard == 1.0))
+    assert soft.min() >= 0.0
+    assert soft.max() <= 1.0
+
+
 def test_straight_through_gradient() -> None:
     gate = PromotionGate(d_model=64)
     gate.train()

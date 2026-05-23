@@ -53,7 +53,6 @@ class PromotionGate(nn.Module):
         if self.training:
             soft = F.gumbel_softmax(logits, tau=self.temperature, hard=False)[:, 1]
             hard = F.gumbel_softmax(logits, tau=self.temperature, hard=True)[:, 1]
-            _ = hard - hard.detach() + soft  # straight-through (forward uses hard)
             return hard, soft
 
         store = (logits.argmax(dim=-1) == 1).to(dtype=hidden.dtype)
@@ -76,7 +75,7 @@ class PromotionGate(nn.Module):
         store_soft: torch.Tensor,
     ) -> torch.Tensor:
         """Gumbel straight-through: hard forward, soft backward."""
-        return store_hard - store_hard.detach() + store_soft
+        return store_hard - store_soft.detach() + store_soft
 
 
 def tier1_to_tier2_promotion(
