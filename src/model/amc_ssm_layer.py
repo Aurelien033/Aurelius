@@ -20,6 +20,7 @@ from src.memory.amc_tensor_api import (
     AMCWriteDecision,
     MemoryTier,
 )
+from src.model.amc_gates import AMCGateController
 from src.model.amc_surprise import SurpriseHead, SurpriseHeadConfig
 from src.model.mamba2_block import Mamba2Block, Mamba2Config
 
@@ -82,9 +83,10 @@ class AMCSSMLayer(nn.Module):
         gate_out = config.gate_hidden
         if gate_out is None:
             raise ValueError("gate_hidden must be set")
-        self.decay_net = nn.Linear(config.d_model, gate_out)
-        self.erase_net = nn.Linear(config.d_model, gate_out)
-        self.write_net = nn.Linear(config.d_model, gate_out)
+        self.gates = AMCGateController(
+            d_model=config.d_model,
+            d_state=gate_out,
+        )
 
         self._last_tensor_state: AMCTensorState | None = None
         self._last_block: AMCMemoryBlock | None = None
@@ -111,15 +113,15 @@ class AMCSSMLayer(nn.Module):
         mean_surprise = float(surprise[:, -1].mean().item()) if surprise.numel() else 0.0
 
         x_last = x[:, -1, :]
-        decay = torch.sigmoid(self.decay_net(x_last))
-        erase = torch.sigmoid(self.erase_net(x_last))
-        write = torch.sigmoid(self.write_net(x_last))
+        gate_dict = self.gates(x_last)
+        decay = gate_dict["decay"]
+        erase = gate_dict["erase"]
+        write = gate_dict["write"]
 
         h = ssm_state["ssm_state"]
-        decay_g = decay.view(h.shape[0], 1, 1, -1)
-        erase_g = erase.view(h.shape[0], 1, 1, -1)
-        write_g = write.view(h.shape[0], 1, 1, -1)
-        gated_state = h * (1.0 - decay_g) - erase_g * h + write_g
+        gated_state = self.gates.apply_to_state(h, gate_dict)
+        write_g = self.gates._broadcast_gate(write, h)
+        gated_state = gated_state + write_g
         ssm_state["ssm_state"] = gated_state
         self.ssm.set_state(gated_state.detach())
 

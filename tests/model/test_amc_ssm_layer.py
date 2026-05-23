@@ -55,8 +55,8 @@ def test_gates_have_gradient() -> None:
     x = torch.randn(2, 8, 64, requires_grad=True)
     out = layer(x, step=0)
     out.hidden.sum().backward()
-    assert layer.decay_net.weight.grad is not None
-    assert layer.decay_net.weight.grad.norm().item() > 0.0
+    assert layer.gates.decay.net[0].weight.grad is not None
+    assert layer.gates.decay.net[0].weight.grad.norm().item() > 0.0
 
 
 def test_memory_block_tier_is_1() -> None:

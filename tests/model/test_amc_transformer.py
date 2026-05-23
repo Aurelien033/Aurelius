@@ -104,7 +104,7 @@ def test_gradient_flows_to_all_components() -> None:
     for layer_idx, layer in enumerate(model.layers):
         if layer_idx in model.ssm_layer_indices:
             assert isinstance(layer, AMCSSMLayer)
-            assert layer.decay_net.weight.grad is not None
+            assert layer.gates.decay.net[0].weight.grad is not None
         else:
             assert layer.attn.q_proj.weight.grad is not None
 
