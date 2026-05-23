@@ -120,7 +120,10 @@ def main() -> None:
     config_path = Path(args.config)
     with config_path.open() as handle:
         raw = yaml.safe_load(handle)
-    config = AMCTransformerConfig(**raw.get("model", raw))
+    model_raw = raw.get("model", raw)
+    if isinstance(model_raw, dict):
+        model_raw = {key: value for key, value in model_raw.items() if key != "name"}
+    config = AMCTransformerConfig(**model_raw)
 
     errors = validate_config(config)
     if errors:

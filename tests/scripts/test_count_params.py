@@ -70,7 +70,8 @@ def test_1b_config_is_in_range() -> None:
     config_path = _REPO_ROOT / "configs" / "amc_forge_1b.yaml"
     with config_path.open() as handle:
         raw = yaml.safe_load(handle)
-    cfg = AMCTransformerConfig(**raw["model"])
+    model_raw = {k: v for k, v in raw["model"].items() if k != "name"}
+    cfg = AMCTransformerConfig(**model_raw)
     errors = validate_config(cfg)
     assert not errors, f"config errors: {errors}"
     model = AMCTransformer(cfg)
