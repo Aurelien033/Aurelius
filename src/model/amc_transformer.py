@@ -153,6 +153,8 @@ class MLAAttentionLayer(nn.Module):
             head_dim=head_dim,
             kv_lora_rank=config.kv_lrank,
             dropout=config.dropout,
+            max_seq_len=config.max_seq_len,
+            rope_theta=config.rope_theta,
         )
         self.attn_norm = RMSNorm(config.d_model, eps=config.rms_norm_eps)
         self.mla = MultiheadLatentAttention(mla_cfg)
@@ -160,7 +162,7 @@ class MLAAttentionLayer(nn.Module):
         self.ffn = SwiGLUFFN(aurelius)
 
     def forward(self, hidden: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
-        _ = freqs_cis  # RoPE on MLA Q/K is wired in T08
+        _ = freqs_cis  # legacy GQA freqs; MLA uses src.model.rope.RotaryEmbedding
         mla_out = self.mla(self.attn_norm(hidden))
         if isinstance(mla_out, tuple):
             mla_out = mla_out[0]

@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .rms_norm import RMSNorm
+from .rope import RotaryEmbedding, apply_rope
 
 
 @dataclass
@@ -21,6 +22,8 @@ class MLAConfig:
     q_lora_rank: int = 0  # if > 0, also compress queries (0 = no Q compression)
     rope_dim: int = 32  # portion of head_dim that gets RoPE (decoupled RoPE)
     dropout: float = 0.0
+    max_seq_len: int = 8192
+    rope_theta: float = 10000.0
 
 
 class DownProjectKV(nn.Module):
@@ -181,6 +184,11 @@ class MultiheadLatentAttention(nn.Module):
         self.k_up = nn.Linear(kv_lrank, config.d_model, bias=False)
         self.v_up = nn.Linear(kv_lrank, config.d_model, bias=False)
         self.o_proj = nn.Linear(config.d_model, config.d_model, bias=False)
+        self.rope = RotaryEmbedding(
+            dim=config.head_dim,
+            max_seq_len=config.max_seq_len,
+            theta=config.rope_theta,
+        )
 
     def forward(
         self,
@@ -204,11 +212,21 @@ class MultiheadLatentAttention(nn.Module):
         total_len = key.shape[1]
 
         query = query.view(batch, seq_len, cfg.n_heads, cfg.head_dim).transpose(1, 2)
-        key = key.view(batch, total_len, cfg.n_heads, cfg.head_dim).transpose(1, 2)
+        key_heads = key.view(batch, total_len, cfg.n_heads, cfg.head_dim).transpose(1, 2)
         value = value.view(batch, total_len, cfg.n_heads, cfg.head_dim).transpose(1, 2)
 
+        cos, sin = self.rope(total_len, x.device, x.dtype)
+        position_offset = kv_cache[0].shape[1] if kv_cache is not None else 0
+        query, key_attn = apply_rope(
+            query,
+            key_heads,
+            cos,
+            sin,
+            position_offset=position_offset,
+        )
+
         scale = 1.0 / math.sqrt(cfg.head_dim)
-        attn = (query @ key.transpose(-2, -1)) * scale
+        attn = (query @ key_attn.transpose(-2, -1)) * scale
 
         if kv_cache is not None:
             past_len = kv_cache[0].shape[1]
@@ -230,7 +248,7 @@ class MultiheadLatentAttention(nn.Module):
         out = self.o_proj(out)
 
         if return_cache:
-            key_cache = key.transpose(1, 2).reshape(batch, total_len, dim)
+            key_cache = key_heads.transpose(1, 2).reshape(batch, total_len, dim)
             value_cache = value.transpose(1, 2).reshape(batch, total_len, dim)
             return out, (key_cache, value_cache)
         return out

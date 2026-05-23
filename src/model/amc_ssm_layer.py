@@ -65,7 +65,11 @@ class AMCForwardOutput:
 
 
 class AMCSSMLayer(nn.Module):
-    """Per-layer SSM block implementing AMC Tier-1 working memory."""
+    """Per-layer SSM block implementing AMC Tier-1 working memory.
+
+    NOTE: RoPE is NOT applied to SSM layers. The SSM recurrence encodes position
+    via sequential state updates. Only attention (MLA) layers apply RoPE.
+    """
 
     def __init__(self, config: AMCSSMConfig, layer_index: int) -> None:
         super().__init__()
