@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 from pydantic import BaseModel
@@ -199,8 +199,8 @@ async def restrict_host(request, call_next):
 async def rate_limit(request, call_next):
     client_ip = request.client.host if request.client else "unknown"
     if _rate_limiter is None:
-        # Fallback: allow if rate limiter not yet initialized
-        return await call_next(request)
+        # Fail-closed: deny requests when rate limiter not initialized
+        return PlainTextResponse("Rate limiter not initialized", status_code=503)
     if not _rate_limiter(client_ip):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
     return await call_next(request)
@@ -305,7 +305,14 @@ async def readiness() -> dict:
 
 
 @app.get("/metrics")
-async def prometheus_metrics() -> PlainTextResponse:
+async def prometheus_metrics(request: Request) -> PlainTextResponse:
+    """Prometheus metrics endpoint — requires X-API-Key header."""
+    metrics_key = os.environ.get("AURELIUS_METRICS_API_KEY")
+    if not metrics_key:
+        raise HTTPException(status_code=503, detail="Metrics endpoint not configured")
+    provided_key = request.headers.get("X-API-Key", "")
+    if provided_key != metrics_key:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
     return PlainTextResponse(
         METRICS.prometheus_text(),
         media_type="text/plain; version=0.0.4; charset=utf-8",
