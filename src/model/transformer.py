@@ -379,12 +379,7 @@ class AureliusTransformer(nn.Module):
             if temperature != 1.0:
                 next_logits = next_logits / temperature
 
-            sorted_logits, sorted_indices = torch.sort(next_logits, descending=False)
-            cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
-            sorted_mask = cumulative_probs <= (1.0 - top_p)
-            sorted_mask[..., -1:] = False
-            mask = sorted_mask.scatter(1, sorted_indices, sorted_mask)
-            next_logits = next_logits.masked_fill(mask, float("-inf"))
+            next_logits = _apply_top_p_filter(next_logits, top_p)
 
             next_token = torch.multinomial(next_logits.softmax(dim=-1), num_samples=1)
 
@@ -438,13 +433,7 @@ class AureliusTransformer(nn.Module):
             if temperature != 1.0:
                 next_logits = next_logits / temperature
 
-            # Top-p nucleus sampling (same as generate())
-            sorted_logits, sorted_indices = torch.sort(next_logits, descending=False)
-            cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
-            sorted_mask = cumulative_probs <= (1.0 - top_p)
-            sorted_mask[..., -1:] = False
-            mask = sorted_mask.scatter(1, sorted_indices, sorted_mask)
-            next_logits = next_logits.masked_fill(mask, float("-inf"))
+            next_logits = _apply_top_p_filter(next_logits, top_p)
 
             next_token = torch.multinomial(next_logits.softmax(dim=-1), num_samples=1)  # (B, 1)
 
