@@ -29,3 +29,11 @@ repos:
         additional_dependencies: [tokenizers>=0.20, numpy>=1.26]
         args: [--ignore-missing-imports]
         files: ^(src|agent|aurelius_cli|gateway|acp_adapter|cron|plugins|tools)/
+
+  - repo: local
+    hooks:
+      - id: check-torch-load
+        name: check torch.load weights_only
+        entry: python hooks/check_torch_load.py
+        language: system
+        types: [python]
