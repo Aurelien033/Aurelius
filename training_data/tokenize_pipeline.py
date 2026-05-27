@@ -14,6 +14,20 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+class _SimpleTokenizer:
+    """Fallback character tokenizer. Module-level so it's picklable for multiprocessing."""
+
+    @property
+    def vocab_size(self) -> int:
+        return 128_000
+
+    def encode(self, text: str) -> list[int]:
+        return [min(ord(c), 127_999) for c in text]
+
+    def encode_batch(self, texts: list[str]) -> list[list[int]]:
+        return [self.encode(t) for t in texts]
+
+
 class TokenizePipeline:
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
@@ -43,19 +57,7 @@ class TokenizePipeline:
 
     def _build_fallback_tokenizer(self) -> Callable:
         logger.warning("tokenizers package not installed, using simple character tokenizer")
-
-        class SimpleTokenizer:
-            @property
-            def vocab_size(self) -> int:
-                return 128_000
-
-            def encode(self, text: str) -> list[int]:
-                return [min(ord(c), 127_999) for c in text]
-
-            def encode_batch(self, texts: list[str]) -> list[list[int]]:
-                return [self.encode(t) for t in texts]
-
-        return SimpleTokenizer()  # type: ignore
+        return _SimpleTokenizer()  # type: ignore
 
     def _tokenize_text(self, tokenizer: Callable, text: str) -> list[int]:
         try:
@@ -78,7 +80,7 @@ class TokenizePipeline:
 
         if n_workers > 1 and len(texts) > shard_size:
             with multiprocessing.Pool(n_workers) as pool:
-                all_ids = pool.map(self._tokenize_text, [tokenizer] * len(texts), texts)
+                all_ids = pool.starmap(self._tokenize_text, [(tokenizer, t) for t in texts])
         else:
             all_ids = []
             for t in texts:
