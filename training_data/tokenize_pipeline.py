@@ -80,7 +80,10 @@ class TokenizePipeline:
 
         if n_workers > 1 and len(texts) > shard_size:
             with multiprocessing.Pool(n_workers) as pool:
-                all_ids = pool.starmap(self._tokenize_text, [(tokenizer, t) for t in texts])
+                chunksize = max(1, len(texts) // (n_workers * 4))
+                all_ids = pool.starmap(
+                    self._tokenize_text, [(tokenizer, t) for t in texts], chunksize=chunksize
+                )
         else:
             all_ids = []
             for t in texts:
