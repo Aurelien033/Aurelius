@@ -436,3 +436,43 @@ math function).
 the utility-privacy tradeoff (how much does DP noise at ε=0.6 degrade
 alignment quality vs no-noise baseline?), advanced composition bounds
 for multi-round federation.
+
+---
+
+## 12. Per-layer MLA Bank Wiring
+
+**Claim:** DreamBank reads can be injected at intermediate layers
+(e.g., after layer 0, after layer 1) instead of only at the final
+normalization, allowing the bank to influence deeper layers of the
+transformer's computation.
+
+**Not claimed:**
+- We don't prove that per-layer injection improves alignment quality;
+  that's an experimental question for CB-07.
+- We don't change the bank's memory format or API; this is purely
+  a wiring change in `AMCTransformer`.
+
+**Files:**
+- `src/model/amc_transformer.py` — added `hlm_bank_read_layers` config
+  and per-layer injection hook.
+- `tests/model/test_per_layer_bank.py` — 5 tests.
+
+**Config contract:**
+- `hlm_bank_read_layers: tuple[int, ...] | None = None`
+- `None` or `(-1,)`: Apply after final norm (current MVP behavior).
+- `(0, 1)`: Apply after layer 0 and layer 1.
+- `(1,)`: Apply only after layer 1.
+
+**Invariants verified:**
+- Default `None` applies at final norm.
+- Explicit `(-1,)` applies at final norm.
+- Positive integers `(0,)` apply in the forward loop.
+- Multiple layers `(0, 1)` apply at each specified layer.
+- Telemetry (`bank_alpha`, `bank_confidence`) is updated by the latest
+  applied layer.
+
+**Evidence produced:** 5 TDD tests green. Combined suite: 144 → 149 tests.
+
+**Next evidence needed:** Experimental comparison of single-layer vs
+per-layer injection on preference benchmarks (does injecting at multiple
+layers give the bank more influence over the final logits?).

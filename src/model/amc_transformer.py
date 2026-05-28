@@ -286,6 +286,16 @@ class AMCTransformer(nn.Module):
         gate_outputs: list[tuple[torch.Tensor, torch.Tensor]] = []
         promotion_loss: torch.Tensor | None = None
 
+        # Initialize bank telemetry variables
+        bank_alpha: torch.Tensor | None = None
+        bank_confidence: torch.Tensor | None = None
+        bank_telemetry: dict[str, float | int] | None = None
+
+        # Resolve bank read layers (e.g., -1 -> n_layers)
+        bank_read_layers = self.config.hlm_bank_read_layers or (-1,)
+        resolved_layers = {l if l >= 0 else self.config.n_layers for l in bank_read_layers}
+        apply_at_end = self.config.n_layers in resolved_layers
+
         for layer_idx, layer in enumerate(self.layers):
             if layer_idx in self.ssm_layer_indices and isinstance(layer, AMCSSMLayer):
                 amc_out: AMCForwardOutput = layer(hidden, step=step + layer_idx)
@@ -313,13 +323,20 @@ class AMCTransformer(nn.Module):
             else:
                 hidden = layer(hidden, freqs)
 
+            # Per-layer DreamBank injection
+            if self.config.use_hlm_bank and preference_bank is not None:
+                if layer_idx in resolved_layers:
+                    adapter_out = self.hlm_bank_adapter(hidden, preference_bank)
+                    hidden = adapter_out.hidden
+                    # Overwrite telemetry with the latest layer's values
+                    bank_alpha = adapter_out.alpha
+                    bank_confidence = adapter_out.confidence
+                    bank_telemetry = preference_bank.telemetry()
+
         hidden = self.norm(hidden)
 
         # DreamBank: optional bank-biased residual (only when bank is provided and enabled)
-        bank_alpha: torch.Tensor | None = None
-        bank_confidence: torch.Tensor | None = None
-        bank_telemetry: dict[str, float | int] | None = None
-        if self.config.use_hlm_bank and preference_bank is not None:
+        if self.config.use_hlm_bank and preference_bank is not None and apply_at_end:
             adapter_out = self.hlm_bank_adapter(hidden, preference_bank)
             hidden = adapter_out.hidden
             bank_alpha = adapter_out.alpha
