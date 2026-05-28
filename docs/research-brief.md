@@ -129,3 +129,37 @@ invariants (DB-02), dream cycle determinism (DB-03), ablation delta proof (DB-04
 
 **Next evidence needed:** Real preference benchmark, sleep-cycle improvement
 curve, privacy test.
+
+---
+
+## 6. CascadeBank — Compute routing on DreamBank's alignment gate
+
+**Claim:** A routing policy built on top of an already-existing alignment gate
+(DreamBank `alpha_t`) can produce measurable quality/compute tradeoffs without
+adding any trainable parameters or any new forward-pass cost.
+
+**Not claimed:** A mixture-of-depths router (those train new per-token routers
+with their own parameters), a trained router, or a full inference harness.
+
+**Prior art boundary:** Mixture-of-Depths (Raposo et al. 2024), LLMCascade
+(Anagnostidis et al. 2024), and AdaLLM (Bhat et al. 2024) all *train new
+routers* per layer or per token. CascadeBank reuses the gate signal that
+DreamBank already emits — zero new parameters, zero new forward-pass cost.
+
+**Files:**
+- `src/inference/cascade_routing.py` — pure-function router + `ComputePolicy`
+  enum + frozen `CascadeRouterConfig`
+- `src/eval/cascadebank_ablation.py` — decision-distribution ablation
+- `tests/inference/test_cascade_routing.py` — unit tests (18)
+- `tests/inference/test_cascade_routing_integration.py` — real
+  `AMCModelOutput` shape contract
+- `tests/eval/test_cascadebank_ablation.py` — ablation tests
+
+**Evidence produced by MVP:** Deterministic threshold tests (CB-01), real
+`AMCTransformer` shape consumption (CB-02), decision-distribution ablation
+(CB-03). Router remains fail-safe when DreamBank is disabled or bank is empty —
+never escalates to THOROUGH in those cases.
+
+**Next evidence needed:** Real serving-layer harness (CascadeBank FAST vs
+BALANCED vs THOROUGH on MT-Bench / AlpacaEval), FLOPs/latency measurement
+per-decision-class on GPU.
