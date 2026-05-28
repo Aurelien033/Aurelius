@@ -309,3 +309,63 @@ green (2 probe-bugs caught and corrected; implementation is correct).
 pairwise LLM judge), integration with `AMCPrefixCompiler` so the
 retrieval decision actually changes the cache key, live benchmark against
 top-k RAG with and without contradiction filtering.
+
+---
+
+## 10. Memory Debate — Adjudicated Tier-3 promotion protocol
+
+**Claim:** A structured 3-agent debate protocol (proposer → skeptic →
+judge) over `AMCMemoryBlock` produces deterministic, auditable admission
+decisions. The verdict carries the proposer's argument, skeptic's
+counterargument, judge's reason and confidence — making every Tier-3
+block's provenance human-readable and the protocol replayable.
+
+**Not claimed:**
+- We don't implement the actual debating agents — the proposer, skeptic,
+  and judge are injectable callables, so any LLM / rule-based / hybrid
+  backend can slot in.
+- The controller does not mutate the adjudicated block's fields; it
+  returns a verdict the caller applies. This keeps the protocol pure
+  and trivially testable.
+
+**Files:**
+- `src/memory/memory_debate.py` — `MemoryDebateController`,
+  `DebateDecision` StrEnum, frozen `DebateVerdict` dataclass
+- `tests/memory/test_memory_debate.py` — 11 tests
+
+**Protocol:**
+
+```
+1. proposer(block) -> proposer_argument
+2. skeptic(block, proposer_argument) -> skeptic_argument
+3. judge(block, proposer_argument, skeptic_argument) -> verdict
+4. Controller emits verdict with block_id = block.block_id
+   (overriding the judge's block_id if misaligned, for auditability).
+```
+
+**Verdict contract (`DebateVerdict`, frozen):**
+- `decision`: ADMIT/QUARANTINE/REJECT
+- `reason`: judge's free-text rationale
+- `proposer_argument` / `skeptic_argument`: full transcript
+- `judge_confidence`: float in [0, 1], validated in `__post_init__`
+- `block_id`: id of block adjudicated (enforced by controller)
+
+**Invariants verified:**
+- Protocol executes in strict propose→skeptic→judge order.
+- Skeptic always sees the proposer's argument.
+- Judge always sees both arguments.
+- Controller enforces result's block_id matches actual block.
+- All three decision classes route correctly.
+- Verdict is frozen (post-construction mutation rejected).
+- Invalid confidence / non-DebateDecision values rejected at construction.
+- `batch_debate` returns ordered list, length matches input.
+- Empty batch → empty list.
+- Controller is pure: adjudication never mutates the block.
+
+**Evidence produced:** 11 TDD tests green, 10 independent contract
+probes green.
+
+**Next evidence needed:** LLM-backed debater implementations (a
+proposer/skeptic/judge triple wired to a reasoning model), integration
+with Tier-3 promotion hook in `AMCTransformer`, live audit of false
+admission / false quarantine rates on an HH-RLHF or Nectar slice.
