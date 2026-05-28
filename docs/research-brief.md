@@ -251,3 +251,61 @@ alters aggregated outputs, per-device output arrays match num_devices.
 mechanism parameterization, experiments on real preference datasets
 (HH-RLHF, Nectar, UltraFeedback), comparison vs federated LoRA on the
 same distribution-mix.
+
+---
+
+## 9. TrustRAG — quarantine-aware, trust-bound retrieval controller
+
+**Claim:** A retrieval controller built on the AMC trust primitives
+(`TrustState`, `AMCMemoryBlock.trust_label`, `AMCMemoryCacheKey`
+trust-binding) enforces safety invariants that top-k RAG ignores:
+quarantined blocks never reach privileged context, revoked trust
+invalidates the cache key, and contradictions between retrieved
+blocks are surfaced rather than silently merged into the prompt.
+
+**Not claimed:**
+- Real embedding/dense retrieval (this is a trust-side filter over an
+  already-ranked iterable; similarity is orthogonal).
+- Real semantic contradiction detection (we use literal token-equality
+  × different-provenance as the MVP stand-in; real deployments would
+  use NLI or pairwise-LLM judgment over token-window paraphrase pairs).
+- Real reranking (iteration order is preserved; rerankers compose on top).
+
+**Files:**
+- `src/memory/trust_rag.py` — `TrustRAGController`, `TrustRAGConfig`,
+  frozen `TrustRAGResult`
+- `tests/memory/test_trust_rag.py` — 12 tests
+
+**Config contract (`TrustRAGConfig`):**
+
+| Field | Default | Meaning |
+|---|---|---|
+| `min_trust_level` | ` TrustState.UNVERIFIED` | Hard floor on trust |
+| `max_unverified` | 5 | Hard cap on UNVERIFIED retrieved blocks |
+| `quarantine_excludes_retrieval` | True | Skip blocks with non-empty quarantine state |
+| `detect_contradiction` | True | Flag same-tokens / different-provenance pairs |
+
+**Result contract (`TrustRAGResult` — frozen dataclass):**
+- `retrieved_ids`, `retrieved_tokens`, `quarantine_ids`,
+  `revocation_flags`, `contradiction_pairs`, `trust_distribution`
+- All tuple-typed (immutable) — safe to hand to downstream code without
+  fear of mutation.
+
+**Invariants verified:**
+- Quarantined blocks never appear in `retrieved_ids`.
+- `min_trust_level=VERIFIED` excludes all non-VERIFIED blocks.
+- `max_unverified` is a hard cap independent of `max_retrieve`.
+- Identical-token different-provenance blocks produce a contradiction pair.
+- Identical-token identical-provenance blocks do NOT flag as contradiction.
+- Non-zero `revocation_epoch` blocks land in `revocation_flags`.
+- `trust_distribution` is sorted by state value; all tuple fields.
+- Empty store → all-empty tuple fields.
+- Result frozen: reassignment raises `AttributeError`/`FrozenInstanceError`.
+
+**Evidence produced:** 12 TDD tests green, 10 independent contract probes
+green (2 probe-bugs caught and corrected; implementation is correct).
+
+**Next evidence needed:** real semantic contradiction detection (NLI or
+pairwise LLM judge), integration with `AMCPrefixCompiler` so the
+retrieval decision actually changes the cache key, live benchmark against
+top-k RAG with and without contradiction filtering.
