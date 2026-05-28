@@ -154,3 +154,38 @@ def test_result_fields_are_immutable_tuples() -> None:
     assert isinstance(result.revocation_flags, tuple)
     assert isinstance(result.trust_distribution, tuple)
     assert isinstance(result.retrieved_tokens, tuple)
+
+
+def test_retrieve_uses_custom_contradiction_fn() -> None:
+    """Provide a custom contradiction_fn to detect semantic contradictions
+    based on provenance text rather than token equality."""
+    store = [
+        _block("p1", tokens=(1, 2, 3), provenance="Paris is the capital of France"),
+        _block("p2", tokens=(4, 5, 6), provenance="The capital of France is Lyon"),
+    ]
+
+    # Simple mock semantic contradiction: returns True if 'Lyon' is in one
+    # and 'Paris' in the other (mocking NLI-style judgment)
+    def mock_contradiction(a: str, b: str) -> bool:
+        return ("Paris" in a and "Lyon" in b) or ("Paris" in b and "Lyon" in a)
+
+    cfg = TrustRAGConfig(contradiction_fn=mock_contradiction)
+    result = TrustRAGController(cfg).retrieve(store)
+
+    assert len(result.contradiction_pairs) == 1
+    assert {result.contradiction_pairs[0][0], result.contradiction_pairs[0][1]} == {"p1", "p2"}
+
+
+def test_retrieve_custom_contradiction_fn_does_not_fire_on_no_contradiction() -> None:
+    store = [
+        _block("a", tokens=(1, 2), provenance="Paris is in France"),
+        _block("b", tokens=(3, 4), provenance="Berlin is in Germany"),
+    ]
+
+    def mock_contradiction(a: str, b: str) -> bool:
+        return ("Paris" in a and "Lyon" in b) or ("Paris" in b and "Lyon" in a)
+
+    cfg = TrustRAGConfig(contradiction_fn=mock_contradiction)
+    result = TrustRAGController(cfg).retrieve(store)
+
+    assert result.contradiction_pairs == ()

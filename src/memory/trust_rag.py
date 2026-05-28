@@ -15,7 +15,7 @@ trust-side constraints.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
 from src.memory.amc_runtime_cache import AMCMemoryBlock, TrustState
@@ -27,6 +27,9 @@ class TrustRAGConfig:
     max_unverified: int = 5
     quarantine_excludes_retrieval: bool = True
     detect_contradiction: bool = True
+    # Optional semantic contradiction function: takes (text_a, text_b) -> bool
+    # If None, falls back to token-equality + different provenance.
+    contradiction_fn: Callable[[str, str], bool] | None = None
 
     def __post_init__(self) -> None:
         if self.max_unverified < 0:
@@ -103,24 +106,35 @@ class TrustRAGController:
             if block.revocation_epoch and block.revocation_epoch > 0:
                 revocation_flags.append(block.block_id)
 
-        # Contradiction detection: same tokens, different non-empty provenance.
+        # Contradiction detection
         contradiction_pairs: list[tuple[str, str]] = []
         if cfg.detect_contradiction and len(retrieved_blocks) >= 2:
-            by_tokens: dict[tuple[int, ...], list[AMCMemoryBlock]] = defaultdict(list)
-            for blk in retrieved_blocks:
-                by_tokens[blk.tokens].append(blk)
-            for blk_list in by_tokens.values():
-                if len(blk_list) < 2:
-                    continue
-                # Pair each combination with differing provenance
-                for i in range(len(blk_list)):
-                    for j in range(i + 1, len(blk_list)):
-                        pi = blk_list[i].provenance
-                        pj = blk_list[j].provenance
-                        if pi and pj and pi != pj:
-                            contradiction_pairs.append(
-                                (blk_list[i].block_id, blk_list[j].block_id)
-                            )
+            if cfg.contradiction_fn is not None:
+                # Use the provided semantic contradiction function
+                for i in range(len(retrieved_blocks)):
+                    for j in range(i + 1, len(retrieved_blocks)):
+                        bi = retrieved_blocks[i]
+                        bj = retrieved_blocks[j]
+                        if bi.provenance and bj.provenance and bi.provenance != bj.provenance:
+                            if cfg.contradiction_fn(bi.provenance, bj.provenance):
+                                contradiction_pairs.append((bi.block_id, bj.block_id))
+            else:
+                # Fallback: token-equality + different non-empty provenance
+                by_tokens: dict[tuple[int, ...], list[AMCMemoryBlock]] = defaultdict(list)
+                for blk in retrieved_blocks:
+                    by_tokens[blk.tokens].append(blk)
+                for blk_list in by_tokens.values():
+                    if len(blk_list) < 2:
+                        continue
+                    # Pair each combination with differing provenance
+                    for i in range(len(blk_list)):
+                        for j in range(i + 1, len(blk_list)):
+                            pi = blk_list[i].provenance
+                            pj = blk_list[j].provenance
+                            if pi and pj and pi != pj:
+                                contradiction_pairs.append(
+                                    (blk_list[i].block_id, blk_list[j].block_id)
+                                )
 
         trust_distribution = tuple(sorted(trust_counts.items()))
 

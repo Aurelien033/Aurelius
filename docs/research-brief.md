@@ -476,3 +476,42 @@ transformer's computation.
 **Next evidence needed:** Experimental comparison of single-layer vs
 per-layer injection on preference benchmarks (does injecting at multiple
 layers give the bank more influence over the final logits?).
+
+---
+
+## 13. TrustRAG — Semantic Contradiction Detection
+
+**Claim:** The TrustRAG retrieval controller can use an optional
+injectable `contradiction_fn: (str, str) -> bool` to detect semantic
+contradictions between retrieved blocks, going beyond the MVP's
+token-equality stand-in.
+
+**Not claimed:**
+- We don't implement a real NLI model or LLM judge in this module; the
+  function is injectable, so any backend can be plugged in.
+- We don't prove that semantic contradiction detection improves alignment
+  quality; that's an experimental question.
+
+**Files:**
+- `src/memory/trust_rag.py` — added `contradiction_fn` to config and
+  updated contradiction detection logic.
+- `tests/memory/test_trust_rag.py` — 2 new tests (total 14).
+
+**Config contract:**
+- `contradiction_fn: Callable[[str, str], bool] | None = None`
+- If `None`, falls back to MVP token-equality + different-provenance.
+- If provided, `contradiction_fn(provenance_a, provenance_b)` is called
+  for all pairs with differing provenance.
+
+**Invariants verified:**
+- Custom contradiction function correctly identifies contradictions based
+  on provenance text.
+- Custom contradiction function correctly returns `()` for non-contradictory
+  pairs.
+- Token-equality fallback still works when `contradiction_fn` is `None`.
+
+**Evidence produced:** 14 TDD tests green. Combined suite: 149 → 151 tests.
+
+**Next evidence needed:** Integration with a real NLI model (e.g.,
+DeBERTa-v3-NLI) or pairwise LLM judge to measure the false positive /
+false negative rate of the semantic contradiction detection.
