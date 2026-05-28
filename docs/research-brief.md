@@ -515,3 +515,45 @@ token-equality stand-in.
 **Next evidence needed:** Integration with a real NLI model (e.g.,
 DeBERTa-v3-NLI) or pairwise LLM judge to measure the false positive /
 false negative rate of the semantic contradiction detection.
+
+---
+
+## 14. Memory Debate — LLM Voices
+
+**Claim:** The Memory Debate protocol can use real reasoning models for
+the proposer, skeptic, and judge roles via `LLMDebateVoices`, which
+wraps a configured LLM API (e.g., OpenRouter, Alibaba, Anthropic) to
+provide `ProposerFn`, `SkepticFn`, and `JudgeFn` callables.
+
+**Not claimed:**
+- We don't prove that LLM voices improve alignment quality over
+  rule-based mocks; that's an experimental question.
+- We don't implement the API calls in the core debate controller;
+  the voices are an injectable module.
+
+**Files:**
+- `src/memory/llm_debate_voices.py` — `LLMConfig`, `LLMDebateVoices`.
+- `tests/memory/test_llm_debate_voices.py` — 6 mocked HTTP tests.
+
+**Config contract (`LLMConfig`):**
+- `base_url`, `model`, `api_key`, `temperature`, `max_tokens`.
+- `api_key` can be provided directly or read from
+  `DASHSCOPE_API_KEY` / `OPENROUTER_API_KEY` env vars.
+
+**Voice contract:**
+- `propose(block)` → text arguing for admission.
+- `skeptic(block, proposer_argument)` → text countering the argument.
+- `judge(block, proposer_argument, skeptic_argument)` → `DebateVerdict`
+  with `decision`, `reason`, and `judge_confidence`.
+
+**Fallback behavior:**
+- If the LLM responds with malformed JSON in the `judge` role, the
+  voice defaults to `QUARANTINE` with 0.0 confidence (fail-safe).
+
+**Evidence produced:** 6 mocked HTTP tests green. Combined suite:
+151 → 157 tests.
+
+**Next evidence needed:** Real API integration test (requires API key)
+to measure the latency and cost of running the debate protocol on a
+typical memory block, and a quality comparison between LLM voices and
+rule-based mocks on an HH-RLHF or Nectar slice.
