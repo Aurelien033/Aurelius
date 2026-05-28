@@ -203,3 +203,51 @@ produces non-trivial decisions, `HarnessReport.to_dict()` is JSON-safe.
 **Next evidence needed (CB-07):** Real MT-Bench / AlpacaEval, GPU FLOPs
 measurement, actual branching inference (THOROUGH = chain-of-thought or
 self-consistency, not a cost multiplier).
+
+---
+
+## 8. Federated Memory Deltas — FedAvg on DreamBank tensors
+
+**Claim:** Federating DreamBank deltas (keys/values/strengths) at the
+memory level is a tractable alternative to federated LLM fine-tuning,
+with orders of magnitude lower communication cost. At 14 slots × 64-dim
+fp16, a bank update is ≈ 7 KB vs a 7B model's gradient vector ≈ 14 GB.
+
+**Not claimed:**
+- Real device/network simulation (we aggregate tensors in-process).
+- Formal DP privacy analysis (we inject Gaussian noise with configurable
+  sigma and verify signal/noise tradeoff, not prove (ε,δ)-privacy).
+- Real personalization quality on user data — synthetic preference
+  distributions only.
+
+**Files:**
+- `src/memory/federated_banks.py` — `FederatedBankSimulator`,
+  `FederatedConfig`, `FederationReport`
+- `tests/memory/test_federated_banks.py` — 9 tests
+
+**Protocol:**
+1. N devices each run local_cycles_per_round DreamBank cycles on locally
+   sampled (device-biased) preference distributions.
+2. Optionally add Gaussian noise with std dp_sigma to each device's
+   uploaded tensors (pre-aggregation DP mechanism).
+3. Server-side FedAvg: element-wise mean across uploaded tensors.
+4. Each device downloads the merged tensors (overwrites local).
+5. Repeat for `rounds` rounds.
+6. Report: `delta_fill` and `delta_strength` vs an isolated baseline
+   that runs identical local cycles but skips federation.
+
+**Proxy metric contract:**
+- per_device_final_fill: slots populated per device after all rounds
+- per_device_final_mean_strength: mean strength per device
+- isolated_mean_*/federated_mean_*: population means under each regime
+- delta_fill, delta_strength: federated - isolated
+- total_comm_bytes_proxy: fp32 byte count for upload+download per round × rounds
+
+**Evidence produced by MVP:** comm bytes scale linearly with devices +
+rounds, deterministic given same seed, to_dict() is JSON-safe, DP noise
+alters aggregated outputs, per-device output arrays match num_devices.
+
+**Next evidence needed:** real (ε,δ)-privacy proof for the Gaussian
+mechanism parameterization, experiments on real preference datasets
+(HH-RLHF, Nectar, UltraFeedback), comparison vs federated LoRA on the
+same distribution-mix.
