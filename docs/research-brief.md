@@ -163,3 +163,43 @@ never escalates to THOROUGH in those cases.
 **Next evidence needed:** Real serving-layer harness (CascadeBank FAST vs
 BALANCED vs THOROUGH on MT-Bench / AlpacaEval), FLOPs/latency measurement
 per-decision-class on GPU.
+
+---
+
+## 7. CB-06 Serving harness — greedy decode with per-policy cost proxy
+
+**Claim:** A CPU-runnable greedy-decode harness exercising the full
+DreamBank × CascadeBank stack produces measurable proxy signals of
+quality and compute cost per routing-policy class, demonstrating the
+end-to-end composition is tractable.
+
+**Not claimed:** Real MT-Bench / AlpacaEval scores, real GPU FLOPs, real
+chain-of-thought or self-consistency implementations. The "THOROUGH"
+path is simulated via a 2.5× cost multiplier in this MVP; actual
+compute-branching comes in CB-07.
+
+**Files:**
+- `src/eval/serving_harness.py` — greedy decode + `POLICY_COST_MULTIPLIER`
+  + `HarnessReport` + per-prompt routing integration
+- `tests/eval/test_serving_harness.py` — 11 tests (4 greedy_decode + 7 harness)
+
+**Proxy metric contract:**
+
+| Policy | Cost multiplier |
+|---|---|
+| FAST | 0.7× baseline |
+| BALANCED | 1.0× baseline |
+| THOROUGH | 2.5× baseline |
+
+`HarnessReport.total_compute_proxy` = Σ(tokens_per_prompt × multiplier_for_that_prompt's_decision).
+`HarnessReport.mean_logit_margin_per_policy` = mean (p_best - p_second) at
+the first generated token, grouped by routing decision.
+
+**Evidence produced by CB-06:** greedy decode is deterministic, logit margin
+is in [0, 1], per-prompt cost-proxy uses the policy multiplier correctly,
+empty-bank path collapses to BALANCED fallback, populated-bank path
+produces non-trivial decisions, `HarnessReport.to_dict()` is JSON-safe.
+
+**Next evidence needed (CB-07):** Real MT-Bench / AlpacaEval, GPU FLOPs
+measurement, actual branching inference (THOROUGH = chain-of-thought or
+self-consistency, not a cost multiplier).
