@@ -110,10 +110,10 @@ class HLMPreferenceAdapter(nn.Module):
         # Gate alpha in [0, 1]
         alpha = torch.sigmoid(self.gate_mlp(normed))  # (B, T, 1)
 
-        # Bank read — detach so gradients don't flow into bank buffers
+        # Bank read — don't detach context so gradients flow into query_proj
         read_result = bank.read(query, top_k=self.cfg.top_k)
         # read_result.context: (B, T, bank_dim)
-        ctx = read_result.context.detach()
+        ctx = read_result.context
         conf = read_result.confidence.detach()  # (B, T, 1)
 
         # Bias projection: bank_dim -> d_model

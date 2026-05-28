@@ -6,14 +6,11 @@ import json
 import subprocess
 import sys
 
-import pytest
-
-
 _SCRIPT = "scripts/run_dreambank_cycle.py"
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    return subprocess.run(  # noqa: S603
         [sys.executable, _SCRIPT] + args,
         capture_output=True,
         text=True,

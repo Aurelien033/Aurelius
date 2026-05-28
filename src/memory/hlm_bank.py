@@ -85,6 +85,11 @@ class HLMPreferenceBank(nn.Module):
 
         self._slot_counter: int = 0
 
+        # Per-slot metadata (parallel lists, not tensors since strings aren't tensor-safe)
+        self._provenances: list[str] = [""] * size
+        self._trusts: list[str] = [""] * size
+        self._metadata_hashes: list[str] = [""] * size
+
     # ── helpers ──────────────────────────────────────────────────────────────
 
     def _filled_mask(self) -> torch.Tensor:
@@ -97,7 +102,7 @@ class HLMPreferenceBank(nn.Module):
     # ── public API ───────────────────────────────────────────────────────────
 
     def is_empty(self) -> bool:
-        return self._slot_counter == 0
+        return not bool(self.strengths.gt(0).any().item())
 
     @torch.no_grad()
     def _next_access(self) -> float:
@@ -152,13 +157,22 @@ class HLMPreferenceBank(nn.Module):
         context = torch.mm(weights, filled_vals)  # (B, D)
 
         # Top-k indices into filled slots
-        top_weights, top_local_idx = torch.topk(weights, min(k, filled_count), dim=-1)
+        actual_k = min(k, filled_count)
+        top_weights, top_local_idx = torch.topk(weights, actual_k, dim=-1)
         # Map local indices back to global bank indices
         filled_global_idx = torch.where(filled)[0]  # (filled,)
-        global_idx = filled_global_idx[top_local_idx]  # (B, top_k)
+        global_idx = filled_global_idx[top_local_idx]  # (B, actual_k)
 
-        # Confidence: mean of top-k weights
-        confidence = top_weights.mean(dim=-1, keepdim=True)  # (B, 1)
+        # Pad to exactly k if filled_count < k
+        if actual_k < k:
+            B = q_flat.shape[0]
+            pad_w = torch.zeros(B, k - actual_k, device=query.device, dtype=query.dtype)
+            pad_i = torch.full((B, k - actual_k), -1, device=query.device, dtype=torch.long)
+            top_weights = torch.cat([top_weights, pad_w], dim=-1)
+            global_idx = torch.cat([global_idx, pad_i], dim=-1)
+
+        # Confidence: mean of top-k weights (excluding padding zeros)
+        confidence = top_weights[:, :actual_k].mean(dim=-1, keepdim=True)  # (B, 1)
 
         # Reshape to original batch shape
         out_shape = (*orig_shape[:-1], self.cfg.bank_dim)
@@ -205,6 +219,9 @@ class HLMPreferenceBank(nn.Module):
             self.strengths[slot] = max(write.strength, 0.0)
 
         self.access_time[slot] = self._next_access()
+        self._provenances[slot] = write.provenance
+        self._trusts[slot] = write.trust
+        self._metadata_hashes[slot] = write.metadata_hash
         return slot
 
     @torch.no_grad
@@ -251,6 +268,9 @@ class HLMPreferenceBank(nn.Module):
             "strengths": self.strengths.clone(),
             "access_time": self.access_time.clone(),
             "config": cfg_dict,
+            "metadata_hashes": list(self._metadata_hashes),
+            "trusts": list(self._trusts),
+            "provenances": list(self._provenances),
         }
 
     @classmethod
@@ -263,4 +283,11 @@ class HLMPreferenceBank(nn.Module):
             config = HLMPreferenceBankConfig(**{k: state["config"][k] for k in fields})
         bank = cls(config=config)
         bank.load_state_dict({k: v for k, v in state.items() if isinstance(v, torch.Tensor)})
+        # Restore metadata
+        if "metadata_hashes" in state:
+            bank._metadata_hashes = list(state["metadata_hashes"])  # type: ignore[arg-type]
+        if "trusts" in state:
+            bank._trusts = list(state["trusts"])  # type: ignore[arg-type]
+        if "provenances" in state:
+            bank._provenances = list(state["provenances"])  # type: ignore[arg-type]
         return bank

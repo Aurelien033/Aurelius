@@ -55,6 +55,7 @@ class AMCTransformerConfig:
     hlm_bank_top_k: int = 4
     hlm_bank_inject_scale: float = 0.1
     hlm_bank_read_layers: tuple[int, ...] | None = None
+    use_hlm_bank: bool = False
 
     def __post_init__(self) -> None:
         if self.n_kv_heads is None:
@@ -314,11 +315,11 @@ class AMCTransformer(nn.Module):
 
         hidden = self.norm(hidden)
 
-        # DreamBank: optional bank-biased residual (only when bank is provided)
+        # DreamBank: optional bank-biased residual (only when bank is provided and enabled)
         bank_alpha: torch.Tensor | None = None
         bank_confidence: torch.Tensor | None = None
         bank_telemetry: dict[str, float | int] | None = None
-        if preference_bank is not None:
+        if self.config.use_hlm_bank and preference_bank is not None:
             adapter_out = self.hlm_bank_adapter(hidden, preference_bank)
             hidden = adapter_out.hidden
             bank_alpha = adapter_out.alpha

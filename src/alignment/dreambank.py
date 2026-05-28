@@ -131,20 +131,17 @@ class DreamBankController:
                 break
 
             embedding = embed_fn(pair.chosen)
-            if embedding.ndim == 0:
-                embedding = embedding.view(bank_dim)
-            embedding = embedding.view(bank_dim).to(self.bank.keys.device, self.bank.keys.dtype)
-            # Clamp embedding length
-            if embedding.shape[-1] != bank_dim:
-                if embedding.shape[-1] > bank_dim:
-                    if embedding.ndim > 1:
-                        embedding = embedding[:, :bank_dim]
-                    else:
-                        embedding = embedding[:bank_dim]
+            # Flatten embedding to 1D
+            embedding = embedding.flatten()
+            # Pad or truncate to bank_dim
+            if embedding.shape[0] != bank_dim:
+                if embedding.shape[0] > bank_dim:
+                    embedding = embedding[:bank_dim]
                 else:
                     pad = torch.zeros(bank_dim, device=embedding.device, dtype=embedding.dtype)
-                    pad[: embedding.shape[-1]] = embedding
+                    pad[: embedding.shape[0]] = embedding
                     embedding = pad
+            embedding = embedding.to(self.bank.keys.device, self.bank.keys.dtype)
 
             self.bank.upsert(HLMPreferenceWrite(
                 key=embedding,

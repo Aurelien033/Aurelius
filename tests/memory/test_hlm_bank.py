@@ -8,7 +8,6 @@ import torch
 from src.memory.hlm_bank import (
     HLMPreferenceBank,
     HLMPreferenceBankConfig,
-    HLMPreferenceRead,
     HLMPreferenceWrite,
 )
 
@@ -186,3 +185,102 @@ def test_telemetry_reports_filled_slots() -> None:
     bank.upsert(HLMPreferenceWrite(key=torch.ones(8), value=torch.ones(8), strength=0.3))
     tel = bank.telemetry()
     assert tel["filled_slots"] == 2
+
+
+# ── metadata persistence (Fix #2) ────────────────────────────────────────
+
+
+def test_export_import_preserves_metadata() -> None:
+    dim = 16
+    bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=5, bank_dim=dim))
+    bank.upsert(HLMPreferenceWrite(
+        key=torch.ones(dim),
+        value=torch.ones(dim),
+        strength=1.0,
+        provenance="dream_recent",
+        trust="verified",
+        metadata_hash="abc123def456",
+    ))
+    state = bank.export_state()
+    assert "metadata_hashes" in state
+    assert "trusts" in state
+    assert "provenances" in state
+    assert state["metadata_hashes"][0] == "abc123def456"
+    assert state["trusts"][0] == "verified"
+    assert state["provenances"][0] == "dream_recent"
+
+    restored = HLMPreferenceBank.from_state(state)
+    assert restored._metadata_hashes[0] == "abc123def456"
+    assert restored._trusts[0] == "verified"
+    assert restored._provenances[0] == "dream_recent"
+
+
+def test_export_does_not_contain_raw_prompt_text() -> None:
+    dim = 16
+    bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=5, bank_dim=dim))
+    secret_prompt = "my super secret prompt content xyz"
+    bank.upsert(HLMPreferenceWrite(
+        key=torch.ones(dim),
+        value=torch.ones(dim),
+        strength=1.0,
+        provenance="dreambank",
+        trust="unverified",
+        metadata_hash="hash_of_" + secret_prompt[:4],  # only hash, not raw text
+    ))
+    state = bank.export_state()
+    state_str = str(state)
+    assert secret_prompt not in state_str
+
+
+# ── is_empty lifecycle (Fix #3) ──────────────────────────────────────────
+
+
+def test_restored_nonempty_bank_has_is_empty_false() -> None:
+    dim = 16
+    bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=5, bank_dim=dim))
+    bank.upsert(HLMPreferenceWrite(key=torch.ones(dim), value=torch.ones(dim), strength=1.0))
+    assert not bank.is_empty()
+
+    state = bank.export_state()
+    restored = HLMPreferenceBank.from_state(state)
+    assert not restored.is_empty()
+
+
+def test_consolidated_bank_has_is_empty_true() -> None:
+    dim = 16
+    bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=5, bank_dim=dim, min_strength=0.5))
+    bank.upsert(HLMPreferenceWrite(key=torch.ones(dim), value=torch.ones(dim), strength=0.1))
+    # Strength 0.1 < min_strength 0.5, consolidate should clear it
+    bank.consolidate_()
+    assert bank.is_empty()
+
+
+def test_is_empty_after_decay_clears_all() -> None:
+    dim = 16
+    bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=5, bank_dim=dim, min_strength=0.01))
+    bank.upsert(HLMPreferenceWrite(key=torch.ones(dim), value=torch.ones(dim), strength=0.02))
+    # Many decay steps should drive it below min_strength
+    for _ in range(500):
+        bank.decay_(1)
+    assert bank.is_empty()
+
+
+# ── top_k output shape (Fix #4) ──────────────────────────────────────────
+
+
+def test_partial_fill_returns_shape_top_k() -> None:
+    dim = 16
+    top_k = 4
+    bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=10, bank_dim=dim, top_k=top_k))
+    # Only write 2 slots (less than top_k=4)
+    bank.upsert(HLMPreferenceWrite(key=torch.ones(dim), value=torch.ones(dim), strength=1.0))
+    bank.upsert(HLMPreferenceWrite(key=torch.ones(dim) * 2, value=torch.ones(dim) * 2, strength=0.8))
+
+    query = torch.randn(3, dim)  # batch of 3
+    result = bank.read(query, top_k=top_k)
+
+    assert result.weights.shape == (3, top_k)
+    assert result.indices.shape == (3, top_k)
+    # Padding slots should have weight 0 and index -1
+    assert (result.indices[:, 2:] == -1).all()
+    assert (result.weights[:, 2:] == 0).all()

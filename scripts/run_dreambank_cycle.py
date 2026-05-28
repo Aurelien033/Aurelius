@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import random
 import sys
 from pathlib import Path
 
@@ -24,25 +23,25 @@ if str(_script_root) not in sys.path:
 
 import torch
 
-from src.alignment.dreambank import DreamBankConfig, DreamBankController, DreamSeed
+from src.alignment.dreambank import DreamBankController, DreamSeed
 from src.memory.hlm_bank import HLMPreferenceBank, HLMPreferenceBankConfig
 
 
 def deterministic_generate(prompt: str, temperature: float) -> str:
     """Deterministic fake generator for dry runs."""
-    h = hashlib.md5(f"{prompt}@{temperature}".encode()).hexdigest()
+    h = hashlib.sha256(f"{prompt}@{temperature}".encode()).hexdigest()
     return f"gen[{h[:8]}]_t{temperature}_response"
 
 
 def deterministic_score(prompt: str, response: str) -> float:
     """Deterministic fake scorer for dry runs."""
-    h = int(hashlib.md5(f"{prompt}:{response}".encode()).hexdigest()[:8], 16)
+    h = int(hashlib.sha256(f"{prompt}:{response}".encode()).hexdigest()[:8], 16)
     return (h % 1000) / 1000.0
 
 
 def deterministic_embed(text: str, dim: int = 64) -> torch.Tensor:
     """Deterministic fake embedding for dry runs."""
-    h = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
+    h = int(hashlib.sha256(text.encode()).hexdigest()[:8], 16)
     torch.manual_seed(h)
     return torch.randn(dim)
 

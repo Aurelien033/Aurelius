@@ -119,3 +119,28 @@ def test_adapter_output_shapes() -> None:
     assert out.alpha.shape == (2, 8, 1)
     assert out.bank_context.shape == (2, 8, 32)
     assert out.confidence.shape == (2, 8, 1)
+
+
+# ── gradient path (Fix #5) ───────────────────────────────────────────────
+
+
+def test_adapter_query_proj_receives_gradient_bank_keys_do_not() -> None:
+    dim = 32
+    adapter = _adapter(bank_dim=dim)
+    # Fill multiple slots so softmax gradient is non-degenerate
+    bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=4, bank_dim=dim))
+    bank.upsert(HLMPreferenceWrite(key=torch.ones(dim), value=torch.ones(dim) * 2, strength=1.0))
+    bank.upsert(HLMPreferenceWrite(key=torch.randn(dim), value=torch.randn(dim), strength=1.0))
+    bank.upsert(HLMPreferenceWrite(key=torch.randn(dim), value=torch.randn(dim), strength=1.0))
+
+    hidden = torch.randn(2, 4, 64, requires_grad=True)
+    out = adapter(hidden, bank)
+    loss = out.hidden.sum()
+    loss.backward()
+
+    # query_proj should receive gradients (gradient flows through bank read into query)
+    assert adapter.query_proj.weight.grad is not None
+    assert adapter.query_proj.weight.grad.abs().sum() > 0
+
+    # bank.keys is a buffer (not parameter), should NOT have gradients
+    assert bank.keys.grad is None

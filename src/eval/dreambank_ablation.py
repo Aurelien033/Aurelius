@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 import torch
 
-from src.memory.hlm_bank import HLMPreferenceBank, HLMPreferenceBankConfig, HLMPreferenceWrite
-from src.model.amc_transformer import AMCTransformer, AMCTransformerConfig
+from src.memory.hlm_bank import HLMPreferenceBank, HLMPreferenceBankConfig
+from src.model.amc_transformer import AMCTransformer
 
 
 @dataclass

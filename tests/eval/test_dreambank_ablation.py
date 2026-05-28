@@ -22,6 +22,7 @@ def _tiny_model() -> AMCTransformer:
         ssm_headdim=32,
         ssm_expand=2,
         max_seq_len=64,
+        use_hlm_bank=True,
     )
     return AMCTransformer(cfg).eval()
 

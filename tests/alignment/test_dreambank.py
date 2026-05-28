@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
 import torch
 
 from src.alignment.dreambank import (
     DreamBankConfig,
     DreamBankController,
     DreamCycleResult,
-    DreamPreferencePair,
     DreamSeed,
 )
 from src.memory.hlm_bank import HLMPreferenceBank, HLMPreferenceBankConfig
@@ -187,3 +185,42 @@ def test_dream_cycle_result_is_json_safe() -> None:
         "mean_margin": result.mean_margin,
         "bank_fill": result.bank_fill,
     })
+
+
+# ── embedding size handling (Fix #6) ─────────────────────────────────────
+
+
+def test_dream_cycle_handles_wrong_sized_embedding_with_padding() -> None:
+    """embed_fn returns tensor smaller than bank_dim — should succeed via padding."""
+    bank = _make_bank(dim=64)  # bank_dim=64
+    ctrl = DreamBankController(bank, DreamBankConfig(min_margin=0.001))
+
+    def small_embed(text: str) -> torch.Tensor:
+        return torch.randn(32)  # only 32 elements, bank_dim is 64
+
+    result = ctrl.run_cycle(
+        seeds=[DreamSeed("test_padding")],
+        generate_fn=_dummy_generate,
+        score_fn=_dummy_score,
+        embed_fn=small_embed,
+    )
+    # Should succeed without RuntimeError
+    assert result.writes >= 0
+
+
+def test_dream_cycle_handles_oversized_embedding_with_truncation() -> None:
+    """embed_fn returns tensor larger than bank_dim — should succeed via truncation."""
+    bank = _make_bank(dim=32)  # bank_dim=32
+    ctrl = DreamBankController(bank, DreamBankConfig(min_margin=0.001))
+
+    def big_embed(text: str) -> torch.Tensor:
+        return torch.randn(128)  # 128 elements, bank_dim is 32
+
+    result = ctrl.run_cycle(
+        seeds=[DreamSeed("test_truncation")],
+        generate_fn=_dummy_generate,
+        score_fn=_dummy_score,
+        embed_fn=big_embed,
+    )
+    # Should succeed without RuntimeError
+    assert result.writes >= 0

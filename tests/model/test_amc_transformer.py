@@ -5,6 +5,7 @@ from __future__ import annotations
 import torch
 
 from src.memory.amc_tier2 import AMCTier2Config, AMCTier2Hook
+from src.memory.hlm_bank import HLMPreferenceBank, HLMPreferenceBankConfig, HLMPreferenceWrite
 from src.model.amc_ssm_layer import AMCSSMLayer
 from src.model.amc_transformer import AMCTransformer, AMCTransformerConfig
 
@@ -139,8 +140,6 @@ def test_wire_amc_hooks_attaches_hooks() -> None:
 
 # ── DreamBank wiring (DB-03) ─────────────────────────────────────────────
 
-from src.memory.hlm_bank import HLMPreferenceBank, HLMPreferenceBankConfig, HLMPreferenceWrite
-
 
 def _filled_bank(**kw) -> HLMPreferenceBank:
     dim = kw.pop("bank_dim", 64)
@@ -177,7 +176,7 @@ def test_hlm_bank_enabled_with_empty_bank_preserves_logits_close() -> None:
 
 
 def test_hlm_bank_enabled_with_written_slot_returns_bank_telemetry() -> None:
-    model = AMCTransformer(_cfg(kv_lrank=64))
+    model = AMCTransformer(_cfg(kv_lrank=64, use_hlm_bank=True))
     x = torch.randint(0, 1000, (1, 8))
     bank = _filled_bank(bank_dim=64)
     out = model(x, preference_bank=bank)
@@ -186,9 +185,38 @@ def test_hlm_bank_enabled_with_written_slot_returns_bank_telemetry() -> None:
 
 
 def test_hlm_bank_forward_changes_logits_when_nonempty() -> None:
-    model = AMCTransformer(_cfg(kv_lrank=64))
+    model = AMCTransformer(_cfg(kv_lrank=64, use_hlm_bank=True))
     x = torch.randint(0, 1000, (2, 8))
     out_baseline = model(x)
     bank = _filled_bank(bank_dim=64)
     out_with_bank = model(x, preference_bank=bank)
     assert not torch.allclose(out_baseline.logits, out_with_bank.logits, atol=1e-5)
+
+
+# ── use_hlm_bank config gate tests ──────────────────────────────────────
+
+
+def test_use_hlm_bank_defaults_to_false() -> None:
+    cfg = _cfg()
+    assert cfg.use_hlm_bank is False
+
+
+def test_passing_bank_without_flag_does_not_change_logits() -> None:
+    model = AMCTransformer(_cfg(kv_lrank=64))  # use_hlm_bank defaults to False
+    x = torch.randint(0, 1000, (2, 8))
+    out_no_bank = model(x)
+    bank = _filled_bank(bank_dim=64)
+    out_with_bank = model(x, preference_bank=bank)
+    # Bank should be ignored since use_hlm_bank=False
+    assert torch.allclose(out_no_bank.logits, out_with_bank.logits, atol=1e-6)
+    assert out_with_bank.bank_alpha is None
+
+
+def test_passing_bank_with_flag_true_changes_logits() -> None:
+    model = AMCTransformer(_cfg(kv_lrank=64, use_hlm_bank=True))
+    x = torch.randint(0, 1000, (2, 8))
+    out_no_bank = model(x)
+    bank = _filled_bank(bank_dim=64)
+    out_with_bank = model(x, preference_bank=bank)
+    assert not torch.allclose(out_no_bank.logits, out_with_bank.logits, atol=1e-5)
+    assert out_with_bank.bank_alpha is not None
