@@ -20,6 +20,7 @@ from src.model.amc_ssm_layer import AMCForwardOutput, AMCSSMConfig, AMCSSMLayer
 from src.model.attention import apply_rope, precompute_rope_frequencies
 from src.model.config import AureliusConfig
 from src.model.ffn import SwiGLUFFN
+from src.model.hlm_bank_adapter import HLMPreferenceAdapter, HLMPreferenceAdapterConfig
 from src.model.mla import MLAConfig, MultiheadLatentAttention
 from src.model.rms_norm import RMSNorm
 
@@ -49,6 +50,11 @@ class AMCTransformerConfig:
     rms_norm_eps: float = 1e-6
     dropout: float = 0.0
     ssm_layers_at: tuple[int, ...] | None = None
+    hlm_bank_size: int = 14
+    hlm_bank_dim: int | None = None
+    hlm_bank_top_k: int = 4
+    hlm_bank_inject_scale: float = 0.1
+    hlm_bank_read_layers: tuple[int, ...] | None = None
 
     def __post_init__(self) -> None:
         if self.n_kv_heads is None:
@@ -88,6 +94,9 @@ class AMCModelOutput:
     surprise_scores: torch.Tensor | None = None
     gate_outputs: list[tuple[torch.Tensor, torch.Tensor]] = field(default_factory=list)
     promotion_loss: torch.Tensor | None = None
+    bank_alpha: torch.Tensor | None = None
+    bank_confidence: torch.Tensor | None = None
+    bank_telemetry: dict[str, float | int] | None = None
 
 
 class _AMCGroupedQueryAttention(nn.Module):
@@ -234,6 +243,16 @@ class AMCTransformer(nn.Module):
         freqs = precompute_rope_frequencies(head_dim, config.max_seq_len, config.rope_theta)
         self.register_buffer("freqs_cis", freqs, persistent=False)
 
+        # DreamBank adapter (optional)
+        bank_dim = config.hlm_bank_dim or config.kv_lrank
+        adapter_cfg = HLMPreferenceAdapterConfig(
+            d_model=config.d_model,
+            bank_dim=bank_dim,
+            inject_scale=config.hlm_bank_inject_scale,
+            top_k=config.hlm_bank_top_k,
+        )
+        self.hlm_bank_adapter = HLMPreferenceAdapter(adapter_cfg)
+
         self._tier2_hook: AMCTier2Hook | None = None
         self._tier3_hook: AMCTier3Hook | None = None
 
@@ -253,6 +272,7 @@ class AMCTransformer(nn.Module):
         step: int = 0,
         use_amc: bool = True,
         return_memory: bool = False,
+        preference_bank: object = None,
     ) -> AMCModelOutput:
         _ = session_id
         _ = self._tier3_hook
@@ -293,6 +313,18 @@ class AMCTransformer(nn.Module):
                 hidden = layer(hidden, freqs)
 
         hidden = self.norm(hidden)
+
+        # DreamBank: optional bank-biased residual (only when bank is provided)
+        bank_alpha: torch.Tensor | None = None
+        bank_confidence: torch.Tensor | None = None
+        bank_telemetry: dict[str, float | int] | None = None
+        if preference_bank is not None:
+            adapter_out = self.hlm_bank_adapter(hidden, preference_bank)
+            hidden = adapter_out.hidden
+            bank_alpha = adapter_out.alpha
+            bank_confidence = adapter_out.confidence
+            bank_telemetry = preference_bank.telemetry()
+
         logits = self.lm_head(hidden)
 
         if self.training and gate_outputs:
@@ -312,6 +344,9 @@ class AMCTransformer(nn.Module):
             surprise_scores=stacked_surprise,
             gate_outputs=gate_outputs if return_memory else [],
             promotion_loss=promotion_loss,
+            bank_alpha=bank_alpha,
+            bank_confidence=bank_confidence,
+            bank_telemetry=bank_telemetry,
         )
 
     def reset_amc_state(self) -> None:

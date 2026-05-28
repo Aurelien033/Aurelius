@@ -138,3 +138,16 @@ __all__ += [
     "DEFAULT_PROGRESSIVE_SEARCHER",
     "PROGRESSIVE_SEARCH_REGISTRY",
 ]
+from .hlm_bank import (  # noqa: E402
+    HLMPreferenceBank,
+    HLMPreferenceBankConfig,
+    HLMPreferenceRead,
+    HLMPreferenceWrite,
+)
+
+__all__ += [
+    "HLMPreferenceBank",
+    "HLMPreferenceBankConfig",
+    "HLMPreferenceRead",
+    "HLMPreferenceWrite",
+]

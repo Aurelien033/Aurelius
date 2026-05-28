@@ -135,3 +135,60 @@ def test_wire_amc_hooks_attaches_hooks() -> None:
     hook = AMCTier2Hook(AMCTier2Config(surprise_threshold=0.0))
     model.wire_amc_hooks(tier2=hook)
     assert model._tier2_hook is hook
+
+
+# ── DreamBank wiring (DB-03) ─────────────────────────────────────────────
+
+from src.memory.hlm_bank import HLMPreferenceBank, HLMPreferenceBankConfig, HLMPreferenceWrite
+
+
+def _filled_bank(**kw) -> HLMPreferenceBank:
+    dim = kw.pop("bank_dim", 64)
+    bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=4, bank_dim=dim, **kw))
+    bank.upsert(HLMPreferenceWrite(key=torch.ones(dim), value=torch.ones(dim) * 2, strength=1.0))
+    return bank
+
+
+def test_hlm_bank_disabled_by_default_preserves_output_shape() -> None:
+    model = AMCTransformer(_cfg())
+    x = torch.randint(0, 1000, (2, 16))
+    out = model(x)
+    assert out.logits.shape == (2, 16, 1000)
+    assert out.bank_alpha is None
+    assert out.bank_confidence is None
+    assert out.bank_telemetry is None
+
+
+def test_hlm_bank_output_fields_absent_when_disabled() -> None:
+    model = AMCTransformer(_cfg())
+    x = torch.randint(0, 1000, (1, 8))
+    out = model(x)
+    assert not hasattr(out, "bank_alpha") or out.bank_alpha is None
+    assert not hasattr(out, "bank_confidence") or out.bank_confidence is None
+    assert not hasattr(out, "bank_telemetry") or out.bank_telemetry is None
+
+
+def test_hlm_bank_enabled_with_empty_bank_preserves_logits_close() -> None:
+    model = AMCTransformer(_cfg(kv_lrank=64))
+    x = torch.randint(0, 1000, (2, 8))
+    out_no_bank = model(x)
+    out_empty_bank = model(x, preference_bank=HLMPreferenceBank(HLMPreferenceBankConfig(bank_dim=64)))
+    assert torch.allclose(out_no_bank.logits, out_empty_bank.logits, atol=1e-6)
+
+
+def test_hlm_bank_enabled_with_written_slot_returns_bank_telemetry() -> None:
+    model = AMCTransformer(_cfg(kv_lrank=64))
+    x = torch.randint(0, 1000, (1, 8))
+    bank = _filled_bank(bank_dim=64)
+    out = model(x, preference_bank=bank)
+    assert out.bank_telemetry is not None
+    assert out.bank_telemetry["filled_slots"] == 1
+
+
+def test_hlm_bank_forward_changes_logits_when_nonempty() -> None:
+    model = AMCTransformer(_cfg(kv_lrank=64))
+    x = torch.randint(0, 1000, (2, 8))
+    out_baseline = model(x)
+    bank = _filled_bank(bank_dim=64)
+    out_with_bank = model(x, preference_bank=bank)
+    assert not torch.allclose(out_baseline.logits, out_with_bank.logits, atol=1e-5)

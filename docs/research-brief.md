@@ -101,3 +101,31 @@ Key ideas:
 2. **MEDIUM**: Evaluate PackKV for KV cache compression in gateway/paged_kv_cache.py
 3. **MEDIUM**: Apply PACED training efficiency ideas to src/training/
 4. **LOW**: Evaluate MemMachine patterns for plugins/memory/
+
+---
+
+## 5. DreamBank — Runtime-writable MLA-latent preference bank
+
+**Claim:** A tiny runtime-writable preference bank in MLA latent space can be
+updated during idle-time self-play to improve alignment/persona behavior without
+weight updates, while preserving bounded compute and privacy-friendly storage.
+
+**Not claimed:** Generic memory bank invention, new preference loss, federated sync.
+
+**Prior art boundary:** Larimar, Titans, Memorizing Transformers, MSA, MoC all
+own the "generic memory bank" space.  DreamBank is narrower: MLA-latent space,
+sleep-time consolidation, trust-labeled writes, bounded by config.
+
+**Files:**
+- `src/memory/hlm_bank.py` — core bank (top-k read, no-grad upsert, decay)
+- `src/model/hlm_bank_adapter.py` — differentiable adapter (gate + residual)
+- `src/model/amc_transformer.py` — optional `preference_bank` wiring
+- `src/alignment/dreambank.py` — dream cycle controller
+- `src/eval/dreambank_ablation.py` — bank-on vs bank-off measurement
+- `scripts/run_dreambank_cycle.py` — dry-run CLI
+
+**Evidence produced by MVP:** Bank contract tests (DB-01), adapter identity
+invariants (DB-02), dream cycle determinism (DB-03), ablation delta proof (DB-04).
+
+**Next evidence needed:** Real preference benchmark, sleep-cycle improvement
+curve, privacy test.
