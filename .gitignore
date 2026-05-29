@@ -96,6 +96,31 @@ training_data/
 *.jsonl
 *.parquet
 
+# Confidential Aurelius plans & internal docs
+/docs/plans/
+/docs/dataset_card.md
+/docs/eval_card.md
+/docs/harvest_journal.md
+/configs/train_*.yaml
+/configs/yarn_finetune.yaml
+/configs/merge_*.yaml
+/configs/curriculum.yaml
+/configs/deepspeed_*.json
+/scripts/collect_training_data*.py
+/scripts/convert_*
+/scripts/encode_*
+/scripts/extract_*
+/scripts/prepare_data*
+/scripts/prepare_glm5*
+/scripts/red_team*
+/scripts/run_dpo*
+/scripts/run_sft*
+/scripts/run_training*
+/scripts/tokenize_*
+/scripts/train_tokenizer*
+/scripts/train_*.sh
+/scripts/dev.sh
+
 # Rust crates (usage-store)
 crates/usage-store/Cargo.lock
 
