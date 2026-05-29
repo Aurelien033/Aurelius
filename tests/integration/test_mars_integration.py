@@ -9,6 +9,11 @@ import src.optimizers as optimizers
 from src.optimizers import Mars
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_mars_exposed_via_package():
     assert hasattr(optimizers, "Mars")
     assert optimizers.Mars is Mars

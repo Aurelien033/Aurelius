@@ -5,6 +5,8 @@ position only allow tokens whose string representation would keep the partial
 output as a valid JSON prefix.
 """
 
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass
 

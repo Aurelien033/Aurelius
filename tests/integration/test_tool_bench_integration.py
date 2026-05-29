@@ -9,6 +9,7 @@ Verifies:
 
 from __future__ import annotations
 
+
 import pytest
 
 from src.eval import BENCHMARK_REGISTRY
@@ -19,9 +20,13 @@ from src.eval.tool_bench import (
     ToolCall,
 )
 
+
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
 # ---------------------------------------------------------------------------
+
+
+pytestmark = pytest.mark.integration
 
 
 def _tc(name: str, **params) -> ToolCall:

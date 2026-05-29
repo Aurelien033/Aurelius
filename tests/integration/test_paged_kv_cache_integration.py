@@ -7,6 +7,11 @@ import torch
 from src import longcontext as lc
 from src.longcontext.paged_kv_cache import PagedKVCache
 
+
+import pytest
+
+pytestmark = pytest.mark.integration
+
 EXPECTED_PRIOR = [
     "kv_int8",
     "attention_sinks",

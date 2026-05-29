@@ -6,6 +6,11 @@ import src.eval as eval_mod
 from src.model.config import AureliusConfig
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_registered_in_metric_and_benchmark_registry():
     assert "vibe_code_reviewer" in eval_mod.METRIC_REGISTRY
     assert "vibe_code_reviewer" in eval_mod.BENCHMARK_REGISTRY

@@ -12,7 +12,7 @@ dependencies = [
     "numpy>=1.26.0",
     "torchao>=0.3.0",
     "liger-kernel>=0.5.0",
-    "sageattention>=2.0.0",
+    "sageattention>=1.0.6",
     "datasets>=2.19.0",
 ]
 # pip>=26.1 required at environment level for CVE-2026-3219
@@ -66,13 +66,19 @@ db = [
 ]
 dev = [
     "pytest>=9.0.3",
+    "pytest-asyncio>=0.24.0",
     "pytest-cov>=5.0.0",
     "ruff>=0.15.12",
     "requests>=2.32.0",
     "cryptography>=43.0.0",
     "httpx>=0.28.1",
     "pydantic>=2.0.0",
-]
+
+        "fastapi>=0.115.0",
+        "uvicorn>=0.46.0",
+        "openai>=1.50.0",
+        "psutil>=6.0.0",
+        "xgrammar>=0.1.0",]
 
 [project.scripts]
 aurelius = "aurelius_cli.main:main"
@@ -86,8 +92,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["aurelius*", "src*"]
+where = ["src", "aurelius_cli"]
+exclude = ["*.tests", "*.tests.*", "tests.*", "tests"]
 
 [tool.ruff]
 line-length = 100
@@ -104,13 +110,21 @@ extend-exclude = [
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "S"]
-ignore = ["S105", "S110", "S311"]
+ignore = ["S105", "S110", "S311", "UP038"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S108", "S104", "E501"]
 "**/__init__.py" = ["E402", "F403"]
 "training_data/**" = ["E501"]
 "scripts/**" = ["S101", "S603", "S607", "E402", "E501"]
+"aurelius_cli/main.py" = ["S603"]
+"src/cli/main.py" = ["S603"]
+"src/multimodal/voice_engine.py" = ["S603"]
+"tests/integration/test_attention_sinks_integration.py" = ["S603"]
+"tests/integration/test_compressive_transformer_integration.py" = ["S603"]
+"tests/integration/test_infini_attention_integration.py" = ["S603"]
+"tests/integration/test_ring_attention_integration.py" = ["S603"]
+"tests/integration/test_yarn_position_extension_integration.py" = ["S603"]
 "alembic/versions/**" = ["E501"]
 "src/agent/absolute_zero.py" = ["S603", "E501"]
 "src/agent/auto_dev.py" = ["S603", "E501"]
@@ -164,6 +178,8 @@ ignore = ["S105", "S110", "S311"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = ["--tb=short", "-q"]
+asyncio_mode = "auto"
 markers = [
     "slow: marks tests as slow (deselect with '-m not slow')",
+    "integration: marks integration tests",
 ]

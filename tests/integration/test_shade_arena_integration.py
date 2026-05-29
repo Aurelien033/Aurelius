@@ -17,6 +17,11 @@ from src.eval import (
 from src.model.config import AureliusConfig
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_shade_arena_registered():
     assert "shade_arena" in METRIC_REGISTRY
     assert "shade_arena" in BENCHMARK_REGISTRY

@@ -5,6 +5,8 @@ Pure PyTorch / stdlib only — no transformers, einops, trl, xformers, flash_att
 bitsandbytes, peft, diffusers, datasets, accelerate, or deepspeed.
 """
 
+from __future__ import annotations
+
 import math
 from typing import Any
 

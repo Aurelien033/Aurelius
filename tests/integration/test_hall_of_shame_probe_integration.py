@@ -17,6 +17,7 @@ The tests tolerate detector misses — the goal is wiring, not tuning.
 
 from __future__ import annotations
 
+
 import unittest
 
 import src.safety as safety_pkg
@@ -33,6 +34,11 @@ from src.safety import (
     corpus_hash as corpus_hash_reexport,
 )
 from src.safety.hall_of_shame_probe import corpus_hash as corpus_hash_module
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def _adversarial_count() -> int:

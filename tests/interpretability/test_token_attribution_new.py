@@ -9,7 +9,11 @@ described in the cycle-148 spec via a thin adapter defined here.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
+from src._compat import StrEnum
+
+import pytest
+import torch
+
 
 # ---------------------------------------------------------------------------
 # Inline implementation for spec-compliant TokenAttributor
@@ -17,8 +21,6 @@ from enum import StrEnum
 #  spec's interface here by re-implementing the lightweight pieces inline
 #  so the existing file is never overwritten.)
 # ---------------------------------------------------------------------------
-import pytest
-import torch
 
 
 class AttributionMethod(StrEnum):

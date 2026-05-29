@@ -7,6 +7,11 @@ from src.longcontext import LONGCONTEXT_STRATEGY_REGISTRY, ContextCompactor
 from src.longcontext.context_compaction import Turn
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_registry_contains_context_compaction():
     assert "context_compaction" in LONGCONTEXT_STRATEGY_REGISTRY
     assert LONGCONTEXT_STRATEGY_REGISTRY["context_compaction"] is ContextCompactor

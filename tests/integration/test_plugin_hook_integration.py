@@ -5,9 +5,15 @@ from __future__ import annotations
 from agent import AGENT_LOOP_REGISTRY
 from agent.plugin_hook import HOOK_REGISTRY, PluginHookRegistry
 
+
 # ---------------------------------------------------------------------------
 # 1. "plugin_hook" key present in AGENT_LOOP_REGISTRY
 # ---------------------------------------------------------------------------
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_plugin_hook_in_agent_loop_registry():

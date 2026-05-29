@@ -7,6 +7,11 @@ import math
 import sys
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_embedding_registry_exposes_code_aware():
     for mod in [m for m in list(sys.modules) if m.startswith("src.retrieval")]:
         del sys.modules[mod]

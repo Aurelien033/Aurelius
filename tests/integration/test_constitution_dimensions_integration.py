@@ -8,6 +8,11 @@ from src.model.config import AureliusConfig
 from src.runtime.feature_flags import FEATURE_FLAG_REGISTRY, FeatureFlag
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_alignment_registry_has_constitution_dimensions():
     assert "constitution_dimensions" in ALIGNMENT_REGISTRY
     assert ALIGNMENT_REGISTRY["constitution_dimensions"] is ConstitutionScorer

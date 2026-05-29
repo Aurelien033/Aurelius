@@ -7,6 +7,11 @@ from src.model.config import AureliusConfig
 from src.runtime.feature_flags import FEATURE_FLAG_REGISTRY, FeatureFlag
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_allocator_registry():
     assert chat.CHAT_TOKEN_ALLOCATOR_REGISTRY["token_budget"] is chat.TokenBudgetAllocator
 

@@ -11,6 +11,7 @@ Verifies:
 
 from __future__ import annotations
 
+
 import pytest
 
 from src import eval as eval_pkg
@@ -23,9 +24,13 @@ from src.eval.taubench_scorer import (
 from src.model.config import AureliusConfig
 from src.runtime.feature_flags import FEATURE_FLAG_REGISTRY, FeatureFlag
 
+
 # ---------------------------------------------------------------------------
 # Registry presence
 # ---------------------------------------------------------------------------
+
+
+pytestmark = pytest.mark.integration
 
 
 def test_prior_registry_entries_intact():

@@ -10,14 +10,21 @@ Verify: output shape, n_attention_layers=2, n_ssm_layers=4, backward works,
 
 from __future__ import annotations
 
+
 import torch
 
 from src.model import MODEL_COMPONENT_REGISTRY
 from src.model.zamba_block import ZambaBlock, ZambaConfig, ZambaSharedAttention
 
+
 # ---------------------------------------------------------------------------
 # Shared setup
 # ---------------------------------------------------------------------------
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 D_MODEL = 64
 N_HEADS = 4

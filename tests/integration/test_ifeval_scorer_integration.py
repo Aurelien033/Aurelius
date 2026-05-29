@@ -5,6 +5,11 @@ from __future__ import annotations
 from src import eval as ev
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_metric_registry_has_ifeval() -> None:
     assert "ifeval" in ev.METRIC_REGISTRY
 

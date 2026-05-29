@@ -5,6 +5,11 @@ from __future__ import annotations
 from src.model import MIGRATION_REGISTRY, AureliusConfig, CheckpointMigrator
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_checkpoint_migrator_exported_from_model_package() -> None:
     assert CheckpointMigrator is not None
     migrator = CheckpointMigrator()

@@ -5,6 +5,8 @@ and ScalarMLP — a minimal neural network stack backed entirely by scalar ops.
 Useful for verifying gradient correctness and tracing computation graphs.
 """
 
+from __future__ import annotations
+
 import math
 from collections.abc import Callable
 
@@ -159,7 +161,7 @@ class ScalarMLP:
             ScalarLayer(sz[i], sz[i + 1], nonlin=(i < len(nouts) - 1)) for i in range(len(nouts))
         ]
 
-    def __call__(self, x: list) -> "ScalarValue | list[ScalarValue]":
+    def __call__(self, x: list) -> ScalarValue | list[ScalarValue]:
         for layer in self.layers:
             x = layer(x)
         return x[0] if len(x) == 1 else x

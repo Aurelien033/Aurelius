@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from enum import Enum
 
 from src.trading.portfolio import OrderSide, OrderStatus, Portfolio

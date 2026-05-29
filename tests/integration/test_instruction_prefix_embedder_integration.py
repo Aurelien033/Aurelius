@@ -15,6 +15,9 @@ from src.retrieval import (
 )
 
 
+pytestmark = pytest.mark.integration
+
+
 def _tokenize(text: str) -> list[int]:
     # word-level hash tokenizer in [1, 31]; keeps sequences short so
     # prefixed inputs fit within the tiny max_seq_len.

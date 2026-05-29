@@ -16,6 +16,8 @@ class MemoryEntry:
     importance: float = 1.0
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    session_id: str | None = None
+    step: int | None = None
 
 
 class EpisodicMemory:
@@ -29,9 +31,22 @@ class EpisodicMemory:
     # Mutation
     # ------------------------------------------------------------------
 
-    def store(self, role: str, content: str, importance: float = 1.0) -> MemoryEntry:
+    def store(
+        self,
+        role: str,
+        content: str,
+        importance: float = 1.0,
+        session_id: str | None = None,
+        step: int | None = None,
+    ) -> MemoryEntry:
         """Create and store a new MemoryEntry, evicting oldest if over capacity."""
-        entry = MemoryEntry(role=role, content=content, importance=importance)
+        entry = MemoryEntry(
+            role=role,
+            content=content,
+            importance=importance,
+            session_id=session_id,
+            step=step,
+        )
         self._entries.append(entry)
         if len(self._entries) > self._max_entries:
             # Evict oldest (lowest index / earliest timestamp)

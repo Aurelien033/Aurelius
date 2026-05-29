@@ -9,6 +9,11 @@
 from __future__ import annotations
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_loader_registry_exposes_cwe_generator():
     from src.data import LOADER_REGISTRY, CWESyntheticGenerator
 

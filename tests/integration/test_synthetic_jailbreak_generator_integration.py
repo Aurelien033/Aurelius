@@ -5,6 +5,11 @@ from __future__ import annotations
 import src.eval as ev
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_benchmark_registry_entry():
     assert ev.BENCHMARK_REGISTRY.get("synthetic_jailbreak") is ev.SyntheticJailbreakGenerator
     assert ev.METRIC_REGISTRY.get("synthetic_jailbreak") is ev.SyntheticJailbreakGenerator

@@ -7,12 +7,18 @@ correctly, and no exceptions are raised.
 
 import torch
 
+
 from src.data.programmatic_image_tools import (
     blob_count,
     crop_region,
     detect_objects,
     pixel_distance,
 )
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_full_pipeline_two_blobs():

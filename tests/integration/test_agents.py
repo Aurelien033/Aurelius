@@ -7,6 +7,9 @@ from typing import Any
 import pytest
 
 
+pytestmark = pytest.mark.integration
+
+
 class TestAgents:
     AGENTS_URL = "/api/agents"
 

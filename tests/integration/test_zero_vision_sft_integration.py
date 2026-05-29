@@ -7,9 +7,15 @@ Pure PyTorch only — no transformers, trl, einops, scipy, sklearn, PIL, cv2, ti
 
 from __future__ import annotations
 
+
 import torch
 
 from src.alignment.zero_vision_sft import ZeroVisionSFTConfig, ZeroVisionSFTTrainer
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 VOCAB = 256
 SEQ = 16

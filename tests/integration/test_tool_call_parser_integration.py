@@ -8,8 +8,14 @@ original semantic payload.
 
 from __future__ import annotations
 
+
 import importlib
 import sys
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_registry_contains_xml_and_json_keys() -> None:

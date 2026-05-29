@@ -12,6 +12,8 @@ Functions
 create_kl_scheduler     — factory that builds the right scheduler from a config
 """
 
+from __future__ import annotations
+
 import math
 from dataclasses import dataclass
 

@@ -5,6 +5,11 @@ from __future__ import annotations
 from src.retrieval import RETRIEVER_REGISTRY, BM25Retriever, HybridRetriever
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def _embed(text: str) -> list[float]:
     t = text.lower()
     return [float(t.count(c)) for c in "abcdefghij"]

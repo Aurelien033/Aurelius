@@ -1,11 +1,12 @@
 """Persistent cross-session semantic memory for the Aurelius platform."""
 
+from __future__ import annotations
 import json
 import math
 import os
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 
 try:
     from torch import Tensor
@@ -103,7 +104,7 @@ class SemanticMemory:
         self.store = store
         self.embed_dim = embed_dim
 
-    def _mean_embed(self, tokens: list[int], embed_weight: "Tensor") -> list[float]:
+    def _mean_embed(self, tokens: list[int], embed_weight: Tensor) -> list[float]:
         rows = [embed_weight[t].tolist() for t in tokens]
         dim = len(rows[0])
         mean = [sum(r[i] for r in rows) / len(rows) for i in range(dim)]
@@ -114,7 +115,7 @@ class SemanticMemory:
         self,
         content: str,
         tokens: list[int],
-        embed_weight: "Tensor",
+        embed_weight: Tensor,
         tags: list[str] = None,
     ) -> str:
         embedding = self._mean_embed(tokens, embed_weight)
@@ -129,7 +130,7 @@ class SemanticMemory:
     def recall(
         self,
         query_tokens: list[int],
-        embed_weight: "Tensor",
+        embed_weight: Tensor,
         top_k: int = 3,
     ) -> list[MemoryEntry]:
         candidates = [e for e in self.store.list_all() if e.embedding is not None]
@@ -143,7 +144,7 @@ class SemanticMemory:
     def build_context(
         self,
         query_tokens: list[int],
-        embed_weight: "Tensor",
+        embed_weight: Tensor,
         top_k: int = 3,
     ) -> str:
         entries = self.recall(query_tokens, embed_weight, top_k=top_k)

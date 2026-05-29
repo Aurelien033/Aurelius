@@ -229,11 +229,57 @@ def _make_restricted_globals(extra: dict[str, Any] | None = None) -> dict[str, A
     return g
 
 
+def _execute_python_worker(
+    q: multiprocessing.Queue,
+    code: str,
+    config: ExecutionConfig,
+) -> None:
+    """Worker that runs in a child process and returns an ExecutionResult payload."""
+    stdout_buf = io.StringIO()
+    stderr_buf = io.StringIO()
+    restricted_globals = _make_restricted_globals()
+    try:
+        compiled = compile(code, "<sandbox>", "exec")
+        with contextlib.redirect_stdout(stdout_buf), contextlib.redirect_stderr(stderr_buf):
+            max_memory_mb = getattr(config, "max_memory_mb", None)
+            if max_memory_mb is not None:
+                try:
+                    import resource as _res
+
+                    mem_bytes = max_memory_mb * 1024 * 1024
+                    for _rl_name in ("RLIMIT_AS", "RLIMIT_DATA"):
+                        _rl = getattr(_res, _rl_name, None)
+                        if _rl is not None:
+                            try:
+                                _res.setrlimit(_rl, (mem_bytes, mem_bytes))
+                            except (ValueError, OSError):
+                                pass
+                except ImportError:
+                    pass
+            exec(compiled, restricted_globals)  # nosec B102
+        result = {
+            "success": True,
+            "stdout": stdout_buf.getvalue(),
+            "stderr": stderr_buf.getvalue(),
+            "return_value": "",
+            "error": None,
+        }
+    except Exception as exc:
+        result = {
+            "success": False,
+            "stdout": stdout_buf.getvalue(),
+            "stderr": stderr_buf.getvalue(),
+            "return_value": "",
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+    q.put(result)
+
+
 def execute_python(code: str, config: ExecutionConfig) -> ExecutionResult:
     """Safely execute Python code in a restricted namespace."""
     start = time.monotonic()
 
-    # Size guard: reject empty or pathologically large inputs before sanitize/compile.
+    # Size guard
     if not code or len(code) > _MAX_EXEC_LEN:
         elapsed = time.monotonic() - start
         return ExecutionResult(
@@ -264,21 +310,13 @@ def execute_python(code: str, config: ExecutionConfig) -> ExecutionResult:
             error=f"Sanitization failed: {reason}",
         )
 
-    stdout_buf = io.StringIO()
-    stderr_buf = io.StringIO()
-    exc_holder: list[Exception] = []
-
-    restricted_globals = _make_restricted_globals()
-
-    def _run() -> None:
-        try:
-            compiled = compile(code, "<sandbox>", "exec")
-            with contextlib.redirect_stdout(stdout_buf), contextlib.redirect_stderr(stderr_buf):
-                exec(compiled, restricted_globals)  # nosec B102  # noqa: S102
-        except Exception as exc:
-            exc_holder.append(exc)
-
-    proc = multiprocessing.Process(target=_run, daemon=True)
+    # IPC to retrieve result from child
+    result_queue = multiprocessing.Queue()
+    proc = multiprocessing.Process(
+        target=_execute_python_worker,
+        args=(result_queue, code, config),
+        daemon=True,
+    )
     proc.start()
     proc.join(timeout=config.timeout_seconds)
 
@@ -289,39 +327,44 @@ def execute_python(code: str, config: ExecutionConfig) -> ExecutionResult:
         proc.join(timeout=1.0)
         return ExecutionResult(
             code=code,
-            stdout=stdout_buf.getvalue()[: config.max_output_len],
-            stderr=stderr_buf.getvalue()[: config.max_output_len],
+            stdout="",
+            stderr="",
             return_value="",
             success=False,
             execution_time=elapsed,
             error=f"Execution timed out after {config.timeout_seconds}s",
         )
 
-    raw_stdout = stdout_buf.getvalue()[: config.max_output_len]
-    raw_stderr = stderr_buf.getvalue()[: config.max_output_len]
+    # Retrieve result from child
+    try:
+        child_result = result_queue.get(block=False)
+    except Exception:
+        # Queue empty or error
+        child_result = None
 
-    if exc_holder:
-        exc = exc_holder[0]
+    if child_result is None:
         return ExecutionResult(
             code=code,
-            stdout=raw_stdout,
-            stderr=raw_stderr,
+            stdout="",
+            stderr="",
             return_value="",
             success=False,
             execution_time=elapsed,
-            error=f"{type(exc).__name__}: {exc}",
+            error="Child process failed to return a result",
         )
 
     return ExecutionResult(
         code=code,
-        stdout=raw_stdout,
-        stderr=raw_stderr,
-        return_value="",
-        success=True,
+        stdout=child_result["stdout"][: config.max_output_len],
+        stderr=child_result["stderr"][: config.max_output_len],
+        return_value=child_result["return_value"],
+        success=child_result["success"],
         execution_time=elapsed,
-        error=None,
+        error=child_result["error"],
     )
 
+
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Formatting

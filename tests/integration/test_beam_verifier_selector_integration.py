@@ -9,6 +9,11 @@ from src.model.config import AureliusConfig
 from src.runtime.feature_flags import FEATURE_FLAG_REGISTRY, FeatureFlag
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_beam_registry():
     assert inf.BEAM_VERIFIER_SELECTION_REGISTRY["argmax"] is inf.BeamVerifierSelector
 

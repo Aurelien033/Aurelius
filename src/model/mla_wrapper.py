@@ -48,9 +48,6 @@ class MLACompatibleAttention(nn.Module):
     ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
         B, S, D = x.shape
 
-        if past_kv is not None and S > 1:
-            raise ValueError("MLA: KV cache only supports single-token decode")
-
         if past_kv is not None:
             past_c, past_r = past_kv
             c = self.mla._compress_kv(x)
@@ -67,6 +64,8 @@ class MLACompatibleAttention(nn.Module):
 
     def _forward_with_cache(self, c: torch.Tensor, x: torch.Tensor, B: int, T: int) -> torch.Tensor:
         if self.absorbed:
+            if self.mla.absorbed_qk is None:
+                raise RuntimeError("absorb_projections() must be called before use_absorbed=True.")
             Q_abs = torch.einsum("btd,hdk->bhtk", x, self.mla.absorbed_qk)
             c_heads = c.unsqueeze(1)
             scores = torch.matmul(Q_abs, c_heads.transpose(-2, -1)) * self.mla.scale
@@ -82,8 +81,8 @@ class MLACompatibleAttention(nn.Module):
                 .view(B, total_seq, self.mla.n_heads, self.mla.head_dim)
                 .transpose(1, 2)
             )
-            V_fresh = V[:, :, -T:, :]
-            out = torch.matmul(attn, V_fresh)
+            V_full = V
+            out = torch.matmul(attn, V_full)
             out = out.transpose(1, 2).contiguous().view(B, T, self.mla.n_heads * self.mla.head_dim)
             return self.mla.out_proj(out)
 
@@ -100,4 +99,9 @@ class MLACompatibleAttention(nn.Module):
         )
         total = c.shape[1]
         mask = torch.ones(1, 1, T, total, device=x.device, dtype=torch.bool).tril()
-        return F.scaled_dot_product_attention(Q, K, V, attn_mask=mask[:, :, -T:, :])
+        return self.mla.out_proj(
+            F.scaled_dot_product_attention(Q, K, V, attn_mask=mask[:, :, -T:, :])
+            .transpose(1, 2)
+            .contiguous()
+            .view(B, T, self.mla.n_heads * self.mla.head_dim)
+        )

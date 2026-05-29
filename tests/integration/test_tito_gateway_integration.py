@@ -9,9 +9,15 @@ Verifies that:
 from src.training import TRAINING_REGISTRY
 from src.training.tito_gateway import TITOConfig
 
+
 # ---------------------------------------------------------------------------
 # 1. Registry key existence
 # ---------------------------------------------------------------------------
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_tito_key_in_training_registry():

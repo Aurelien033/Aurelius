@@ -9,13 +9,20 @@ Run with: .venv/bin/python3.14 -m pytest tests/integration/test_soft_thinking_in
 
 from __future__ import annotations
 
+
 import torch
 
 from src.inference.soft_thinking import SoftThinkingConfig, SoftThinkingMixer
 
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 D_MODEL = 64
 VOCAB = 256

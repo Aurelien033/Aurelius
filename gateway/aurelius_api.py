@@ -9,7 +9,8 @@ import json
 import os
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -24,19 +25,31 @@ from gateway.engine_loader import build_engine, make_mock_generate_fn
 from gateway.metrics_middleware import METRICS
 from gateway.rate_limit import get_rate_limiter
 
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Run API startup tasks using FastAPI's lifespan hook."""
+    await _load_engine()
+    await _init_rate_limiter()
+    yield
+
+
 app = FastAPI(
-    title="Aurelius API", version="1.0.0", description="Backend API for the Aurelius Agent Cockpit"
+    title="Aurelius API",
+    version="1.0.0",
+    description="Backend API for the Aurelius Agent Cockpit",
+    lifespan=_lifespan,
 )
 
 
 # ─── Safety input limits ────────────────────────────────────────────────
-SAFE_MAX_PROMPT_TOKENS = 32_768   # hard cap; prevents memory exhaustion
-SAFE_MAX_TEMPERATURE    = 2.0     # sensible range
-SAFE_MIN_TEMPERATURE    = 0.0
-SAFE_MAX_TOP_P          = 1.0
-SAFE_MIN_TOP_P          = 0.01
-SAFE_MAX_REP_PENALTY    = 2.0
-SAFE_MIN_REP_PENALTY    = 1.0
+SAFE_MAX_PROMPT_TOKENS = 32_768  # hard cap; prevents memory exhaustion
+SAFE_MAX_TEMPERATURE = 2.0  # sensible range
+SAFE_MIN_TEMPERATURE = 0.0
+SAFE_MAX_TOP_P = 1.0
+SAFE_MIN_TOP_P = 0.01
+SAFE_MAX_REP_PENALTY = 2.0
+SAFE_MIN_REP_PENALTY = 1.0
 
 
 def validate_chat_params(body: dict) -> None:
@@ -121,6 +134,7 @@ app.add_middleware(
 
 # ─── Security Hardening Middlewares ─────────────────────────────
 
+
 @app.middleware("http")
 async def security_headers(request, call_next):
     response = await call_next(request)
@@ -144,7 +158,7 @@ async def security_headers(request, call_next):
 
 
 MAX_REQUEST_SIZE = int(os.environ.get("AURELIUS_MAX_REQUEST_SIZE", "1048576"))
-MAX_STREAM_SIZE   = int(os.environ.get("AURELIUS_MAX_STREAM_SIZE", "10485760"))
+MAX_STREAM_SIZE = int(os.environ.get("AURELIUS_MAX_STREAM_SIZE", "10485760"))
 
 
 @app.middleware("http")
@@ -252,12 +266,13 @@ class ActionRequest(BaseModel):
 class WorkspaceRequest(BaseModel):
     path: str = ""
 
+
 class BatchRequest(BaseModel):
     """Multiple prompts for static batch inference."""
+
     prompts: list[str]
     temperature: float = 0.7
     max_tokens: int = 512
-
 
 
 sessions: dict[str, dict[str, Any]] = {}
@@ -274,11 +289,11 @@ async def root():
 async def health() -> dict:
     """Liveness probe — service is up."""
     return {
-    "status": "ok",
-    "uptime": time.time(),
-    "sessions": len(sessions),
-    "engine_loaded": _engine is not None,
-}
+        "status": "ok",
+        "uptime": time.time(),
+        "sessions": len(sessions),
+        "engine_loaded": _engine is not None,
+    }
 
 
 @app.get("/health/ready")
@@ -384,7 +399,29 @@ _model_id: str = "aurelius-1.3b"
 _rate_limiter: Callable[[str], bool] | None = None
 
 
-@app.on_event("startup")
+def _resolve_tokenizer_revision(model_path: str) -> str | None:
+    """Return a pinned tokenizer revision for remote HuggingFace model IDs.
+
+    Local checkpoint paths do not need a HuggingFace revision. Remote model IDs
+    must set AURELIUS_TOKENIZER_REVISION or AURELIUS_MODEL_REVISION to a commit
+    SHA/tag before tokenizer loading proceeds.
+    """
+    revision = os.environ.get("AURELIUS_TOKENIZER_REVISION") or os.environ.get(
+        "AURELIUS_MODEL_REVISION"
+    )
+    if revision:
+        return revision
+
+    expanded = Path(model_path).expanduser()
+    if expanded.exists() or model_path.startswith((".", "/", "~", "checkpoints/")):
+        return None
+
+    raise RuntimeError(
+        "Remote HuggingFace model IDs require AURELIUS_TOKENIZER_REVISION "
+        "or AURELIUS_MODEL_REVISION pinned to a commit SHA/tag."
+    )
+
+
 async def _load_engine() -> None:
     global _engine, _model_id, _engine_obj, _tokenizer
     model_path = os.environ.get("AURELIUS_MODEL_PATH", "checkpoints/aurelius_1.3b")
@@ -428,9 +465,12 @@ async def _load_engine() -> None:
         # Load tokenizer for batch endpoint
         try:
             from transformers import AutoTokenizer
+
+            tokenizer_revision = _resolve_tokenizer_revision(model_path)
             _tokenizer = AutoTokenizer.from_pretrained(
                 model_path,
                 trust_remote_code=True,
+                revision=tokenizer_revision,
             )
             print("[startup] Tokenizer loaded for batch endpoint")
         except Exception as e:
@@ -444,7 +484,6 @@ async def _load_engine() -> None:
         _tokenizer = None
 
 
-@app.on_event("startup")
 async def _init_rate_limiter() -> None:
     global _rate_limiter
     try:
@@ -456,7 +495,6 @@ async def _init_rate_limiter() -> None:
     except Exception as e:
         print(f"[startup] Rate limiter init failed: {e}")
         _rate_limiter = None
-
 
 
 def _get_engine() -> Callable[[EngineChatRequest], str]:
@@ -554,7 +592,6 @@ async def batch_completions(req: BatchRequest) -> dict:
     return {"completions": completions, "count": len(completions)}
 
 
-
 @app.get("/v1/models")
 async def list_models() -> dict:
     """Return a minimal list of available models."""
@@ -573,13 +610,15 @@ async def list_models() -> dict:
 
 def start(host: str = "127.0.0.1", port: int = 8080):
     import uvicorn
+
     uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Aurelius FastAPI inference server")
-    parser.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")  # noqa: S104
+    parser.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8080, help="Bind port (default: 8080)")
     args = parser.parse_args()
     start(host=args.host, port=args.port)

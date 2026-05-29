@@ -14,6 +14,8 @@ Variable notation follows the paper:
   o_i      — partial attention output for chunk i
 """
 
+from __future__ import annotations
+
 import math
 
 import torch

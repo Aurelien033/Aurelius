@@ -5,6 +5,11 @@ from __future__ import annotations
 import importlib
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_validator_exposed_via_src_serving_package():
     import src.serving as serving
 

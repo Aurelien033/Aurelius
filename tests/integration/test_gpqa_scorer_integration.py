@@ -6,6 +6,11 @@ from src import eval as eval_pkg
 from src.eval.gpqa_scorer import GPQAProblem, GPQAScorer
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_prior_registry_entries_intact():
     reg = eval_pkg.METRIC_REGISTRY
     for key in (

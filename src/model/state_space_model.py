@@ -5,6 +5,8 @@ Implements input-dependent (selective) state transitions following the S6 / Mamb
 architecture.  Pure native PyTorch only.
 """
 
+from __future__ import annotations
+
 import math
 from dataclasses import dataclass
 

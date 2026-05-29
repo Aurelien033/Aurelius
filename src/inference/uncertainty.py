@@ -5,6 +5,8 @@ multiple forward passes, then computing predictive entropy and mutual
 information as measures of total and epistemic uncertainty respectively.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import torch

@@ -7,6 +7,11 @@ import re
 import src.inference as inference_pkg
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_exposed_via_inference_package():
     assert hasattr(inference_pkg, "MultiSampleVoter")
     assert hasattr(inference_pkg, "VoteResult")

@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_background_executor_registered():
     """BackgroundExecutor must appear in AGENT_LOOP_REGISTRY."""
     import agent as agent

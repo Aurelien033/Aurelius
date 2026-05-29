@@ -5,6 +5,7 @@ entries.
 
 from __future__ import annotations
 
+
 import torch
 
 import src.chat as chat_pkg
@@ -18,6 +19,11 @@ from src.chat import (
     build_loss_mask,
     build_role_mask,
 )
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_exposed_from_chat_package():

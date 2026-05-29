@@ -5,6 +5,8 @@ Processes token sequences as graphs where tokens are nodes and structural
 relations (sequential, window, dependency) define edges.
 """
 
+from __future__ import annotations
+
 import math
 from dataclasses import dataclass
 

@@ -5,6 +5,8 @@ Implements FedAvg, FedProx, secure aggregation simulation, and DP noise
 injection for federated LLM training. Pure PyTorch only.
 """
 
+from __future__ import annotations
+
 import copy
 import math
 import random

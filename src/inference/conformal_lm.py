@@ -11,6 +11,8 @@ References:
     Kumar et al. 2023 (LLM conformal) — various works
 """
 
+from __future__ import annotations
+
 import math
 
 import torch

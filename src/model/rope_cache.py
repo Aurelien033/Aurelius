@@ -4,6 +4,8 @@ Pre-computes and stores cos/sin tables to avoid recomputation every forward
 pass.  The cache is built once at construction time and sliced per-batch.
 """
 
+from __future__ import annotations
+
 import math
 from dataclasses import dataclass
 

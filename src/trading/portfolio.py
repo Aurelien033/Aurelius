@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import statistics
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from enum import Enum
 
 PORTFOLIO_REGISTRY: dict[str, Portfolio] = {}

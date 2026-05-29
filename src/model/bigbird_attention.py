@@ -6,6 +6,8 @@ Combines three attention patterns:
   3. Random: each non-global token attends to n_random_keys random additional tokens.
 """
 
+from __future__ import annotations
+
 import random
 from dataclasses import dataclass
 

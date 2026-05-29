@@ -15,6 +15,9 @@ from src.model.variant_adapter import (
 )
 
 
+pytestmark = pytest.mark.integration
+
+
 @pytest.fixture(autouse=True)
 def _isolate_registry():
     saved_reg = dict(VARIANT_ADAPTER_REGISTRY)

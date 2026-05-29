@@ -13,6 +13,7 @@ Covers three things:
 
 from __future__ import annotations
 
+
 from src.retrieval import (
     FUSION_REGISTRY,
     RETRIEVER_REGISTRY,
@@ -24,6 +25,11 @@ from src.retrieval import (
     fuse,
     reciprocal_rank_fusion,
 )
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def _embed(text: str) -> list[float]:

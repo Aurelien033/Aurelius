@@ -1,8 +1,9 @@
 """Probing classifier: linear probe, logistic regression, probing accuracy."""
 
+from __future__ import annotations
 import math
 from dataclasses import dataclass
-from enum import StrEnum
+from src._compat import StrEnum
 
 
 class ProbeTask(StrEnum):
@@ -123,7 +124,7 @@ class ProbingClassifier:
             results.append(self.probe_layer(task, idx, acts, labels))
         return results
 
-    def best_layer(self, results: list[ProbeResult]) -> "ProbeResult | None":
+    def best_layer(self, results: list[ProbeResult]) -> ProbeResult | None:
         if not results:
             return None
         return max(results, key=lambda r: r.accuracy)

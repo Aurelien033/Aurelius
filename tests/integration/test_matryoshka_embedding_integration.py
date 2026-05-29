@@ -8,6 +8,11 @@ import src
 import src.model as model_pkg
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_matryoshka_embedding_exported_from_model_package() -> None:
     assert hasattr(model_pkg, "MatryoshkaConfig")
     assert hasattr(model_pkg, "MatryoshkaEmbedding")

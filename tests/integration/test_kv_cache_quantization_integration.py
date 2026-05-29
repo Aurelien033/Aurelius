@@ -12,6 +12,11 @@ from src.longcontext import (
 )
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_registry_contains_kivi_int4():
     assert "kv_kivi_int4" in LONGCONTEXT_STRATEGY_REGISTRY
     assert LONGCONTEXT_STRATEGY_REGISTRY["kv_kivi_int4"] is KIVIQuantizer
@@ -33,6 +38,7 @@ def test_kivi_exposed_classes_importable():
 
 def test_int4_buffer_smaller_than_int8_buffer_same_tokens():
     """INT4 packed KV should be strictly smaller than INT8 packed KV."""
+
     B, H, S, D = 1, 2, 64, 16
     k = torch.randn(B, H, S, D)
     v = torch.randn(B, H, S, D)

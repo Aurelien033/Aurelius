@@ -8,6 +8,11 @@ import torch.nn as nn
 from src.optimizers import Prodigy
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_prodigy_trains_tiny_mlp_20_steps():
     torch.manual_seed(0)
     # Teacher model generates targets, then student learns them.

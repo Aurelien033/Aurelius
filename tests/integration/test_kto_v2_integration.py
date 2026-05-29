@@ -5,6 +5,11 @@ from __future__ import annotations
 import torch
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_exposed_via_src_alignment():
     import src.alignment as A
 

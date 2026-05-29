@@ -12,6 +12,11 @@ from src.eval import (
 )
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_package_level_imports_work():
     # Also confirm a few collateral symbols re-exported correctly.
     assert callable(multi_needle_build_sample)

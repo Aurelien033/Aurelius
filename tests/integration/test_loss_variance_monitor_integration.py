@@ -7,6 +7,11 @@ import math
 from src.training import LossVarianceMonitor
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_exposed_via_src_training() -> None:
     # Importing via the package namespace must work.
     mon = LossVarianceMonitor(window_size=50)

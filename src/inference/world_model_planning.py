@@ -5,6 +5,8 @@ Implements a latent state model that predicts future states and rewards
 for model-based planning. All components use pure native PyTorch.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import torch

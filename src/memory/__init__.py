@@ -1,5 +1,7 @@
 """Aurelius memory surface: episodic, working, and semantic memory."""
 
+from __future__ import annotations
+
 __all__ = [
     "MemoryEntry",
     "EpisodicMemory",
@@ -22,7 +24,28 @@ __all__ = [
     "RetrievalResult",
     "MemoryRetriever",
     "MEMORY_RETRIEVER",
+    # AMC tiers
+    "AMCTier2AblationResult",
+    "AMCTier2Config",
+    "AMCTier2Hook",
+    "AMCTier3Config",
+    "AMCTier3Hook",
+    "Tier3ConsolidationResult",
+    "DecayPolicy",
+    "Tier3Entry",
+    "Tier3Stats",
+    "TrustLevel",
 ]
+from .amc_tier2 import AMCTier2AblationResult, AMCTier2Config, AMCTier2Hook
+from .amc_tier3 import (
+    AMCTier3Config,
+    AMCTier3Hook,
+    DecayPolicy,
+    Tier3ConsolidationResult,
+    Tier3Entry,
+    Tier3Stats,
+    TrustLevel,
+)
 from .episodic_memory import EpisodicMemory, MemoryEntry
 from .memory_consolidation import (
     ConsolidationPolicy,
@@ -39,6 +62,7 @@ MEMORY_REGISTRY: dict[str, object] = {
     "index": MEMORY_INDEX,
     "semantic": SemanticMemory(),
     "consolidator": MemoryConsolidator(),
+    "amc_tier2": AMCTier2Hook(),
 }
 
 # --- Cycle-146 long-term memory deepening (Park et al. 2303.17580) -----------

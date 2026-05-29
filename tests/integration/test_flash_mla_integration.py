@@ -12,15 +12,20 @@ Covers the full lifecycle:
 
 from __future__ import annotations
 
+
 import pytest
 import torch
 
 from src.model import MODEL_COMPONENT_REGISTRY
 from src.model.flash_mla import FlashMLAAttention, FlashMLAConfig
 
+
 # ---------------------------------------------------------------------------
 # Shared setup
 # ---------------------------------------------------------------------------
+
+
+pytestmark = pytest.mark.integration
 
 INTEGRATION_CFG = FlashMLAConfig(
     d_model=64,

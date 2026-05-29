@@ -9,6 +9,7 @@ Verifies end-to-end behaviour:
 
 from __future__ import annotations
 
+
 import torch
 import torch.nn.functional as F
 
@@ -17,9 +18,15 @@ from src.inference.eagle3_decoding import (
     Eagle3Decoder,
 )
 
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 D_MODEL = 64
 VOCAB_SIZE = 256

@@ -15,6 +15,11 @@ from src.chat import (
 )
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_constants_exposed() -> None:
     assert FIM_PREFIX == "<fim_prefix>"
     assert FIM_SUFFIX == "<fim_suffix>"

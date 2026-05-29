@@ -9,6 +9,8 @@ The state space: x_t = A_bar * x_{t-1} + B_bar * u_t
 where A_bar = exp(delta * A), B_bar = (A_bar - I) * A^{-1} * B (ZOH).
 """
 
+from __future__ import annotations
+
 import math
 
 import torch

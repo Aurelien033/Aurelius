@@ -8,6 +8,11 @@ import agent as agent_pkg
 from agent import CodeRefactorTool, RefactorResult
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_exposed_via_src_agent() -> None:
     # Additive export present.
     assert "CodeRefactorTool" in agent_pkg.__all__

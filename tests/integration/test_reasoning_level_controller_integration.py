@@ -9,12 +9,19 @@ SWE-bench Verified: low=47.9%, medium=52.6%, high=62.4%.
 
 from __future__ import annotations
 
+
 import src.inference as inference
 from src.inference import DECODER_REGISTRY, LEVEL_CONFIGS
+
 
 # ---------------------------------------------------------------------------
 # 1. "reasoning_level" key is registered
 # ---------------------------------------------------------------------------
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_reasoning_level_key_in_decoder_registry() -> None:

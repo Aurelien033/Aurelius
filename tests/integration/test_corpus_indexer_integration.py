@@ -9,6 +9,7 @@ anything.
 
 from __future__ import annotations
 
+
 import os
 
 import pytest
@@ -16,6 +17,9 @@ import pytest
 import src.retrieval as retrieval_pkg
 from src.retrieval import BM25Retriever
 from src.retrieval.corpus_indexer import Chunk, CorpusIndexer
+
+
+pytestmark = pytest.mark.integration
 
 
 def _write(root, rel, text):

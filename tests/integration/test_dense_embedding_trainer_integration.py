@@ -10,6 +10,11 @@ import torch
 from src import retrieval
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_embedding_registry_has_dense() -> None:
     assert "dense" in retrieval.EMBEDDING_REGISTRY
     assert retrieval.EMBEDDING_REGISTRY["dense"] is retrieval.DenseEmbedder

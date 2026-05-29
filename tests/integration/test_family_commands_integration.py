@@ -9,6 +9,11 @@ import json
 from src.cli import family_commands as fc
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_build_family_parser_attaches_subparsers():
     parser = argparse.ArgumentParser(prog="aurelius")
     sub = parser.add_subparsers(dest="command")

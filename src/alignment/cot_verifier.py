@@ -12,6 +12,8 @@ ProcessRewardModel  : Process-supervision reward model over individual steps.
 VerifierConfig      : Dataclass of default hyper-parameters.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import torch

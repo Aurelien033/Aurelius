@@ -13,6 +13,7 @@ Verifies:
 
 from __future__ import annotations
 
+
 import subprocess
 import sys
 
@@ -27,6 +28,11 @@ from src.retrieval.cross_encoder_reranker import (
     CrossEncoderConfig,
     CrossEncoderReranker,
 )
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_registry_contains_cross_encoder() -> None:
@@ -69,6 +75,7 @@ def test_retrieval_import_does_not_pull_in_src_model() -> None:
 
     If ``src.retrieval`` (or the reranker module) accidentally imports
     from ``src.model``, that module will appear in ``sys.modules`` after
+
     the import completes. This guarantees architectural decoupling from
     the frozen core transformer.
     """

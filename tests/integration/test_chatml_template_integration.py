@@ -8,7 +8,13 @@ Verifies:
 
 from __future__ import annotations
 
+
 import sys
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_importing_src_chat_does_not_import_torch_or_model():

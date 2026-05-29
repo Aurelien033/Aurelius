@@ -6,6 +6,11 @@ import importlib
 
 import agent as agent_pkg
 
+
+import pytest
+
+pytestmark = pytest.mark.integration
+
 EXPECTED_EXPORTS = {
     "AgentRuntime": ("agent.agent_runtime", "AgentRuntime"),
     "AgentSpec": ("agent.agent_runtime", "AgentSpec"),

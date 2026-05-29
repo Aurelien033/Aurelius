@@ -10,6 +10,8 @@ References:
   - ScaleNorm: Nguyen & Salazar, 2019
 """
 
+from __future__ import annotations
+
 import math
 
 import torch

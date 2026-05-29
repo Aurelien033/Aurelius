@@ -16,6 +16,9 @@ from src.serving import (
 )
 
 
+pytestmark = pytest.mark.integration
+
+
 def test_registry_contains_circuit_breaker_entry() -> None:
     assert "circuit_breaker" in RESILIENCE_REGISTRY
     assert RESILIENCE_REGISTRY["circuit_breaker"] is CircuitBreaker

@@ -10,6 +10,11 @@ from src.safety import (
     SkillScanReport,
 )
 
+
+import pytest
+
+pytestmark = pytest.mark.integration
+
 _CURL = "cu" + "rl"
 _SH = "s" + "h"
 _RMRF = "rm -" + "rf /"

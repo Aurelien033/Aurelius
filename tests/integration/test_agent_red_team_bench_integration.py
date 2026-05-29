@@ -17,6 +17,11 @@ from src.eval import (
 from src.model.config import AureliusConfig
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_agent_red_team_bench_registered():
     assert "agent_red_team_bench" in METRIC_REGISTRY
     assert "agent_red_team_bench" in BENCHMARK_REGISTRY

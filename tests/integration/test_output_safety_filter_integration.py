@@ -15,6 +15,11 @@ from src.safety import (
 )
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_registry_contains_output_filter() -> None:
     assert "output_filter" in SAFETY_FILTER_REGISTRY
     assert SAFETY_FILTER_REGISTRY["output_filter"] is OutputSafetyFilter

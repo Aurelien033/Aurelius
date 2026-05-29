@@ -7,6 +7,8 @@ Routes tokens to different attention pattern experts:
   - RelativePositionHead : causal attention with relative position bias
 """
 
+from __future__ import annotations
+
 import math
 from dataclasses import dataclass
 

@@ -12,6 +12,11 @@ from src.eval import (
 from src.eval.crescendo_probe import stub_judge_fn
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def _synthetic_target(history):
     turn = sum(1 for m in history if m.get("role") == "user")
     if turn < 2:

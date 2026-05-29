@@ -8,6 +8,8 @@ FixedKLController   — no-op controller that keeps β constant
 PPOWarmupScheduler  — linear LR warmup then cosine decay for PPO
 """
 
+from __future__ import annotations
+
 import math
 from dataclasses import dataclass
 

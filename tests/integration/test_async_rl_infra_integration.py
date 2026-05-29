@@ -9,12 +9,19 @@ Checks:
 
 from __future__ import annotations
 
+
 from src.training import AUXILIARY_LOSS_REGISTRY, TRAINING_REGISTRY
 from src.training.async_rl_infra import RolloutOrchestrator, RolloutResult, RolloutTask
+
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def _make_task(task_id: int, task_type: str = "swe") -> RolloutTask:

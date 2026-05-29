@@ -9,6 +9,11 @@ import torch
 # ---------------------------------------------------------------------------
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_parl_in_registry():
     from src.alignment import ALIGNMENT_REGISTRY
 

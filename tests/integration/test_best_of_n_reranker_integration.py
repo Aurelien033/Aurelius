@@ -7,6 +7,11 @@ existing alignment imports are not broken by the new module.
 from __future__ import annotations
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_exposed_via_src_alignment():
     # Importable via the package path (even though __init__.py is minimal).
     from src.alignment.best_of_n_reranker import BestOfNReranker, BoNCandidate

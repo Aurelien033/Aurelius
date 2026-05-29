@@ -8,6 +8,7 @@ number of tasks.
 
 from __future__ import annotations
 
+
 import pytest
 import torch
 
@@ -17,9 +18,13 @@ from src.alignment.absolute_zero import (
     AbsoluteZeroTrainer,
 )
 
+
 # ---------------------------------------------------------------------------
 # Mock helpers
 # ---------------------------------------------------------------------------
+
+
+pytestmark = pytest.mark.integration
 
 
 def _build_propose_fn():

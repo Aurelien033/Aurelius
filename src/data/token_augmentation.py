@@ -5,6 +5,8 @@ Augmentation techniques that operate on tokenized sequences (integers),
 not raw text. Useful for training LLMs on limited data.
 """
 
+from __future__ import annotations
+
 import random
 from dataclasses import dataclass
 

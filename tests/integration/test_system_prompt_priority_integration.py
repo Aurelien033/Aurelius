@@ -7,6 +7,11 @@ from src.model.config import AureliusConfig
 from src.runtime.feature_flags import FEATURE_FLAG_REGISTRY, FeatureFlag
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_encoder_in_template_registry():
     assert "system_prompt_priority" in chat.CHAT_TEMPLATE_REGISTRY
     assert isinstance(

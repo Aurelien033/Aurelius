@@ -9,6 +9,11 @@ from agent import AureliusInterfaceRuntime, SessionManager, SkillCatalog, Workfl
 from src.model import AureliusInterfaceFramework
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 

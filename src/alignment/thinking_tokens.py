@@ -7,6 +7,8 @@ from answer tokens. During inference, thinking tokens are kept in KV cache but
 optionally stripped from final output.
 """
 
+from __future__ import annotations
+
 import re
 
 import torch

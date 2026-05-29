@@ -6,6 +6,11 @@ import src.eval as eval_pkg
 from src.eval.ruler_benchmark import RULERBenchmark
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_metric_registry_has_both_niah_and_ruler():
     assert "niah" in eval_pkg.METRIC_REGISTRY
     assert "ruler" in eval_pkg.METRIC_REGISTRY

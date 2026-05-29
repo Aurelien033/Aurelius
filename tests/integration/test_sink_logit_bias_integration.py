@@ -7,6 +7,11 @@ import torch
 import src.inference as inf
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_logit_bias_registry():
     assert hasattr(inf, "LOGIT_BIAS_REGISTRY")
     assert inf.LOGIT_BIAS_REGISTRY["sink_tokens"] is inf.SinkLogitBiasApplier

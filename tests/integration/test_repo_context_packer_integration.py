@@ -7,6 +7,11 @@ import os
 import src.agent as agent
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def _mkfile(root, rel, content):
     path = os.path.join(str(root), rel)
     os.makedirs(os.path.dirname(path), exist_ok=True)

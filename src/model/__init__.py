@@ -183,6 +183,37 @@ from src.backends import (  # noqa: E402
     select_backend_for_manifest,
 )
 
+# ---------------------------------------------------------------------------
+# Modern architectures (Mamba, Lightning Attention, MLA, Jamba)
+# ---------------------------------------------------------------------------
+
+from .mamba import (
+    SelectiveSSM,
+    MambaBlock,
+    MambaLayer,
+)
+from .mamba2 import (
+    SSDLayer,
+    Mamba2Block,
+)
+from .lightning_attention import (
+    LightningLinearAttn,
+    LightningAttentionLayer,
+    LightningAttentionBlock,
+)
+from .mla import (
+    MultiHeadLatentAttention,
+    MLAConfig,
+    DownProjectKV,
+    UpProjectKV,
+    MLABlock,
+)
+from .jamba import (
+    JambaModel,
+    JambaMambaBlock,
+    JambaAttentionBlock,
+)
+
 __all__ = [
     "BACKEND_REGISTRY",
     "ENGINE_ADAPTER_REGISTRY",
@@ -364,6 +395,22 @@ __all__ = [
     "DiffusionDecoder",
     "architectures",
     "mod",
+    "SelectiveSSM",
+    "MambaBlock",
+    "MambaLayer",
+    "SSDLayer",
+    "Mamba2Block",
+    "LightningLinearAttn",
+    "LightningAttentionLayer",
+    "LightningAttentionBlock",
+    "MultiHeadLatentAttention",
+    "MLAConfig",
+    "DownProjectKV",
+    "UpProjectKV",
+    "MLABlock",
+    "JambaModel",
+    "JambaMambaBlock",
+    "JambaAttentionBlock",
 ]
 
 
@@ -406,3 +453,11 @@ def __getattr__(name: str):
     value = getattr(module, attr_name)
     globals()[name] = value
     return value
+
+
+# Backwards-compatible namespace aliases.  The project historically allowed
+# `model`, `src.model`, and `aurelius.model`; make every import spelling return
+# the same module object, including deep submodule imports.
+from src.namespace_aliases import register_namespace_aliases as _register_aliases  # noqa: E402
+
+_register_aliases("src.model", ("model", "aurelius.model"))

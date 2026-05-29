@@ -155,7 +155,6 @@ class LSTMTransformerBlock(nn.Module):
         x: torch.Tensor,  # [B, T, d_model]
         state: tuple[torch.Tensor, torch.Tensor],  # (h, c) each [B, d_memory]
     ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
-
         h, _ = state
 
         # 1. Attention with memory as extra key/value

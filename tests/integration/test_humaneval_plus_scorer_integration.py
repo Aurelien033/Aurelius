@@ -8,6 +8,9 @@ import textwrap
 
 import pytest
 
+
+pytestmark = pytest.mark.integration
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if ROOT not in sys.path:
     sys.path.insert(1, ROOT)
@@ -50,6 +53,9 @@ def test_end_to_end_two_problems():
     prompt = "def add(a, b):\n"
     base_test = textwrap.dedent(
         """
+
+
+
         def check(candidate):
             assert candidate(1, 2) == 3
             assert candidate(0, 0) == 0

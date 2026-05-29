@@ -5,6 +5,11 @@ Re-exports defensive components for convenience.
 
 import sys
 
+from src.security.adversarial_detector import (
+    AdversarialDetector,
+    AdversarialPattern,
+    AdversarialResult,
+)
 from src.security.audit_logger import (
     AUDIT_LOGGER,
     AuditCategory,
@@ -278,6 +283,10 @@ __all__ = [
     "PostureScore",
     "SecurityPostureScorer",
     "POSTURE_SCORER_REGISTRY",
+    # adversarial_detector
+    "AdversarialDetector",
+    "AdversarialPattern",
+    "AdversarialResult",
 ]
 
 _module = sys.modules[__name__]

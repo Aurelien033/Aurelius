@@ -19,6 +19,7 @@ Pure stdlib.
 
 from __future__ import annotations
 
+
 import dataclasses
 import json
 
@@ -42,6 +43,9 @@ from src.model import (
     upgrade_to_v2,
     v2_to_v1_dict,
 )
+
+
+pytestmark = pytest.mark.integration
 
 
 def _v1_payload(**overrides):

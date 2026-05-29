@@ -9,6 +9,7 @@ Verifies that:
 
 from __future__ import annotations
 
+
 import torch
 
 import src.serving as serving
@@ -19,9 +20,15 @@ from src.serving.structured_output_decoder import (
     StructuredOutputDecoder,
 )
 
+
 # ---------------------------------------------------------------------------
 # Config-driven construction
 # ---------------------------------------------------------------------------
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def _make_decoder_from_config(

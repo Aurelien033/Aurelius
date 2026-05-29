@@ -11,15 +11,20 @@ verifies that:
 
 from __future__ import annotations
 
+
 import pytest
 import torch
 
 from src.model import MODEL_COMPONENT_REGISTRY
 from src.model.striped_attention import StripedAttention, StripedAttentionConfig
 
+
 # ---------------------------------------------------------------------------
 # Integration config (tiny, matches spec)
 # ---------------------------------------------------------------------------
+
+
+pytestmark = pytest.mark.integration
 
 D_MODEL = 64
 N_HEADS = 4

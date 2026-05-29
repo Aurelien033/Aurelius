@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_registry_contains_refusal_entry() -> None:
     import src.safety as safety
 
@@ -53,8 +58,8 @@ def test_three_sample_classification() -> None:
     # 3) Ambiguous — short answer, no canonical phrase, long question.
     question = (
         "Could you explain in detail how the transformer's attention "
-        "mechanism computes its output?"  # substantive
-    )
+        "mechanism computes its output?"
+    )  # substantive
     ambiguous = clf.classify("Maybe later.", question=question)
     # Ambiguous case triggers the length heuristic but not enough to flag.
     assert ambiguous.is_refusal is False

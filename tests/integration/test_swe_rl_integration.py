@@ -11,6 +11,7 @@ Verifies end-to-end flow:
 
 from __future__ import annotations
 
+
 import math
 
 import pytest
@@ -24,9 +25,13 @@ from src.training.swe_rl import (
     SWETask,
 )
 
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture

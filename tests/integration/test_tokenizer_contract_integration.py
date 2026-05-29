@@ -11,6 +11,11 @@ from src.data.tokenizer_contract import (
 )
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_identity_registry_exposed_from_package():
     assert hasattr(data_pkg, "TOKENIZER_IDENTITY_REGISTRY")
     assert data_pkg.TOKENIZER_IDENTITY_REGISTRY is TOKENIZER_IDENTITY_REGISTRY

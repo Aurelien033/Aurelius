@@ -8,10 +8,16 @@ and perturbs logits as expected.
 
 from __future__ import annotations
 
+
 import random
 import string
 
 import torch
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_exposed_via_src_security():

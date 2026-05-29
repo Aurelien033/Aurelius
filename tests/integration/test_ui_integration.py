@@ -9,6 +9,11 @@ Aurelius copy containing no third-party vendor references.
 from __future__ import annotations
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_ui_package_exports_three_registries():
     from src.ui import (
         MOTION_REGISTRY,

@@ -2,7 +2,8 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import StrEnum
+
+from src._compat import StrEnum
 
 
 class LogLevel(StrEnum):

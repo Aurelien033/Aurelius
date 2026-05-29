@@ -23,9 +23,42 @@ _cached_hall_of_shame_probe = sys.modules.get("src.safety.hall_of_shame_probe")
 if _cached_hall_of_shame_probe is not None:
     sys.modules["safety.hall_of_shame_probe"] = _cached_hall_of_shame_probe
 
+from src.safety.admission_controller import (
+    AdmissionAction,
+    AdmissionDecision,
+    AdmissionPolicy,
+    AdmissionSignal,
+    SafetyAdmissionController,
+    estimate_tokens,
+)
+from src.safety.adversarial_detector_bridge import (
+    AdversarialDetector as AdversarialDetectorBridge,
+)
+from src.safety.adversarial_detector_bridge import (
+    AdversarialPattern,
+    AdversarialResult,
+)
 from src.safety.canary_token_guard import (
     CanaryDetection,
     CanaryTokenGuard,
+)
+from src.safety.claw_keeper import (
+    Capability,
+    ClawKeeper,
+    EnforcementAction,
+    PluginRuntimeEnforcer,
+    SkillPolicy,
+    SkillPolicyEngine,
+    ThreatLevel,
+    ThreatRecord,
+    WatcherMiddleware,
+    WatchState,
+)
+from src.safety.clawdrain_detector import (
+    AmplificationVector,
+    ClawdrainDetector,
+    ExhaustionResult,
+    ExhaustionSignal,
 )
 from src.safety.constitutional_principles_scorer import (
     DEFAULT_PRINCIPLES,
@@ -115,6 +148,13 @@ from src.safety.policy_engine import (
     PolicyEngine,
     PolicyRule,
 )
+from src.safety.prism_security_layer import (
+    Decision,
+    HookResult,
+    LifecycleHook,
+    PRISMSecurityLayer,
+    RiskRecord,
+)
 from src.safety.prompt_injection_scanner import (
     InjectionScore,
     PromptInjectionScanner,
@@ -122,6 +162,12 @@ from src.safety.prompt_injection_scanner import (
 from src.safety.prompt_integrity_checker import (
     IntegrityReport,
     PromptIntegrityChecker,
+)
+from src.safety.quantclaw_gate import (
+    GateDecision,
+    GatingContext,
+    QuantClawGate,
+    QuantLevel,
 )
 from src.safety.refusal_classifier import (
     REFUSAL_PHRASES,
@@ -179,6 +225,12 @@ SAFETY_FILTER_REGISTRY["knn_known_bad_guard"] = KnnKnownBadGuard
 SAFETY_FILTER_REGISTRY["jailbreak_v2"] = JailbreakClassifierV2
 SAFETY_FILTER_REGISTRY["output_sanitizer"] = OutputSanitizer
 SAFETY_FILTER_REGISTRY["policy_audit"] = PolicyAuditLog
+SAFETY_FILTER_REGISTRY["clawdrain_detector"] = ClawdrainDetector
+SAFETY_FILTER_REGISTRY["prism_security_layer"] = PRISMSecurityLayer
+SAFETY_FILTER_REGISTRY["claw_keeper"] = ClawKeeper
+SAFETY_FILTER_REGISTRY["quantclaw_gate"] = QuantClawGate
+SAFETY_FILTER_REGISTRY["admission_controller"] = SafetyAdmissionController
+SAFETY_FILTER_REGISTRY["adversarial_detector"] = AdversarialDetectorBridge
 
 HARM_CLASSIFIER_REGISTRY["harm_taxonomy"] = HarmTaxonomyClassifier
 HARM_CLASSIFIER_REGISTRY["refusal"] = RefusalClassifier
@@ -187,6 +239,12 @@ HARM_CLASSIFIER_REGISTRY["constitutional"] = ConstitutionalPrinciplesScorer
 __all__ = [
     "SAFETY_FILTER_REGISTRY",
     "HARM_CLASSIFIER_REGISTRY",
+    "AdmissionAction",
+    "AdmissionDecision",
+    "AdmissionPolicy",
+    "AdmissionSignal",
+    "SafetyAdmissionController",
+    "estimate_tokens",
     "JailbreakDetector",
     "JailbreakScore",
     "PromptInjectionScanner",
@@ -268,4 +326,31 @@ __all__ = [
     "AuditEntry",
     "PolicyAuditLog",
     "POLICY_AUDIT_LOG",
+    "ClawdrainDetector",
+    "AmplificationVector",
+    "ExhaustionResult",
+    "ExhaustionSignal",
+    "PRISMSecurityLayer",
+    "Decision",
+    "HookResult",
+    "LifecycleHook",
+    "RiskRecord",
+    "Capability",
+    "ClawKeeper",
+    "EnforcementAction",
+    "PluginRuntimeEnforcer",
+    "SkillPolicy",
+    "SkillPolicyEngine",
+    "ThreatLevel",
+    "ThreatRecord",
+    "WatchState",
+    "WatcherMiddleware",
+    "QuantClawGate",
+    "GatingContext",
+    "GateDecision",
+    "QuantLevel",
+    # adversarial_detector_bridge
+    "AdversarialDetectorBridge",
+    "AdversarialPattern",
+    "AdversarialResult",
 ]

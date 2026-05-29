@@ -9,11 +9,18 @@ Verifies:
 
 from __future__ import annotations
 
+
 import torch
+
 
 # ---------------------------------------------------------------------------
 # 1. Registry membership
 # ---------------------------------------------------------------------------
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_mtp_shared_in_registry():

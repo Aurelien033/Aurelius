@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_dispatch_task_exposed_on_agent_surface():
     import agent as agent
 

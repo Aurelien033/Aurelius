@@ -13,6 +13,11 @@ from src.model import (
 )
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_router_symbols_exported_from_model_package() -> None:
     for name in (
         "ReleaseTrackRouter",

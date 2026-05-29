@@ -9,10 +9,16 @@ Verifies:
 
 from __future__ import annotations
 
+
 import torch
 
 from src.training import TRAINING_REGISTRY
 from src.training.still3_trainer import STILL3Config, STILL3Trainer
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_still3_registry_wired():

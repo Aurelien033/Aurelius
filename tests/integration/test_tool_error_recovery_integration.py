@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+
 from agent import (
     RecoveringDispatcher,
     RecoveryPolicy,
@@ -11,6 +12,11 @@ from agent import (
     ToolRegistryDispatcher,
     ToolSpec,
 )
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_public_exports_present():

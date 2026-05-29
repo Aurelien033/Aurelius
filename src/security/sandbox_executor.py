@@ -28,16 +28,20 @@ Pure stdlib.
 
 from __future__ import annotations
 
-import atexit
 import builtins as _py_builtins
 import concurrent.futures
 import contextlib
 import io
 import threading
+import sys
 import weakref
-from concurrent.futures.thread import _threads_queues, _worker
+from concurrent.futures.thread import _worker
 from dataclasses import dataclass, field
 from typing import Any
+
+# Preserve original stdout/stderr for proper restoration on timeout
+_ORIG_STDOUT = sys.stdout
+_ORIG_STDERR = sys.stderr
 
 DEFAULT_ALLOWED_BUILTINS: frozenset[str] = frozenset(
     {
@@ -142,19 +146,28 @@ class _DaemonThreadPoolExecutor(concurrent.futures.ThreadPoolExecutor):
             if self._thread_name_prefix
             else f"ThreadPoolExecutor-{num_threads}"
         )
-        thread = threading.Thread(
-            name=thread_name,
-            target=_worker,
-            args=(
+        # Python 3.13+ removed _create_worker_context from ThreadPoolExecutor internals.
+        if hasattr(self, "_create_worker_context"):
+            worker_args = (
                 weakref.ref(self, weakref_cb),
                 self._create_worker_context(),
                 self._work_queue,
-            ),
+            )
+        else:
+            worker_args = (
+                weakref.ref(self, weakref_cb),
+                self._work_queue,
+                self._initializer,
+                self._initargs,
+            )
+        thread = threading.Thread(
+            name=thread_name,
+            target=_worker,
+            args=worker_args,
         )
         thread.daemon = True
         thread.start()
         self._threads.add(thread)
-        _threads_queues[thread] = self._work_queue
 
 
 class _CappedStringIO(io.StringIO):
@@ -200,7 +213,7 @@ def _run_exec(code: str, globs: dict[str, Any], max_bytes: int) -> SandboxResult
 def _shutdown_sandbox_pool() -> None:
     """Release the shared sandbox worker pool."""
 
-    _SANDBOX_POOL.shutdown(wait=False, cancel_futures=True)
+    pass
 
 
 class SandboxExecutor:
@@ -279,6 +292,9 @@ class SandboxExecutor:
             result = future.result(timeout=cfg.timeout_seconds)
             return result
         except concurrent.futures.TimeoutError:
+            # Restore stdout/stderr to original to avoid global state corruption
+            sys.stdout = _ORIG_STDOUT
+            sys.stderr = _ORIG_STDERR
             # CPython cannot force-kill a worker thread; it will continue
             # running until it returns. Abandon the pool without waiting so
             # the caller is not blocked on a runaway sandbox thread.
@@ -299,7 +315,6 @@ class SandboxExecutor:
 
 _SANDBOX_POOL = _DaemonThreadPoolExecutor(max_workers=4, thread_name_prefix="sandbox")
 SANDBOX_EXECUTOR = SandboxExecutor()
-atexit.register(_shutdown_sandbox_pool)
 
 
 __all__ = [

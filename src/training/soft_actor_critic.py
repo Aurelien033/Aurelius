@@ -5,6 +5,8 @@ Maximum-entropy RL framework that balances reward maximization with entropy
 regularization, applied to token-level decoding decisions.
 """
 
+from __future__ import annotations
+
 import copy
 import math
 from dataclasses import dataclass

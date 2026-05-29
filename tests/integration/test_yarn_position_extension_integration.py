@@ -10,12 +10,18 @@ Verify:
 
 from __future__ import annotations
 
+
 import subprocess
 import sys
 
 import torch
 
 import src.longcontext as lc
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_yarn_surface_exposed_on_package() -> None:

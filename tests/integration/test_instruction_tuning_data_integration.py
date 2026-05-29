@@ -8,6 +8,11 @@ encoder.
 from __future__ import annotations
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_generators_exposed_from_src_chat():
     import src.chat as chat
 

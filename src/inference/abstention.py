@@ -5,6 +5,8 @@ produce an unreliable answer. Uncertainty is measured via token entropy, Monte C
 dropout, and semantic clustering of sampled responses.
 """
 
+from __future__ import annotations
+
 import math
 
 import torch

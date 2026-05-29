@@ -18,6 +18,9 @@ from src.backends.registry import (
 )
 
 
+pytestmark = pytest.mark.integration
+
+
 class _RoundTripEngine(EngineAdapter):
     def __init__(self, name: str) -> None:
         self._contract = BackendContract(

@@ -4,6 +4,8 @@ Supports micro-batching, gradient synchronization, and loss scaling for
 memory-constrained hardware.
 """
 
+from __future__ import annotations
+
 import math
 from typing import Any
 
@@ -77,7 +79,7 @@ class GradientAccumulator:
         self._accumulated_steps: int = 0
 
     # Context-manager support (no-op enter/exit; step() drives the logic)
-    def __enter__(self) -> "GradientAccumulator":
+    def __enter__(self) -> GradientAccumulator:
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:

@@ -5,6 +5,11 @@ from __future__ import annotations
 import src.retrieval as retrieval
 from src.retrieval import BM25Retriever, CodeAwareTokenizer
 
+
+import pytest
+
+pytestmark = pytest.mark.integration
+
 CODE_CORPUS = [
     # doc 0: python utility
     "def get_user_name(user_id):\n    return db.users.find(user_id)\n",

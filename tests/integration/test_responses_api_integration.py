@@ -8,6 +8,7 @@ Verifies that:
 
 from __future__ import annotations
 
+
 import src.serving  # noqa: F401  — triggers registry population
 from src.serving import API_SHAPE_REGISTRY
 from src.serving.responses_api import (
@@ -20,9 +21,15 @@ from src.serving.responses_api import (
     ResponsesAPIValidator,
 )
 
+
 # ---------------------------------------------------------------------------
 # Registry integration
 # ---------------------------------------------------------------------------
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 class TestRegistryIntegration:

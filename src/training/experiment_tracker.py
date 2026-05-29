@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 

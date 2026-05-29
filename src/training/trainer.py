@@ -223,7 +223,7 @@ class TrainConfig:
     model_n_kv_heads: int = 8
     model_head_dim: int = 128
     model_d_ff: int = 5632
-    model_vocab_size: int = 8_192
+    model_vocab_size: int = 128_000
     model_max_seq_len: int = 8192
     model_rope_theta: float = 500_000.0
     model_tie_embeddings: bool = True
@@ -526,11 +526,12 @@ class CheckpointManager:
             state_dict = _load_safetensors(safetensors_path)
         else:
             # Legacy fallback: single .pt file (either ckpt_dir/model.pt or
-    # ckpt_dir itself if it's a file)
+            # ckpt_dir itself if it's a file)
             legacy_pt = ckpt_dir / "model.pt"
             if not legacy_pt.exists() and ckpt_dir.is_file():
                 legacy_pt = ckpt_dir  # the ckpt_dir is actually a .pt file path
             import warnings
+
             warnings.warn(
                 f"Loading legacy .pt checkpoint from {legacy_pt}. "
                 "This format is deprecated; convert to safetensors.",
@@ -538,10 +539,11 @@ class CheckpointManager:
                 stacklevel=2,
             )
             import warnings
+
             warnings.warn(
-    "Legacy .pt checkpoint detected. Safetensors is the recommended format. "
-    "Consider converting via: python -m src.training.checkpoint_converter "
-    "--input legacy.pt --output model.safetensors",
+                "Legacy .pt checkpoint detected. Safetensors is the recommended format. "
+                "Consider converting via: python -m src.training.checkpoint_converter "
+                "--input legacy.pt --output model.safetensors",
                 DeprecationWarning,
                 stacklevel=3,
             )

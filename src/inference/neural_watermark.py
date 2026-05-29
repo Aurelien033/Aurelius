@@ -7,6 +7,8 @@ Implements:
   - detect_watermark: z-score based detection on a generated sequence
 """
 
+from __future__ import annotations
+
 import math
 from dataclasses import dataclass
 

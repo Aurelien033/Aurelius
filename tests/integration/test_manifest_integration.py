@@ -12,6 +12,11 @@ from src.model.manifest import (
 )
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_registry_exported_from_package():
     assert hasattr(model_pkg, "MODEL_MANIFEST_REGISTRY")
     assert model_pkg.MODEL_MANIFEST_REGISTRY is MODEL_MANIFEST_REGISTRY

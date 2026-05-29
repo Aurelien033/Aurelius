@@ -6,6 +6,11 @@ from src.model.config import AureliusConfig
 from src.serving import STREAM_HANDLER_REGISTRY, SSEChatStream, parse_sse_event
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_registered_in_stream_handler_registry() -> None:
     assert "sse_chat" in STREAM_HANDLER_REGISTRY
     assert STREAM_HANDLER_REGISTRY["sse_chat"] is SSEChatStream

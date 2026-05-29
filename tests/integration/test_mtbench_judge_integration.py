@@ -11,6 +11,11 @@ from src.eval.mtbench_judge import (
 )
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_metric_registry_contains_mtbench():
     assert "mtbench" in eval_pkg.METRIC_REGISTRY
     assert eval_pkg.METRIC_REGISTRY["mtbench"] is MTBenchJudge

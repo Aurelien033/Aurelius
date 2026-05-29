@@ -10,12 +10,19 @@ Verifies:
 
 from __future__ import annotations
 
+
 from agent import AGENT_LOOP_REGISTRY
 from agent.agent_swarm import SubAgentResult
+
 
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_agent_swarm_in_registry():

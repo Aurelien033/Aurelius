@@ -5,6 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 class TestAuth:
     URL = "/api/auth"
 

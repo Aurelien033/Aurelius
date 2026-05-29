@@ -21,7 +21,10 @@ class TokenBucket:
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def __post_init__(self) -> None:
-        if not isinstance(self._lock, threading.Lock):
+        # Ensure _lock has lock semantics (duck-typing to avoid Python 3.13 typing changes)
+        has_acquire = callable(getattr(self._lock, "acquire", None))
+        has_release = callable(getattr(self._lock, "release", None))
+        if not has_acquire or not has_release:
             object.__setattr__(self, "_lock", threading.Lock())
         self.tokens = float(self.capacity)
         self._last_refill = time.monotonic()

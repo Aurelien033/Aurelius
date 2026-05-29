@@ -4,7 +4,7 @@ import math
 import os
 import threading
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from typing import Any
 
 

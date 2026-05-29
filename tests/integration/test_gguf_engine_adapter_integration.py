@@ -15,6 +15,9 @@ from src.backends.registry import (
 )
 
 
+pytestmark = pytest.mark.integration
+
+
 @pytest.fixture(autouse=True)
 def _snapshot_registry() -> None:
     before = dict(ENGINE_ADAPTER_REGISTRY)

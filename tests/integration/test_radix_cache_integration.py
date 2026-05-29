@@ -9,6 +9,7 @@ Exercises a realistic batched-inference scenario:
 
 from __future__ import annotations
 
+
 import pytest
 
 from src.inference import DECODER_REGISTRY
@@ -18,9 +19,13 @@ from src.inference.radix_cache import (
     RadixCacheConfig,
 )
 
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+pytestmark = pytest.mark.integration
 
 COMMON_PREFIX = [1, 2, 3, 4]
 

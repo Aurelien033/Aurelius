@@ -8,6 +8,11 @@ from src.security import DEFENSIVE_PIPELINE_REGISTRY
 from src.security.soc_pipeline import DEFAULT_SOC_PIPELINE, SOCPipeline
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_soc_pipeline_registered_in_defensive_registry():
     assert "default" in DEFENSIVE_PIPELINE_REGISTRY
     assert isinstance(DEFENSIVE_PIPELINE_REGISTRY["default"], SOCPipeline)

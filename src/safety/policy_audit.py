@@ -7,8 +7,8 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from enum import StrEnum
+from datetime import datetime, UTC
+from src._compat import StrEnum
 
 
 class PolicyDecision(StrEnum):

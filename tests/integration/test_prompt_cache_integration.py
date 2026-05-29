@@ -6,9 +6,13 @@ does not break importability of sibling serving modules.
 
 from __future__ import annotations
 
+
 import importlib
 
 import pytest
+
+
+pytestmark = pytest.mark.integration
 
 
 def test_prompt_cache_exposed_via_src_serving():

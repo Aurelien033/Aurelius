@@ -6,6 +6,11 @@ import src.eval as eval_pkg
 from src.eval import NeedleInHaystackBenchmark
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def _oracle(prompt: str) -> str:
     return "42" if "The magic number is 42." in prompt else "unknown"
 

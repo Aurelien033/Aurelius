@@ -6,10 +6,14 @@ any sibling surface, and verifies the absence of import-time side effects.
 
 from __future__ import annotations
 
+
 import importlib
 import sys
 
 import pytest
+
+
+pytestmark = pytest.mark.integration
 
 
 def test_registry_contains_jailbreak_entry() -> None:

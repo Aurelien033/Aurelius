@@ -5,6 +5,8 @@ Provides methods to combine multiple fine-tuned models without additional traini
 Only stdlib + torch — no third-party ML libraries.
 """
 
+from __future__ import annotations
+
 import torch
 import torch.nn as nn
 from torch import Tensor

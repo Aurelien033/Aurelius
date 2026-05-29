@@ -11,6 +11,11 @@ from src.safety import (
 )
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_registry_contains_canary_token_guard_entry() -> None:
     assert "canary_token_guard" in SAFETY_FILTER_REGISTRY
     assert SAFETY_FILTER_REGISTRY["canary_token_guard"] is CanaryTokenGuard

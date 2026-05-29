@@ -7,6 +7,11 @@ from src.chat import ConversationMemory, Fact, InMemoryStore, JSONFileStore
 from src.retrieval.bm25_retriever import BM25Retriever
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_public_symbols_exposed():
     for name in ("ConversationMemory", "Fact", "InMemoryStore", "JSONFileStore"):
         assert hasattr(chat_pkg, name), f"{name} missing from src.chat"

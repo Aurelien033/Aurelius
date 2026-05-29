@@ -9,6 +9,11 @@ import src.training as training_pkg
 from src.training import FSDPLite, ShardSpec
 
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
 def test_exposed_via_src_training():
     assert hasattr(training_pkg, "FSDPLite")
     assert hasattr(training_pkg, "ShardSpec")

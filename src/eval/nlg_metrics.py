@@ -5,6 +5,8 @@ Pure stdlib + torch only — no external NLP libraries.
 Implements: BLEU, ROUGE (N, L, W), METEOR-lite, SemanticSimilarity (BERTScore-lite).
 """
 
+from __future__ import annotations
+
 import math
 from collections import Counter
 
