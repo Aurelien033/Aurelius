@@ -78,7 +78,7 @@ describe('ProviderRouter', () => {
   });
 
   it('routes vllm backend to the configured upstream url', async () => {
-    const router = new ProviderRouter({ vllmUpstreamUrl: 'http://vllm-upstream.local' });
+    const router = new ProviderRouter({ vllmUpstreamUrl: 'http://127.0.0.1:8080' });
     await router.complete({
       model: 'aurelius-1.3b',
       backend: 'vllm',
@@ -86,11 +86,11 @@ describe('ProviderRouter', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://vllm-upstream.local/v1/chat/completions');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8080/v1/chat/completions');
   });
 
   it('routes agentic backend to the configured upstream url', async () => {
-    const router = new ProviderRouter({ agenticUpstreamUrl: 'http://agentic-upstream.local' });
+    const router = new ProviderRouter({ agenticUpstreamUrl: 'http://127.0.0.1:8081' });
     await router.complete({
       model: 'aurelius-1.3b',
       backend: 'agentic',
@@ -98,7 +98,7 @@ describe('ProviderRouter', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe('http://agentic-upstream.local/v1/chat/completions');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8081/v1/chat/completions');
   });
 
   it('uses the configured default backend when none is specified', async () => {
@@ -111,13 +111,13 @@ describe('ProviderRouter', () => {
     engine.setConfig('chat.temperature', '0.42');
 
     try {
-      const router = new ProviderRouter({ agenticUpstreamUrl: 'http://agentic-upstream.local' });
+      const router = new ProviderRouter({ agenticUpstreamUrl: 'http://127.0.0.1:8081' });
       await router.complete({
         messages: [{ role: 'user', content: 'hello default backend' }],
       });
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(fetchMock.mock.calls[0][0]).toBe('http://agentic-upstream.local/v1/chat/completions');
+      expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8081/v1/chat/completions');
       const init = fetchMock.mock.calls[0][1] as RequestInit | undefined;
       const payload = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
       expect(payload.model).toBe('aurelius-2.7b');
@@ -177,7 +177,7 @@ describe('ProviderRouter', () => {
     engine.setConfig('chat.backend', 'mock');
 
     try {
-      const router = new ProviderRouter({ vllmUpstreamUrl: 'http://vllm-upstream.local' });
+      const router = new ProviderRouter({ vllmUpstreamUrl: 'http://127.0.0.1:8080' });
       const result = await router.complete({
         model: 'aurelius-1.3b',
         backend: 'auto',
@@ -191,7 +191,7 @@ describe('ProviderRouter', () => {
   });
 
   it('complete returns resolved_backend with explicit backend value', async () => {
-    const router = new ProviderRouter({ vllmUpstreamUrl: 'http://vllm-upstream.local' });
+    const router = new ProviderRouter({ vllmUpstreamUrl: 'http://127.0.0.1:8080' });
     const result = await router.complete({
       model: 'aurelius-1.3b',
       backend: 'vllm',
