@@ -2,8 +2,6 @@ use pyo3::prelude::*;
 use std::fs::{File, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
 
-pub mod checkpoint;
-
 type PageId = u64;
 
 #[derive(Clone, Debug, PartialEq)]
