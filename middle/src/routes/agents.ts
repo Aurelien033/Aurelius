@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuid } from 'uuid';
+import { requireScope } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -26,20 +27,20 @@ function broadcast(agentId: string, event: string, data: unknown) {
 }
 
 // GET /api/agents
-router.get('/', (_req: Request, res: Response) => {
-  res.json({ agents: Array.from(agents.values()) });
-});
+router.get('/', requireScope('agents:read'), (_req: Request, res: Response) => {
+  res.json({ agents: Array.from(agents.values()) })
+})
 
 // GET /api/agents/:id
-router.get('/:id', (req: Request, res: Response) => {
-  const agentId = String(req.params.id);
-  const agent = agents.get(agentId);
-  if (!agent) return res.status(404).json({ error: 'Agent not found' });
-  res.json({ agent });
-});
+router.get('/:id', requireScope('agents:read'), (req: Request, res: Response) => {
+  const agentId = String(req.params.id)
+  const agent = agents.get(agentId)
+  if (!agent) return res.status(404).json({ error: 'Agent not found' })
+  res.json({ agent })
+})
 
 // POST /api/agents
-router.post('/', (req: Request, res: Response) => {
+router.post('/', requireScope('agents:write'), (req: Request, res: Response) => {
   const { name, role, capabilities } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
 
@@ -59,7 +60,7 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 // POST /api/agents/:id/heartbeat
-router.post('/:id/heartbeat', (req: Request, res: Response) => {
+router.post('/:id/heartbeat', requireScope('agents:write'), (req: Request, res: Response) => {
   const agentId = String(req.params.id);
   const agent = agents.get(agentId);
   if (!agent) return res.status(404).json({ error: 'Agent not found' });
@@ -70,7 +71,7 @@ router.post('/:id/heartbeat', (req: Request, res: Response) => {
 });
 
 // DELETE /api/agents/:id
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', requireScope('agents:write'), (req: Request, res: Response) => {
   const agentId = String(req.params.id);
   const agent = agents.get(agentId);
   if (!agent) return res.status(404).json({ error: 'Agent not found' });

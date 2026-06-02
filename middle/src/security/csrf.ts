@@ -51,6 +51,15 @@ export function csrfProtection() {
       next()
       return
     }
+    // Service-to-service callers use X-API-Key, not
+    // cookies. CSRF only applies to cookie-authenticated
+    // browser requests. A request that authenticates via
+    // X-API-Key is not browser-attackable and is exempt
+    // from CSRF.
+    if (req.headers['x-api-key']) {
+      next()
+      return
+    }
     const cookieToken = readCookie(req, CSRF_COOKIE_NAME)
     const headerToken = readHeader(req, CSRF_HEADER_NAME)
     if (!cookieToken || !headerToken) {

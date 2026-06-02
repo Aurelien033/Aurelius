@@ -1,9 +1,10 @@
 import { Router } from 'express'
 import { getEngine } from '../engine.js'
+import { requireScope } from '../middleware/auth.js'
 
 const router = Router()
 
-router.get('/', (req, res) => {
+router.get('/', requireScope('notifications:read'), (req, res) => {
   const engine = getEngine()
   const { category, priority, read, limit } = req.query
   const notifications = engine.getNotifications(
@@ -20,7 +21,7 @@ router.get('/stats', (_req, res) => {
   res.json(engine.getNotificationStats())
 })
 
-router.post('/', (req, res) => {
+router.post('/', requireScope('notifications:write'), (req, res) => {
   const engine = getEngine()
   const { channel, priority, category, title, body } = req.body || {}
   if (!title) {
@@ -37,13 +38,13 @@ router.post('/', (req, res) => {
   res.json({ success: true, notification })
 })
 
-router.post('/:id/read', (req, res) => {
+router.post('/:id/read', requireScope('notifications:write'), (req, res) => {
   const engine = getEngine()
-  const ok = engine.markNotificationRead(req.params.id)
+  const ok = engine.markNotificationRead(String(req.params.id))
   res.json({ success: ok })
 })
 
-router.post('/read-all', (req, res) => {
+router.post('/read-all', requireScope('notifications:write'), (req, res) => {
   const engine = getEngine()
   const { category } = req.body || {}
   const count = engine.markAllNotificationsRead(category || undefined)

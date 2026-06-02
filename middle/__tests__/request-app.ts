@@ -318,7 +318,26 @@ class MockResponseImpl extends EventEmitter {
 }
 
 export async function invokeApp(app: Express, options: RequestOptions): Promise<MockResponse> {
-  const req = new MockRequest(options)
+  // P2.4 + H8 follow-on: the csrfProtection() middleware
+  // requires unsafe methods to include both the
+  // aurelius_csrf cookie AND the X-CSRF-Token header. The
+  // test helper auto-injects the header for unsafe
+  // methods so existing test code does not need to
+  // change.
+  const enriched = { ...options }
+  const method = (enriched.method ?? 'GET').toUpperCase()
+  const UNSAFE = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS'
+  if (UNSAFE) {
+    const cookieHeader = enriched.headers?.['Cookie'] || enriched.headers?.['cookie'] || ''
+    const m = cookieHeader.match(/aurelius_csrf=([^;]+)/)
+    if (m) {
+      enriched.headers = {
+        ...(enriched.headers ?? {}),
+        'X-CSRF-Token': decodeURIComponent(m[1]),
+      }
+    }
+  }
+  const req = new MockRequest(enriched)
   let resolveResponse: () => void
   let rejectResponse: (error: Error) => void
   const responseDone = new Promise<void>((resolve, reject) => {

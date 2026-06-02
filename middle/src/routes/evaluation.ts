@@ -1,7 +1,8 @@
-import { Router, type Request, type Response } from 'express';
-import { getEngine } from '../engine.js';
+import { Router, type Request, type Response } from 'express'
+import { getEngine } from '../engine.js'
+import { requireScope } from '../middleware/auth.js'
 
-const router = Router();
+const router = Router()
 
 interface EvalResult {
   id: string;
@@ -24,7 +25,7 @@ router.get('/results/:benchmark', (req: Request, res: Response) => {
   res.json({ benchmark: req.params.benchmark, results: filtered, total: filtered.length });
 });
 
-router.post('/results', (req: Request, res: Response) => {
+router.post('/results', requireScope('eval:write'), (req: Request, res: Response) => {
   const { benchmark, model, score, metric, metadata } = req.body;
   if (!benchmark || !model || score === undefined) {
     return res.status(400).json({ error: 'benchmark, model, and score required' });

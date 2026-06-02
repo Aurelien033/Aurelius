@@ -4,6 +4,7 @@ import { securityHeaders } from './middleware/security-headers.js'
 import { createServer } from 'http'
 import { config } from './config.js'
 import { authMiddleware, requireAdmin } from './middleware/auth.js'
+import { csrfProtection } from './security/csrf.js'
 import { rateLimiter } from './middleware/rate-limiter.js'
 import { requestLogger } from './middleware/logger.js'
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js'
@@ -52,6 +53,11 @@ export function buildApp() {
   app.use('/api/auth', authRoutes)
 
   // Protected routes — mounted after auth middleware
+  // P2.4 + H8 follow-on: csrfProtection() is mounted on all
+  // /api/* routes EXCEPT the public /api/auth/* surface
+  // (which uses the session cookie set by login). This
+  // enforces double-submit CSRF tokens on POST/PUT/PATCH/DELETE.
+  app.use('/api', csrfProtection())
   app.use('/api/sse', sseRoutes)
   app.use('/api/agents', agentsRoutes)
   app.use('/api/activity', activityRoutes)
