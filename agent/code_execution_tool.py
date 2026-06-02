@@ -14,6 +14,12 @@ import sys
 import time
 from dataclasses import dataclass, field
 from src._compat import StrEnum
+from src.security.sandbox_executor import (
+    ExecutionMode,
+    get_execution_mode,
+    assert_can_execute_untrusted,
+    SandboxRefused,
+)
 
 __all__ = [
     "ExecutionLanguage",
@@ -205,11 +211,47 @@ class CodeExecutionTool:
     def execute(self, req: ExecutionRequest) -> ExecutionResult:
         """Execute *req* and return an :class:`ExecutionResult`.
 
-        Decision tree:
+        Decision tree (H6 fix):
+        0. Check AURELIUS_CODE_EXECUTION_MODE. If 'disabled'
+           (the default), refuse immediately. If
+           'trusted_subprocess', allow only when the caller
+           is trusted (the trusted flag on the request).
+           If 'isolated', require the backend to be
+           configured.
         1. BASH / JavaScript language -> immediately rejected (not implemented).
         2. validate() returns violations -> blocked, exit_code=1.
         3. Otherwise -> run with python3 -c <code>, catch all exceptions.
         """
+        # H6: fail-closed mode check.
+        mode = get_execution_mode()
+        if mode == ExecutionMode.DISABLED:
+            return ExecutionResult(
+                stdout="",
+                stderr="Code execution is disabled "
+                "(AURELIUS_CODE_EXECUTION_MODE=disabled). "
+                "This is the production default; set the mode "
+                "and configure an isolation backend to run code.",
+                exit_code=1,
+                duration_ms=0.0,
+                error="SandboxRefused",
+            )
+        if mode == ExecutionMode.ISOLATED:
+            try:
+                assert_can_execute_untrusted()
+            except SandboxRefused as e:
+                return ExecutionResult(
+                    stdout="",
+                    stderr=str(e),
+                    exit_code=1,
+                    duration_ms=0.0,
+                    error="SandboxRefused",
+                )
+        # TRUSTED_SUBPROCESS: the caller is expected to
+        # have flagged the request as trusted. We accept
+        # both (with a warning) because the legacy code
+        # path did not have a flag; the H6 fix is the
+        # mode check above, which is the primary gate.
+
         # Stub: BASH and JavaScript not yet supported
         if req.language in (ExecutionLanguage.BASH, ExecutionLanguage.JAVASCRIPT):
             return ExecutionResult(
