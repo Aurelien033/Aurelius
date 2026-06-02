@@ -1,0 +1,12 @@
+
+> aurelius-middle@0.1.0 test
+> vitest run
+
+sh: vitest: command not found
+npm error Lifecycle script `test` failed with error:
+npm error code 127
+npm error path /Users/christienantonio/aurelius-security-remediation/middle
+npm error workspace aurelius-middle@0.1.0
+npm error location /Users/christienantonio/aurelius-security-remediation/middle
+npm error command failed
+npm error command sh -c vitest run

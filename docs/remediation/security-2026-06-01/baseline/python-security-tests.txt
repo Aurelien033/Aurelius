@@ -1,0 +1,154 @@
+EEEE                                                                     [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of TestRateLimiterFailClosed.test_uninitialized_rate_limiter_denies_request _
+tests/gateway/test_t3_gateway_fail_closed.py:21: in client
+    import gateway.aurelius_api as api_module
+gateway/__init__.py:9: in <module>
+    from src.serving import *
+src/serving/__init__.py:8: in <module>
+    from .aurelius_server import *  # noqa: F401, F403
+src/serving/aurelius_server.py:50: in <module>
+    from agent.command_dispatcher import CommandDispatcher
+agent/__init__.py:9: in <module>
+    from src.agent import *
+src/agent/__init__.py:43: in <module>
+    from agent.react_loop import AgentStep, AgentTrace, ReActLoop  # noqa: E402
+agent/react_loop.py:17: in <module>
+    from src.agent.react_loop import *  # noqa: E402, F401, F403
+src/agent/react_loop.py:43: in <module>
+    from src.agent.slr_integration import prepare_slr_recall_context
+src/agent/slr_integration.py:8: in <module>
+    from src.memory.amc_tier2 import AMCTier2Hook
+src/memory/__init__.py:39: in <module>
+    from .amc_tier2 import AMCTier2AblationResult, AMCTier2Config, AMCTier2Hook
+src/memory/amc_tier2.py:13: in <module>
+    from .amc_runtime_cache import AMCMemoryBlock, TrustState
+E     File "/Users/christienantonio/aurelius-security-remediation/src/memory/amc_runtime_cache.py", line 528
+E       match block.trust_state:
+E             ^
+E   SyntaxError: invalid syntax
+_ ERROR at setup of TestRateLimiterFailClosed.test_rate_limiter_allows_when_initialized _
+tests/gateway/test_t3_gateway_fail_closed.py:21: in client
+    import gateway.aurelius_api as api_module
+gateway/__init__.py:9: in <module>
+    from src.serving import *
+src/serving/__init__.py:8: in <module>
+    from .aurelius_server import *  # noqa: F401, F403
+src/serving/aurelius_server.py:50: in <module>
+    from agent.command_dispatcher import CommandDispatcher
+agent/__init__.py:9: in <module>
+    from src.agent import *
+src/agent/__init__.py:43: in <module>
+    from agent.react_loop import AgentStep, AgentTrace, ReActLoop  # noqa: E402
+agent/react_loop.py:17: in <module>
+    from src.agent.react_loop import *  # noqa: E402, F401, F403
+src/agent/react_loop.py:43: in <module>
+    from src.agent.slr_integration import prepare_slr_recall_context
+src/agent/slr_integration.py:8: in <module>
+    from src.memory.amc_tier2 import AMCTier2Hook
+src/memory/__init__.py:39: in <module>
+    from .amc_tier2 import AMCTier2AblationResult, AMCTier2Config, AMCTier2Hook
+src/memory/amc_tier2.py:13: in <module>
+    from .amc_runtime_cache import AMCMemoryBlock, TrustState
+E     File "/Users/christienantonio/aurelius-security-remediation/src/memory/amc_runtime_cache.py", line 528
+E       match block.trust_state:
+E             ^
+E   SyntaxError: invalid syntax
+____ ERROR at setup of TestMetricsAuthentication.test_metrics_requires_auth ____
+tests/gateway/test_t3_gateway_fail_closed.py:21: in client
+    import gateway.aurelius_api as api_module
+gateway/__init__.py:9: in <module>
+    from src.serving import *
+src/serving/__init__.py:8: in <module>
+    from .aurelius_server import *  # noqa: F401, F403
+src/serving/aurelius_server.py:50: in <module>
+    from agent.command_dispatcher import CommandDispatcher
+agent/__init__.py:9: in <module>
+    from src.agent import *
+src/agent/__init__.py:43: in <module>
+    from agent.react_loop import AgentStep, AgentTrace, ReActLoop  # noqa: E402
+agent/react_loop.py:17: in <module>
+    from src.agent.react_loop import *  # noqa: E402, F401, F403
+src/agent/react_loop.py:43: in <module>
+    from src.agent.slr_integration import prepare_slr_recall_context
+src/agent/slr_integration.py:8: in <module>
+    from src.memory.amc_tier2 import AMCTier2Hook
+src/memory/__init__.py:39: in <module>
+    from .amc_tier2 import AMCTier2AblationResult, AMCTier2Config, AMCTier2Hook
+src/memory/amc_tier2.py:13: in <module>
+    from .amc_runtime_cache import AMCMemoryBlock, TrustState
+E     File "/Users/christienantonio/aurelius-security-remediation/src/memory/amc_runtime_cache.py", line 528
+E       match block.trust_state:
+E             ^
+E   SyntaxError: invalid syntax
+___ ERROR at setup of TestMetricsAuthentication.test_metrics_with_valid_auth ___
+tests/gateway/test_t3_gateway_fail_closed.py:21: in client
+    import gateway.aurelius_api as api_module
+gateway/__init__.py:9: in <module>
+    from src.serving import *
+src/serving/__init__.py:8: in <module>
+    from .aurelius_server import *  # noqa: F401, F403
+src/serving/aurelius_server.py:50: in <module>
+    from agent.command_dispatcher import CommandDispatcher
+agent/__init__.py:9: in <module>
+    from src.agent import *
+src/agent/__init__.py:43: in <module>
+    from agent.react_loop import AgentStep, AgentTrace, ReActLoop  # noqa: E402
+agent/react_loop.py:17: in <module>
+    from src.agent.react_loop import *  # noqa: E402, F401, F403
+src/agent/react_loop.py:43: in <module>
+    from src.agent.slr_integration import prepare_slr_recall_context
+src/agent/slr_integration.py:8: in <module>
+    from src.memory.amc_tier2 import AMCTier2Hook
+src/memory/__init__.py:39: in <module>
+    from .amc_tier2 import AMCTier2AblationResult, AMCTier2Config, AMCTier2Hook
+src/memory/amc_tier2.py:13: in <module>
+    from .amc_runtime_cache import AMCMemoryBlock, TrustState
+E     File "/Users/christienantonio/aurelius-security-remediation/src/memory/amc_runtime_cache.py", line 528
+E       match block.trust_state:
+E             ^
+E   SyntaxError: invalid syntax
+=============================== warnings summary ===============================
+tests/gateway/test_t3_gateway_fail_closed.py::TestRateLimiterFailClosed::test_uninitialized_rate_limiter_denies_request
+  /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/importlib/__init__.py:127: DeprecationWarning: Importing from 'aurelius' is deprecated. Use 'src' instead.
+    return _bootstrap._gcd_import(name[level:], package, level)
+
+tests/gateway/test_t3_gateway_fail_closed.py::TestRateLimiterFailClosed::test_uninitialized_rate_limiter_denies_request
+tests/gateway/test_t3_gateway_fail_closed.py::TestRateLimiterFailClosed::test_uninitialized_rate_limiter_denies_request
+tests/gateway/test_t3_gateway_fail_closed.py::TestRateLimiterFailClosed::test_rate_limiter_allows_when_initialized
+tests/gateway/test_t3_gateway_fail_closed.py::TestRateLimiterFailClosed::test_rate_limiter_allows_when_initialized
+tests/gateway/test_t3_gateway_fail_closed.py::TestMetricsAuthentication::test_metrics_requires_auth
+tests/gateway/test_t3_gateway_fail_closed.py::TestMetricsAuthentication::test_metrics_requires_auth
+tests/gateway/test_t3_gateway_fail_closed.py::TestMetricsAuthentication::test_metrics_with_valid_auth
+tests/gateway/test_t3_gateway_fail_closed.py::TestMetricsAuthentication::test_metrics_with_valid_auth
+  /Users/christienantonio/aurelius-security-remediation/src/serving/aurelius_server.py:50: DeprecationWarning: Importing from 'agent' is deprecated. Use 'src.agent' instead.
+    from agent.command_dispatcher import CommandDispatcher
+
+tests/gateway/test_t3_gateway_fail_closed.py: 12 warnings
+  /Users/christienantonio/aurelius-security-remediation/src/agent/__init__.py:43: DeprecationWarning: Importing from 'agent' is deprecated. Use 'src.agent' instead.
+    from agent.react_loop import AgentStep, AgentTrace, ReActLoop  # noqa: E402
+
+tests/gateway/test_t3_gateway_fail_closed.py::TestRateLimiterFailClosed::test_uninitialized_rate_limiter_denies_request
+  /Users/christienantonio/aurelius-security-remediation/src/tools/code_runner_tool.py:2: DeprecationWarning: Importing from 'tools' is deprecated. Use 'src.tools' instead.
+    from tools.code_runner_tool import *  # noqa: F401, F403
+
+tests/gateway/test_t3_gateway_fail_closed.py::TestRateLimiterFailClosed::test_uninitialized_rate_limiter_denies_request
+tests/gateway/test_t3_gateway_fail_closed.py::TestRateLimiterFailClosed::test_rate_limiter_allows_when_initialized
+tests/gateway/test_t3_gateway_fail_closed.py::TestMetricsAuthentication::test_metrics_requires_auth
+tests/gateway/test_t3_gateway_fail_closed.py::TestMetricsAuthentication::test_metrics_with_valid_auth
+  /Users/christienantonio/aurelius-security-remediation/tools/code_runner_tool.py:8: DeprecationWarning: Importing from 'agent' is deprecated. Use 'src.agent' instead.
+    from agent.tool_sandbox_denylist import (
+
+tests/gateway/test_t3_gateway_fail_closed.py::TestRateLimiterFailClosed::test_uninitialized_rate_limiter_denies_request
+tests/gateway/test_t3_gateway_fail_closed.py::TestRateLimiterFailClosed::test_rate_limiter_allows_when_initialized
+tests/gateway/test_t3_gateway_fail_closed.py::TestMetricsAuthentication::test_metrics_requires_auth
+tests/gateway/test_t3_gateway_fail_closed.py::TestMetricsAuthentication::test_metrics_with_valid_auth
+  /Users/christienantonio/aurelius-security-remediation/tests/gateway/test_t3_gateway_fail_closed.py:21: DeprecationWarning: Importing from 'gateway' is deprecated. Use 'src.serving' instead.
+    import gateway.aurelius_api as api_module
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR tests/gateway/test_t3_gateway_fail_closed.py::TestRateLimiterFailClosed::test_uninitialized_rate_limiter_denies_request
+ERROR tests/gateway/test_t3_gateway_fail_closed.py::TestRateLimiterFailClosed::test_rate_limiter_allows_when_initialized
+ERROR tests/gateway/test_t3_gateway_fail_closed.py::TestMetricsAuthentication::test_metrics_requires_auth
+ERROR tests/gateway/test_t3_gateway_fail_closed.py::TestMetricsAuthentication::test_metrics_with_valid_auth

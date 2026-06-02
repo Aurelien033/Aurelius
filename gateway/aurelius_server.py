@@ -1016,22 +1016,42 @@ class AureliusHandler(BaseHTTPRequestHandler, _JSONMixin):
         )
 
     def _handle_license_activate(self) -> None:
+        # C2 remediation: license activation must not derive the API
+        # key from the user-supplied license_key, and must not mutate
+        # the auth-policy toggle. The credential surface is operator
+        # policy; the license path only records license state.
         try:
             payload = self._parse_json_body()
         except (ValueError, json.JSONDecodeError) as exc:
             self._send_json(400, {"error": str(exc)})
             return
+        # Reject any field that would influence the credential surface.
+        # The activation handler may only read license_key (record) and
+        # tier (display); api_key, require_auth, role, scopes, etc. are
+        # not accepted.
+        for forbidden in ("api_key", "require_auth", "role", "scopes", "admin"):
+            if forbidden in payload:
+                self._send_json(
+                    400,
+                    {"error": f"Field '{forbidden}' is not accepted on license activation"},
+                )
+                return
         key = payload.get("license_key", "")
+        tier = payload.get("tier", "pro")
+        if not isinstance(key, str) or not isinstance(tier, str):
+            self._send_json(400, {"error": "license_key and tier must be strings"})
+            return
         if not key:
             self._send_json(400, {"error": "license_key required"})
             return
-        # Simple validation: keys start with AURELIUS- and are 32+ chars
+        # Format check only — no credential derivation, no auth-policy
+        # mutation. The real API key is the operator-supplied
+        # AURELIUS_API_KEY env var, generated at startup and rotated by
+        # the operator.
         if key.startswith("AURELIUS-") and len(key) >= 32:
             self.server._license_key = key
             self.server._license_activated = True
-            self.server._license_tier = payload.get("tier", "pro")
-            self.server.runtime_config["require_auth"] = True
-            self.server.runtime_config["api_key"] = key[-16:]
+            self.server._license_tier = tier
             self._send_json(200, {"success": True, "tier": self.server._license_tier})
         else:
             self._send_json(403, {"error": "Invalid license key"})

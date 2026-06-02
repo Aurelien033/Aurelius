@@ -1,0 +1,12 @@
+
+> frontend@0.0.0 test
+> vitest run
+
+sh: vitest: command not found
+npm error Lifecycle script `test` failed with error:
+npm error code 127
+npm error path /Users/christienantonio/aurelius-security-remediation/frontend
+npm error workspace frontend@0.0.0
+npm error location /Users/christienantonio/aurelius-security-remediation/frontend
+npm error command failed
+npm error command sh -c vitest run

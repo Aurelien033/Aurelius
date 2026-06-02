@@ -18,24 +18,26 @@ export default function LicenseGate({ children }: LicenseGateProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedKey = localStorage.getItem('aurelius-api-key');
-    if (!storedKey) {
-      setChecking(false);
-      return;
-    }
+    // H8 fix: do NOT read aurelius-api-key from localStorage.
+    // The production flow is cookie-based session auth
+    // (aurelius_sid + aurelius_csrf). License validation is
+    // called with credentials: 'include' so the cookie is
+    // sent automatically. We always start in the
+    // "needs validation" state; the LicenseGate UI prompts
+    // the user to enter a license key, which is then
+    // validated server-side.
+    setChecking(false)
     fetch('/api/license/validate', {
-      headers: { 'X-API-Key': storedKey },
+      credentials: 'include',
     })
       .then((res) => res.json())
       .then((data) => {
-        setValid(data.valid === true);
-        setChecking(false);
+        setValid(data.valid === true)
       })
       .catch(() => {
-        setValid(false);
-        setChecking(false);
-        setError('Network error during validation. Click to retry.');
-      });
+        setValid(false)
+        setError('Network error during validation. Click to retry.')
+      })
   }, []);
 
   const activate = async () => {
@@ -50,8 +52,15 @@ export default function LicenseGate({ children }: LicenseGateProps) {
       });
       const data = await res.json();
       if (data.success) {
-        localStorage.setItem('aurelius-api-key', key.trim());
+        // C2 remediation: never store the user-supplied license key as
+        // the API key. The license-key secret stays server-side; the
+        // client only records the public tier label. Real auth is done
+        // through /api/auth/login (see pages/Login.tsx) with a server-
+        // issued bearer token.
         localStorage.setItem('aurelius-license-tier', data.tier);
+        // The activation response does not include an API key (see
+        // C2 fix in gateway/aurelius_server.py). The client should
+        // now route to the normal login flow.
         setValid(true);
       } else {
         setError(data.error || 'Activation failed');
