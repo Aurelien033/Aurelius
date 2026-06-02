@@ -10,6 +10,25 @@ interface ValidationRule {
   message?: string
 }
 
+/**
+ * P2.4 request-size cap. Rejects requests whose
+ * Content-Length exceeds the cap before the route
+ * handler runs. Returns 413.
+ */
+export function requestSizeLimit(maxBytes: number) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const cl = req.headers['content-length']
+    if (typeof cl === 'string') {
+      const n = parseInt(cl, 10)
+      if (!Number.isNaN(n) && n > maxBytes) {
+        res.status(413).json({ error: 'Payload Too Large', maxBytes })
+        return
+      }
+    }
+    next()
+  }
+}
+
 export function validateBody(rules: ValidationRule[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const errors: string[] = []
