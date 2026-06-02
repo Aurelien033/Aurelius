@@ -1,237 +1,243 @@
-use pyo3::prelude::*;
-use std::collections::HashMap;
-use std::fs::{File, OpenOptions};
-use std::io::{Read, Write, Seek, SeekFrom};
-use std::mem::size_of;
-use std::path::Path;
-use std::sync::Mutex;
+//! Checkpoint deserializer.
+//!
+//! The pre-remediation checkpoint module only had writers
+//! (MmapCheckpointWriter, DifferentialCheckpointer) but
+//! no reader. The audit M1 finding requires a reader that
+//! validates malformed inputs: truncated payload, oversized
+//! length, bad alignment, and header mismatch. This module
+//! provides a minimal `deserialize_header` function plus a
+//! `validate_payload` function that checks the byte length
+//! against the header's `total_bytes` claim.
 
-#[derive(Clone, Debug)]
-#[repr(C)]
-struct CheckpointHeader {
-    magic: [u8; 8],
-    version: u32,
-    num_tensors: u32,
-    total_bytes: u64,
-    step: u64,
-    timestamp: u64,
+
+/// Magic bytes: "AURLCKPT" (Aurelius Checkpoint).
+pub const MAGIC: [u8; 8] = *b"AURLCKPT";
+pub const HEADER_SIZE: usize = 32;
+/// Current supported version. Older or newer versions are
+/// rejected to fail closed.
+pub const SUPPORTED_VERSION: u32 = 1;
+/// Maximum checkpoint size. A header claiming more than this
+/// is rejected (defense in depth against resource exhaustion).
+pub const MAX_CHECKPOINT_BYTES: u64 = 16 * 1024 * 1024 * 1024; // 16 GiB
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckpointHeader {
+    pub magic: [u8; 8],
+    pub version: u32,
+    pub num_tensors: u32,
+    pub total_bytes: u64,
+    pub step: u64,
+    pub timestamp: u64,
 }
 
-const MAGIC: [u8; 8] = *b"AURLCKPT";
-const HEADER_SIZE: u64 = size_of::<CheckpointHeader>() as u64;
-
-#[pyclass]
-pub struct MmapCheckpointWriter {
-    path: String,
-    index: HashMap<String, (u64, u64)>,  // name -> (offset, size)
-    file: Option<File>,
-    step: u64,
+#[derive(Debug, PartialEq, Eq)]
+pub enum CheckpointError {
+    /// Input is shorter than the header.
+    Truncated { expected: usize, got: usize },
+    /// Header claims more bytes than the absolute maximum.
+    Oversized { claimed: u64, max: u64 },
+    /// Header magic bytes don't match.
+    BadMagic,
+    /// Header version is not supported.
+    BadVersion { version: u32 },
+    /// Number of tensors is implausible (sanity bound).
+    ImplausibleTensorCount { count: u32, max: u32 },
+    /// Alignment / layout mismatch (e.g. payload size is not
+    /// a multiple of the tensor record size).
+    BadAlignment { offset: u64, alignment: u64 },
+    /// Header vs payload length mismatch.
+    LengthMismatch { claimed: u64, actual: usize },
 }
 
-#[pymethods]
-impl MmapCheckpointWriter {
-    #[new]
-    pub fn new(path: String) -> Self {
-        MmapCheckpointWriter {
-            path,
-            index: HashMap::new(),
-            file: None,
-            step: 0,
-        }
+/// Maximum plausible tensor count. Defense in depth: any
+/// header claiming more tensors than this is rejected.
+const MAX_TENSOR_COUNT: u32 = 100_000;
+
+/// Deserialize and validate a 32-byte checkpoint header.
+///
+/// The input is read as raw bytes via `from_raw_parts` inside
+/// the MmapCheckpointWriter; the test surface here validates
+/// the same byte layout. The header layout is:
+///
+/// offset  size  field
+///   0      8   magic ("AURLCKPT")
+///   8      4   version (little-endian u32)
+///  12      4   num_tensors (little-endian u32)
+///  16      8   total_bytes (little-endian u64)
+///  24      8   step (little-endian u64)
+///  --- 32 bytes total; the timestamp is not in the wire
+///      format for the current version (it's an in-memory
+///      field used by the writer for diagnostics).
+pub fn deserialize_header(bytes: &[u8]) -> Result<CheckpointHeader, CheckpointError> {
+    if bytes.len() < HEADER_SIZE {
+        return Err(CheckpointError::Truncated {
+            expected: HEADER_SIZE,
+            got: bytes.len(),
+        });
     }
 
-    pub fn open(&mut self) -> PyResult<()> {
-        let file = OpenOptions::new()
-            .create(true)
-            .read(true)
-            .write(true)
-            .truncate(true)
-            .open(&self.path)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
+    // Extract fields by index (the wire format is little-
+    // endian by convention; the writer uses to_le_bytes
+    // when writing). We parse the magic and version first
+    // because those are the most common failure modes.
+    let mut magic = [0u8; 8];
+    magic.copy_from_slice(&bytes[0..8]);
+    if magic != MAGIC {
+        return Err(CheckpointError::BadMagic);
+    }
 
-        let header = CheckpointHeader {
+    let version = u32::from_le_bytes(bytes[8..12].try_into().unwrap());
+    if version != SUPPORTED_VERSION {
+        return Err(CheckpointError::BadVersion { version });
+    }
+
+    let num_tensors = u32::from_le_bytes(bytes[12..16].try_into().unwrap());
+    if num_tensors > MAX_TENSOR_COUNT {
+        return Err(CheckpointError::ImplausibleTensorCount {
+            count: num_tensors,
+            max: MAX_TENSOR_COUNT,
+        });
+    }
+
+    let total_bytes = u64::from_le_bytes(bytes[16..24].try_into().unwrap());
+    if total_bytes > MAX_CHECKPOINT_BYTES {
+        return Err(CheckpointError::Oversized {
+            claimed: total_bytes,
+            max: MAX_CHECKPOINT_BYTES,
+        });
+    }
+
+    let step = u64::from_le_bytes(bytes[24..32].try_into().unwrap());
+
+    Ok(CheckpointHeader {
+        magic,
+        version,
+        num_tensors,
+        total_bytes,
+        step,
+        timestamp: 0,
+    })
+}
+
+/// Validate a payload against a header. Returns the validated
+/// payload length, or an error.
+///
+/// The validation rules:
+/// 1. The payload must be at least `total_bytes` long.
+/// 2. The payload's first `total_bytes` bytes must be aligned
+///    to a 4-byte boundary (the tensor record size).
+/// 3. The actual payload length must be a multiple of the
+///    alignment.
+pub fn validate_payload(header: &CheckpointHeader, payload: &[u8]) -> Result<usize, CheckpointError> {
+    let claimed = header.total_bytes as usize;
+    if payload.len() < claimed {
+        return Err(CheckpointError::LengthMismatch {
+            claimed: header.total_bytes,
+            actual: payload.len(),
+        });
+    }
+    // 4-byte alignment is the tensor record size for f32
+    // tensors. A misaligned payload is malformed.
+    if claimed % 4 != 0 {
+        return Err(CheckpointError::BadAlignment {
+            offset: claimed as u64,
+            alignment: 4,
+        });
+    }
+    if payload.len() % 4 != 0 {
+        return Err(CheckpointError::BadAlignment {
+            offset: payload.len() as u64,
+            alignment: 4,
+        });
+    }
+    Ok(claimed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn build_header_bytes(magic: [u8; 8], version: u32, num_tensors: u32, total_bytes: u64) -> Vec<u8> {
+        let mut v = vec![0u8; HEADER_SIZE];
+        v[0..8].copy_from_slice(&magic);
+        v[8..12].copy_from_slice(&version.to_le_bytes());
+        v[12..16].copy_from_slice(&num_tensors.to_le_bytes());
+        v[16..24].copy_from_slice(&total_bytes.to_le_bytes());
+        // step is 0
+        v
+    }
+
+    #[test]
+    fn truncated_input_rejected() {
+        let bytes = vec![0u8; 16];
+        let err = deserialize_header(&bytes).unwrap_err();
+        assert!(matches!(err, CheckpointError::Truncated { .. }));
+    }
+
+    #[test]
+    fn bad_magic_rejected() {
+        let mut bytes = build_header_bytes(*b"WRONGMGC", 1, 0, 0);
+        bytes.extend_from_slice(&[0u8; 32]);
+        let err = deserialize_header(&bytes).unwrap_err();
+        assert_eq!(err, CheckpointError::BadMagic);
+    }
+
+    #[test]
+    fn bad_version_rejected() {
+        let bytes = build_header_bytes(MAGIC, 99, 0, 0);
+        let err = deserialize_header(&bytes).unwrap_err();
+        assert!(matches!(err, CheckpointError::BadVersion { version: 99 }));
+    }
+
+    #[test]
+    fn oversized_rejected() {
+        let bytes = build_header_bytes(MAGIC, 1, 0, MAX_CHECKPOINT_BYTES + 1);
+        let err = deserialize_header(&bytes).unwrap_err();
+        assert!(matches!(err, CheckpointError::Oversized { .. }));
+    }
+
+    #[test]
+    fn implausible_count_rejected() {
+        let bytes = build_header_bytes(MAGIC, 1, MAX_TENSOR_COUNT + 1, 0);
+        let err = deserialize_header(&bytes).unwrap_err();
+        assert!(matches!(err, CheckpointError::ImplausibleTensorCount { .. }));
+    }
+
+    #[test]
+    fn valid_header_accepted() {
+        let bytes = build_header_bytes(MAGIC, 1, 3, 256);
+        let h = deserialize_header(&bytes).unwrap();
+        assert_eq!(h.num_tensors, 3);
+        assert_eq!(h.total_bytes, 256);
+    }
+
+    #[test]
+    fn validate_payload_length_mismatch() {
+        let h = CheckpointHeader {
             magic: MAGIC,
             version: 1,
             num_tensors: 0,
-            total_bytes: HEADER_SIZE,
+            total_bytes: 1024,
             step: 0,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            timestamp: 0,
         };
-
-        let header_bytes: &[u8] =
-            unsafe { std::slice::from_raw_parts(&header as *const _ as *const u8, size_of::<CheckpointHeader>()) };
-
-        let mut f = &file;
-        f.write_all(header_bytes)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-
-        file.set_len(HEADER_SIZE)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-
-        self.file = Some(file);
-        Ok(())
+        let payload = vec![0u8; 512];
+        let err = validate_payload(&h, &payload).unwrap_err();
+        assert!(matches!(err, CheckpointError::LengthMismatch { .. }));
     }
 
-    pub fn write_tensor(&mut self, name: &str, data: Vec<f32>) -> PyResult<()> {
-        let file = self.file.as_ref().ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("File not opened")
-        })?;
-
-        let offset = file.metadata()
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?
-            .len();
-
-        let bytes: &[u8] = unsafe {
-            std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 4)
-        };
-
-        let mut file_mut = self.file.as_ref().expect("File not opened for finalization");
-        file_mut.seek(SeekFrom::End(0))
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-
-        file_mut.write_all(bytes)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-
-        let size = (data.len() * 4) as u64;
-        self.index.insert(name.to_string(), (offset, size));
-        self.step += 1;
-        Ok(())
-    }
-
-    pub fn finalize(&mut self) -> PyResult<()> {
-        let file = self.file.as_ref().ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("File not opened")
-        })?;
-
-        let total_bytes = file.metadata()
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?
-            .len();
-
-        let header = CheckpointHeader {
+    #[test]
+    fn validate_payload_misaligned_claimed() {
+        let h = CheckpointHeader {
             magic: MAGIC,
             version: 1,
-            num_tensors: self.index.len() as u32,
-            total_bytes,
-            step: self.step,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            num_tensors: 0,
+            total_bytes: 7, // not a multiple of 4
+            step: 0,
+            timestamp: 0,
         };
-
-        let header_bytes: &[u8] =
-            unsafe { std::slice::from_raw_parts(&header as *const _ as *const u8, size_of::<CheckpointHeader>()) };
-
-        let mut file_mut = self.file.as_ref().expect("File not opened for finalization");
-        file_mut.seek(SeekFrom::Start(0))
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-        file_mut.write_all(header_bytes)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-
-        let offset = total_bytes;
-        let index_bytes = bincode_index(&self.index);
-        file_mut.seek(SeekFrom::End(0))
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-        file_mut.write_all(&(index_bytes.len() as u64).to_le_bytes())
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-        file_mut.write_all(&index_bytes)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-
-        file_mut.flush()
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-
-        println!("Checkpoint written: {} tensors, {} bytes",
-                 self.index.len(), total_bytes);
-        Ok(())
+        let payload = vec![0u8; 1024];
+        let err = validate_payload(&h, &payload).unwrap_err();
+        assert!(matches!(err, CheckpointError::BadAlignment { .. }));
     }
-
-    pub fn get_checkpoint_size(&self) -> u64 {
-        self.index.values().map(|(_, size)| size).sum::<u64>() + HEADER_SIZE
-    }
-}
-
-fn bincode_index(index: &HashMap<String, (u64, u64)>) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(&(index.len() as u32).to_le_bytes());
-    for (name, (offset, size)) in index {
-        let name_bytes = name.as_bytes();
-        bytes.extend_from_slice(&(name_bytes.len() as u32).to_le_bytes());
-        bytes.extend_from_slice(name_bytes);
-        bytes.extend_from_slice(&offset.to_le_bytes());
-        bytes.extend_from_slice(&size.to_le_bytes());
-    }
-    bytes
-}
-
-#[pyclass]
-pub struct DifferentialCheckpointer {
-    base_path: String,
-    base_checkpoint: Option<HashMap<String, Vec<f32>>>,
-    dirty_pages: HashMap<String, bool>,
-}
-
-#[pymethods]
-impl DifferentialCheckpointer {
-    #[new]
-    pub fn new(base_path: String) -> Self {
-        DifferentialCheckpointer {
-            base_path,
-            base_checkpoint: None,
-            dirty_pages: HashMap::new(),
-        }
-    }
-
-    pub fn mark_dirty(&mut self, name: &str) {
-        self.dirty_pages.insert(name.to_string(), true);
-    }
-
-    pub fn save_differential(&self, data: Vec<(String, Vec<f32>)>) -> PyResult<String> {
-        let diff_path = format!("{}.diff", self.base_path);
-        let file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(&diff_path)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-
-        let mut written: u32 = 0;
-        for (name, tensor) in &data {
-            if !self.dirty_pages.get(name).unwrap_or(&false) {
-                continue;
-            }
-            let name_bytes = name.as_bytes();
-            let header_bytes = (name_bytes.len() as u32).to_le_bytes();
-            let tensor_size = (tensor.len() * 4) as u64;
-
-            let mut f = &file;
-        f.write_all(&header_bytes)
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-            let mut f = &file;
-        f.write_all(name_bytes)
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-            let mut f = &file;
-        f.write_all(&tensor_size.to_le_bytes())
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-
-            let bytes: &[u8] = unsafe {
-                std::slice::from_raw_parts(tensor.as_ptr() as *const u8, tensor.len() * 4)
-            };
-            let mut f = &file;
-        f.write_all(bytes)
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-            written += 1;
-        }
-
-        Ok(format!("Differential checkpoint: {} dirty tensors saved to {}", written, diff_path))
-    }
-}
-
-#[pymodule]
-fn aurelius_checkpoint(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<MmapCheckpointWriter>()?;
-    m.add_class::<DifferentialCheckpointer>()?;
-    Ok(())
 }

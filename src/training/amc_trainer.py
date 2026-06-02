@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,6 +14,78 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
+
+
+# ---------------------------------------------------------------------------
+# M2: Safe checkpoint loading
+# ---------------------------------------------------------------------------
+
+
+class UntrustedCheckpointError(ValueError):
+    """Raised when a checkpoint cannot be safely loaded
+    because it appears to be a pickle file and the
+    caller has not opted into trusted-pickle mode.
+
+    The audit M2 finding requires that the pre-remediation
+    torch.load(..., weights_only=False) call be replaced
+    with a safe helper. The helper accepts safetensors
+    directly and refuses pickle unless the env var
+    AURELIUS_TRUST_PICKLE=1 is set (with a logged
+    warning)."""
+
+
+def safe_load_checkpoint(path: Path | str) -> dict[str, Any]:
+    """Load a model checkpoint safely.
+
+    - .safetensors files are loaded directly with the
+      safetensors library (which is immune to pickle
+      RCE).
+    - .pt / .pth / .bin files are loaded with
+      torch.load(weights_only=True) (the default in
+      PyTorch >= 2.6). If the file is a non-tensor
+      pickle, the loader raises and we surface the
+      error.
+    - If AURELIUS_TRUST_PICKLE=1 is set in the
+      environment, the legacy weights_only=False path
+      is allowed. This is for trusted-pickle opt-in.
+    """
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(p)
+    suffix = p.suffix.lower()
+    if suffix == ".safetensors":
+        try:
+            from safetensors.torch import load_file
+            return load_file(str(p))
+        except ImportError:
+            raise UntrustedCheckpointError(
+                "safetensors not installed; cannot load .safetensors safely"
+            )
+    # .pt / .pth / .bin -> torch.load with weights_only=True
+    try:
+        return torch.load(p, map_location="cpu", weights_only=True)
+    except Exception as e:
+        # If the file is genuinely a non-tensor pickle,
+        # weights_only=True raises. Check the env var
+        # for the explicit opt-in.
+        if os.environ.get("AURELIUS_TRUST_PICKLE") == "1":
+            # Trusted-pickle opt-in: log a warning and
+            # fall back to the legacy path. This is the
+            # ONLY path where weights_only=False is
+            # accepted.
+            import warnings
+            warnings.warn(
+                f"Loading {p} with weights_only=False "
+                "(AURELIUS_TRUST_PICKLE=1). "
+                "This is unsafe for untrusted checkpoints.",
+                stacklevel=2,
+            )
+            return torch.load(p, map_location="cpu", weights_only=False)
+        raise UntrustedCheckpointError(
+            f"Failed to load {p} safely. If this is a trusted "
+            f"pickle checkpoint, set AURELIUS_TRUST_PICKLE=1 to "
+            f"opt in. Original error: {e}"
+        ) from e
 
 from src.model.amc_transformer import AMCModelOutput
 from src.training.amc_data import AMCTrainBatch
@@ -209,7 +282,13 @@ class CheckpointManager:
         return path
 
     def load(self, path: Path | str) -> dict[str, Any]:
-        return torch.load(Path(path), map_location="cpu", weights_only=False)
+        # M2: the pre-remediation call passed
+        # weights_only=False which is unsafe pickle
+        # deserialization. The fix uses the
+        # safe_load_checkpoint helper which requires
+        # an explicit trusted-pickle opt-in OR
+        # accepts safetensors directly.
+        return safe_load_checkpoint(path)
 
 
 class AMCTrainer:

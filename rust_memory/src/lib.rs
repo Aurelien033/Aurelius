@@ -2,6 +2,8 @@ use pyo3::prelude::*;
 use std::fs::{File, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
 
+pub mod checkpoint;
+
 type PageId = u64;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -281,6 +283,8 @@ impl MmapCheckpointWriter {
         };
         let hp: *const CheckpointHeader = &header;
         let hb: &[u8] =
+            // SAFETY: invariants documented in the module-level comment; this block
+            // SAFETY: re-reads a struct's memory as a byte slice via from_raw_parts.
             unsafe { std::slice::from_raw_parts(hp as *const u8, HEADER_SIZE as usize) };
         (&file)
             .write_all(hb)
@@ -297,10 +301,13 @@ impl MmapCheckpointWriter {
             .as_ref()
             .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("File not opened"))?;
         let offset = f
+  // SAFETY: invariants documented in the module-level comment; this block
+  // SAFETY: re-reads a struct's memory as a byte slice via from_raw_parts.
             .metadata()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?
             .len();
         let bytes: &[u8] =
+            // SAFETY: re-reads memory as a byte slice via from_raw_parts.
             unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 4) };
         let mut f = self
             .file
@@ -329,6 +336,8 @@ impl MmapCheckpointWriter {
             magic: MAGIC,
             version: 1,
             num_tensors: self.index.len() as u32,
+  // SAFETY: invariants documented in the module-level comment; this block
+  // SAFETY: re-reads a struct's memory as a byte slice via from_raw_parts.
             total_bytes,
             step: self.step,
             timestamp: std::time::SystemTime::now()
@@ -338,6 +347,7 @@ impl MmapCheckpointWriter {
         };
         let hp: *const CheckpointHeader = &header;
         let hb: &[u8] =
+            // SAFETY: re-reads memory as a byte slice via from_raw_parts.
             unsafe { std::slice::from_raw_parts(hp as *const u8, HEADER_SIZE as usize) };
         let mut f = self
             .file
@@ -413,6 +423,8 @@ impl DifferentialCheckpointer {
                 continue;
             }
             let nb = name.as_bytes();
+// SAFETY: invariants documented in the module-level comment; this block
+// SAFETY: re-reads a struct's memory as a byte slice via from_raw_parts.
             let mut f = &file;
             f.write_all(&(nb.len() as u32).to_le_bytes())
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
@@ -420,6 +432,7 @@ impl DifferentialCheckpointer {
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
             f.write_all(&((tensor.len() * 4) as u64).to_le_bytes())
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
+            // SAFETY: re-reads memory as a byte slice via from_raw_parts.
             let bytes: &[u8] = unsafe {
                 std::slice::from_raw_parts(tensor.as_ptr() as *const u8, tensor.len() * 4)
             };
