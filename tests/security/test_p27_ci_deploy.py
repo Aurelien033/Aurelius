@@ -12,9 +12,8 @@ The pre-remediation BFF:
   coded secrets, or non-root/read-only violations.
 """
 
-from pathlib import Path
 import re
-import json
+from pathlib import Path
 
 REPO = Path("/Users/christienantonio/aurelius-security-remediation")
 MIDDLE = REPO / "middle" / "src"

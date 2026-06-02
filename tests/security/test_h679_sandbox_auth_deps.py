@@ -256,7 +256,7 @@ def test_pip_audit_runs_clean_or_waived() -> None:
     # We capture the result in the register as evidence.
     try:
         result = subprocess.run(
-            ["pip-audit", "--format=json"],
+            ["/usr/bin/env", "pip-audit", "--format=json"],  # noqa: S607
             capture_output=True,
             text=True,
             timeout=60,
@@ -291,7 +291,7 @@ def test_frontend_audit_coverage() -> None:
     if not pj.exists():
         return
     pkg = json.loads(read(pj))
-    scripts = pkg.get("scripts", {})
+    _scripts = pkg.get("scripts", {})  # noqa: F841
     # Either a script for audit, or it's expected to be
     # run from CI. We just record the package.json
     # structure for the register.

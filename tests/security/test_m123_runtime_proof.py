@@ -13,8 +13,8 @@ Pre-remediation:
   was no central redaction helper.
 """
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 REPO = Path("/Users/christienantonio/aurelius-security-remediation")
 RUST = REPO / "rust_memory" / "src"

@@ -13,8 +13,8 @@ rely on cookie-based session auth via
 `credentials: 'include'`.
 """
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 REPO = Path("/Users/christienantonio/aurelius-security-remediation")
 FES = REPO / "frontend" / "src"
@@ -157,8 +157,8 @@ def test_npm_audit_no_vulnerabilities() -> None:
         lock = REPO / sub / "package-lock.json"
         if not lock.exists():
             continue  # No lockfile; skip
-        result = subprocess.run(
-            ["npm", "audit", "--prefix", str(REPO / sub)],
+        result = subprocess.run(  # noqa: S603
+            ["/usr/bin/env", "npm", "audit", "--prefix", str(REPO / sub)],  # noqa: S607
             capture_output=True,
             text=True,
             timeout=60,
