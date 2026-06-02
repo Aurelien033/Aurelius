@@ -8,7 +8,7 @@
 //   - Production mode: BFF session cookies (HttpOnly, Secure in
 //     production, SameSite=Lax/Strict) + CSRF protection for
 //     unsafe methods.
-//   - Dev mode (AURELIUS_AUTH_MODE=***):
+//   - Dev mode (AURELIUS_AUTH_MODE=local_byok_dev): opt-in
 //     sessionStorage-only with a visible warning; localStorage
 //     must remain rejected for secrets.
 //   - Session store is keyed by an opaque, server-issued
@@ -76,13 +76,15 @@ const SESSIONS = new Map<SessionId, Session>()
  */
 export const SESSION_TTL_MS = 60 * 60 * 1000
 export const SESSION_RENEW_THRESHOLD_MS = SESSION_TTL_MS / 2
-const DEFAULT_SESSION_SECRET =
-  'aurelius-dev-session-secret-***-rotate-in-prod'
+
+const DEV_SESSION_SECRET = 'aurelius-dev-session-secret-DO-NOT-USE-IN-PROD-XXXXXXXXXXXXXXXXXXXX'
 
 function getSessionSecret(): string {
   // Prefer an explicit env var; fall back to a hard-coded
-  // dev marker so the suite can run in CI.
-  return process.env.AURELIUS_SESSION_SECRET || DEFAULT_SESSION_SECRET
+  // dev marker so the suite can run in CI. The BFF MUST
+  // refuse to boot in production with the default secret
+  // (enforced in server.ts startup).
+  return process.env.AURELIUS_SESSION_SECRET || DEV_SESSION_SECRET
 }
 
 /**
