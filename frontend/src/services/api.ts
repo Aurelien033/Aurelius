@@ -1,109 +1,116 @@
-import { useApiStore } from '../stores/apiStore'
+import { useAuthStore } from '../stores/apiStore'
 
-const DEFAULT_TIMEOUT = 15000
-const DEFAULT_RETRIES = 2
+const API_BASE = '/api'
 
-export interface ApiOptions {
+interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
-  headers?: Record<string, string>
   body?: unknown
-  params?: Record<string, string | number | boolean | undefined>
-  timeout?: number
-  retries?: number
+  headers?: Record<string, string>
+  signal?: AbortSignal
+  /** When true, omit credentials (for /api/auth/login which is the one public endpoint that must not pre-send cookies). */
+  omitCredentials?: boolean
 }
 
-export interface ApiResponse<T> {
-  data: T | null
-  error: string | null
-  status: number
-}
-
-function getBaseUrl(): string {
-  return useApiStore.getState().baseUrl
-}
-
-function getApiKey(): string {
-  return useApiStore.getState().apiKey
-}
-
-function buildUrl(base: string, path: string, params?: Record<string, string | number | boolean | undefined>): string {
-  const url = new URL(path.startsWith('/') ? path : `/${path}`, base.endsWith('/') ? base : `${base}/`)
-  if (params) {
-    for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined) url.searchParams.set(k, String(v))
-    }
+function readCsrfCookie(): string | null {
+  if (typeof document === 'undefined') return null
+  for (const part of document.cookie.split(';')) {
+    const [k, ...rest] = part.trim().split('=')
+    if (k === 'aurelius_csrf') return decodeURIComponent(rest.join('='))
   }
-  return url.toString()
+  return null
 }
 
-async function request<T>(baseUrl: string, path: string, opts: ApiOptions): Promise<ApiResponse<T>> {
-  const { method = 'GET', headers = {}, body, params, timeout = DEFAULT_TIMEOUT, retries = DEFAULT_RETRIES } = opts
-  const apiKey = getApiKey()
+export async function apiRequest<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
+  const method = (options.method ?? 'GET').toUpperCase()
+  const UNSAFE = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS'
 
-  let lastErr: Error | null = null
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    ...(options.headers ?? {}),
+  }
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeout)
+  // Cookie auth: send credentials on every same-origin call.
+  // In dev BYOK mode the dev session token is also sent as
+  // X-Aurelius-Session (so the BFF can fall back if cookies
+  // are blocked).
+  const auth = useAuthStore.getState()
+  if (auth.csrfToken && UNSAFE) {
+    // Defense-in-depth: the BFF also reads the csrf cookie
+    // and validates the X-CSRF-Token header on unsafe
+    // methods. Belt-and-suspenders.
+    const fromCookie = readCsrfCookie()
+    headers['X-CSRF-Token'] = fromCookie || auth.csrfToken
+  }
+  if (auth.authMode === 'local_byok_dev' && auth.devApiKey) {
+    headers['X-Aurelius-Session'] = auth.devApiKey
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    credentials: options.omitCredentials ? 'omit' : 'include',
+    headers,
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    signal: options.signal,
+  })
+
+  if (!res.ok) {
+    let message = res.statusText
     try {
-      const res = await fetch(buildUrl(baseUrl, path, params), {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(apiKey ? { 'X-API-Key': apiKey } : {}),
-          ...headers,
-        },
-        body: body ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      })
-
-      clearTimeout(timer)
-
-      const text = await res.text()
-      let data: T | null = null
-      try { data = text ? JSON.parse(text) : null } catch { /* non-JSON */ }
-
-      if (!res.ok) {
-        const errMsg = (data as { error?: { message?: string } })?.error?.message
-          || (data as { error?: string })?.error
-          || `HTTP ${res.status}`
-        return { data: null, error: errMsg, status: res.status }
-      }
-
-      return { data, error: null, status: res.status }
-    } catch (err) {
-      clearTimeout(timer)
-      lastErr = err instanceof Error ? err : new Error(String(err))
-      if (attempt < retries && (err as Error).name !== 'AbortError') {
-        await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** attempt, 5000)))
-      }
+      const body = await res.json()
+      message = body.error || body.message || message
+    } catch {
+      // ignore
     }
+    throw new Error(message)
   }
 
-  const message = lastErr?.name === 'AbortError' ? 'Request timed out' : (lastErr?.message || 'Unknown error')
-  return { data: null, error: message, status: 0 }
+  // 204 No Content
+  if (res.status === 204) return undefined as T
+  return (await res.json()) as T
 }
 
-export function apiClient(baseUrl?: string) {
-  const base = baseUrl || getBaseUrl()
+export const api = {
+  get: <T = unknown>(path: string, options?: Omit<RequestOptions, 'method' | 'body'>) =>
+    apiRequest<T>(path, { ...options, method: 'GET' }),
+  post: <T = unknown>(path: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>) =>
+    apiRequest<T>(path, { ...options, method: 'POST', body }),
+  put: <T = unknown>(path: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>) =>
+    apiRequest<T>(path, { ...options, method: 'PUT', body }),
+  patch: <T = unknown>(path: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>) =>
+    apiRequest<T>(path, { ...options, method: 'PATCH', body }),
+  delete: <T = unknown>(path: string, options?: Omit<RequestOptions, 'method' | 'body'>) =>
+    apiRequest<T>(path, { ...options, method: 'DELETE' }),
+}
 
-  return {
-    get: <T>(path: string, opts?: Omit<ApiOptions, 'method' | 'body'>) =>
-      request<T>(base, path, { ...opts, method: 'GET' }),
+// Back-compat aliases for the pre-remediation API client shape.
+// The old services/api.ts exported apiClient, ApiOptions,
+// ApiResponse. Legacy services/index.ts imports them.
+export interface ApiOptions extends RequestOptions {}
+export interface ApiResponse<T = unknown> {
+  data: T
+  status: number
+  ok: boolean
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const apiClient: any = {
+  get: api.get,
+  post: api.post,
+  put: api.put,
+  patch: api.patch,
+  delete: api.delete,
+}
 
-    post: <T>(path: string, body?: unknown, opts?: Omit<ApiOptions, 'method' | 'body'>) =>
-      request<T>(base, path, { ...opts, method: 'POST', body }),
-
-    put: <T>(path: string, body?: unknown, opts?: Omit<ApiOptions, 'method' | 'body'>) =>
-      request<T>(base, path, { ...opts, method: 'PUT', body }),
-
-    delete: <T>(path: string, opts?: Omit<ApiOptions, 'method' | 'body'>) =>
-      request<T>(base, path, { ...opts, method: 'DELETE' }),
-
-    patch: <T>(path: string, body?: unknown, opts?: Omit<ApiOptions, 'method' | 'body'>) =>
-      request<T>(base, path, { ...opts, method: 'PATCH', body }),
+// Helper: wrap a { data, status, ok } envelope around the
+// raw api.get/post result for legacy callers.
+export async function apiRequestLegacy<T = unknown>(
+  path: string,
+  options?: RequestOptions,
+): Promise<ApiResponse<T>> {
+  try {
+    const data = await apiRequest<T>(path, options)
+    return { data, status: 200, ok: true }
+  } catch (e) {
+    return { data: undefined as unknown as T, status: 500, ok: false }
   }
 }
-
-export const api = apiClient()
-export { request }

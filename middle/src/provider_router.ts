@@ -1,5 +1,6 @@
 import { config, normalizeChatBackend } from './config.js';
 import { getEngine } from './engine.js';
+import { validateUpstreamUrl } from './security/url_policy.js';
 
 interface ChatMessage {
   role: string;
@@ -17,6 +18,15 @@ interface CompletionOptions {
   top_p?: number;
   stream?: boolean;
   backend?: string;
+  /**
+   * Caller-bound credentials for upstream calls. If omitted, the
+   * caller is treated as an internal service and the configured
+   * serviceApiKey is used. The pre-remediation router always
+   * forwarded the service principal key, collapsing user-triggered
+   * calls into a single shared identity. The fix threads the
+   * caller's own bearer through to upstream.
+   */
+  callerCredentials?: { type: 'bearer'; token: string } | { type: 'service' } | { type: 'none' };
 }
 
 interface CompletionResult {
@@ -61,6 +71,34 @@ const OPENAI_MODELS = [
   { id: 'gpt-4o-mini', provider: 'openai' },
 ];
 
+/**
+ * Build the upstream auth header from caller credentials.
+ *
+ *   - { type: 'bearer', token } → forward the caller's bearer
+ *   - { type: 'service' } → use config.serviceApiKey (internal-only)
+ *   - { type: 'none' } → no auth header
+ *
+ * The pre-remediation router always emitted the service principal key.
+ * That collapsed every user-triggered call into a single shared
+ * identity, which made per-user rate limiting, audit logging, and
+ * upstream quota enforcement impossible.
+ */
+function buildUpstreamAuthHeader(
+  caller: CompletionOptions['callerCredentials'],
+): Record<string, string> {
+  if (!caller || caller.type === 'service') {
+    if (config.serviceApiKey) {
+      return { Authorization: `Bearer ${config.serviceApiKey}` };
+    }
+    return {};
+  }
+  if (caller.type === 'bearer') {
+    if (!caller.token) return {};
+    return { Authorization: `Bearer ${caller.token}` };
+  }
+  return {};
+}
+
 export class ProviderRouter {
   openaiApiKey: string | undefined;
   private overrides: ProviderRouterOverrides;
@@ -104,9 +142,9 @@ export class ProviderRouter {
 
   async chat(
     messages: ChatMessage[],
-    options?: { model?: string; backend?: string },
+    options?: { model?: string; backend?: string; callerCredentials?: CompletionOptions['callerCredentials'] },
   ): Promise<CompletionResult> {
-    return this.complete({ messages, model: options?.model, backend: options?.backend });
+    return this.complete({ messages, model: options?.model, backend: options?.backend, callerCredentials: options?.callerCredentials });
   }
 
   getAvailableModels(): Array<{ id: string; provider: string }> {
@@ -236,6 +274,27 @@ export class ProviderRouter {
     model: string,
     opts: CompletionOptions,
   ): Promise<CompletionResult> {
+    // H1: validate upstream URL through policy before fetch.
+    // In dev, allow loopback + http; in production, require
+    // https + non-private IPs.
+    const allowLoopback = process.env.NODE_ENV !== 'production'
+    const allowHttp = process.env.NODE_ENV !== 'production'
+    const urlCheck = await validateUpstreamUrl(upstreamUrl, { allowLoopback, allowHttp })
+    if (!urlCheck.ok) {
+      return {
+        id: `err-${Date.now()}`,
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model,
+        choices: [{
+          index: 0,
+          message: { role: 'assistant', content: `upstream URL rejected by policy: ${urlCheck.reason}` },
+          finish_reason: 'error',
+        }],
+        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      }
+    }
+
     const payload = {
       model,
       messages: this.buildMessages(opts),
@@ -247,11 +306,8 @@ export class ProviderRouter {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      ...buildUpstreamAuthHeader(opts.callerCredentials),
     };
-    if (config.serviceApiKey) {
-      headers.Authorization = `Bearer ${config.serviceApiKey}`;
-      headers['X-Api-Key'] = config.serviceApiKey;
-    }
 
     try {
       const controller = new AbortController()

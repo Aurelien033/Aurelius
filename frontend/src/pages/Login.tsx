@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bot, Key, Eye, EyeOff, Loader2, Shield } from 'lucide-react';
-import { useApiStore } from '../stores/apiStore';
+import { useAuth } from '../hooks/useAuth';
 
 export default function Login() {
   const navigate = useNavigate();
-  const storeSetApiKey = useApiStore(s => s.setApiKey);
+  const { login, authMode, devModeWarning } = useAuth();
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -16,13 +16,7 @@ export default function Login() {
     if (mode === 'key' && !apiKey.trim()) { setError('API key required'); return; }
     setLoading(true); setError('');
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: apiKey.trim() || 'demo' }),
-      });
-      if (!res.ok) throw new Error('Invalid credentials');
-      storeSetApiKey(apiKey.trim());
+      await login({ apiKey: apiKey.trim() || 'demo' });
       navigate('/');
     } catch (e: any) { setError(e.message); }
     setLoading(false);
@@ -38,6 +32,16 @@ export default function Login() {
           <h1 className="text-2xl font-bold text-[#e0e0e0]">Aurelius</h1>
           <p className="text-sm text-[#9e9eb0] mt-1">Agent Operations Center</p>
         </div>
+
+        {authMode === 'local_byok_dev' && devModeWarning && (
+          <div
+            role="alert"
+            data-testid="dev-mode-warning"
+            className="aurelius-card border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-300"
+          >
+            <strong>DEV MODE:</strong> {devModeWarning}
+          </div>
+        )}
 
         <div className="aurelius-card p-6 space-y-4">
           <div className="flex gap-2 bg-[#0f0f1a] rounded-lg p-1">

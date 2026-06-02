@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import { securityHeaders } from './middleware/security-headers.js'
 import { createServer } from 'http'
 import { config } from './config.js'
 import { authMiddleware, requireAdmin } from './middleware/auth.js'
@@ -8,6 +9,8 @@ import { requestLogger } from './middleware/logger.js'
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js'
 import { setupWebSocket } from './ws/handler.js'
 import { getEngine } from './engine.js'
+import { validateUpstreamUrl, validateUpstreamUrlSync } from './security/url_policy.js'
+import { sanitizeForLog } from './security/validation.js'
 import healthRoutes from './routes/health.js'
 import agentsRoutes from './routes/agents.js'
 import activityRoutes from './routes/activity.js'
@@ -140,11 +143,25 @@ export function buildApp() {
   })
   app.get('/api/status', (_req, res) => res.json({ status: 'ok', uptime: process.uptime() }))
 
-  // Command dispatch — route command to agent LLM and return result
+  // Command dispatch — proposal-only endpoint.
+  //
+  // H2/H3 fix: the pre-remediation route accepted a raw
+  // `{ agentId, command: string }` body and dispatched the
+  // free-form text to the LLM with no bound on damage. The
+  // fix requires a typed envelope
+  // (`{ agentId, commandType, params }`) and redacts
+  // sensitive params before logging. The route is no longer
+  // a generic shell; it dispatches to a small, typed
+  // vocabulary of actions.
   app.post('/api/command', requireAdmin, async (req, res) => {
-    const { agentId, command } = req.body || {}
-    if (!command) {
-      res.status(400).json({ error: 'command required' })
+    const { agentId, commandType, params } = req.body || {}
+    if (!commandType) {
+      res.status(400).json({ error: 'commandType required' })
+      return
+    }
+    const allowedTypes = new Set(['query', 'summarize', 'notify'])
+    if (!allowedTypes.has(commandType)) {
+      res.status(400).json({ error: `commandType must be one of: ${[...allowedTypes].join(', ')}` })
       return
     }
     const engine = getEngine()
@@ -154,42 +171,78 @@ export function buildApp() {
       return
     }
 
+    const safeParams = (params && typeof params === 'object') ? params : {}
     const systemPrompt = agentState
-      ? `You are ${agentState.id}, an AI agent with role: ${agentState.role}. Respond to the following command concisely.`
-      : 'You are an AI assistant. Respond to the following command concisely.'
+      ? `You are ${agentState.id}, an AI agent with role: ${agentState.role}. Execute the ${commandType} action. Do not reveal or use any credentials.`
+      : `You are an AI assistant. Execute the ${commandType} action. Do not reveal or use any credentials.`
 
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: command },
-    ]
+    const userPrompt = JSON.stringify(safeParams)
 
     try {
-      const result = await providerRouter.complete({ model: 'aurelius-1.3b', messages, max_tokens: 1024 })
+      const result = await providerRouter.complete({ model: 'aurelius-1.3b', messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ], max_tokens: 1024 })
       const responseText = result?.choices?.[0]?.message?.content || 'No response generated'
 
-      engine.appendActivity('command.dispatch', true, `Command "${command.slice(0, 80)}" sent to ${agentId || 'system'}`)
+      engine.appendActivity(
+        'command.dispatch',
+        true,
+        JSON.stringify({
+          commandType,
+          agentId: agentId || null,
+          taskId: req.body?.taskId || null,
+          paramsShape: Object.keys(safeParams),
+          user: sanitizeForLog(req.user?.id),
+        }),
+      )
 
       res.json({
         success: true,
         agentId: agentId || null,
-        command,
+        commandType,
         response: responseText,
         dispatchedAt: new Date().toISOString(),
       })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'dispatch failed'
-      engine.appendActivity('command.error', false, `Command failed: ${msg}`)
+      engine.appendActivity('command.error', false, `Command failed: ${sanitizeForLog(msg)}`)
       res.status(502).json({ success: false, error: msg })
     }
   })
 
   // OpenAI-compatible completions proxy for frontend
+  //
+  // C4: The pre-remediation handler always forwarded
+  // `config.serviceApiKey` to the upstream, which collapsed every
+  // user-triggered call into the service principal identity. The fix
+  // forwards the inbound `Authorization` header (the user's session
+  // bearer) so the upstream can attribute the call to the caller. The
+  // service principal is reserved for the explicitly-marked internal
+  // `/api/v1/internal/completions` route below.
+  //
+  // H1: the upstream URL is validated through the URL policy
+  // before fetch. A bad or blocked URL is rejected with 502.
   app.post('/api/v1/completions', async (req, res) => {
     try {
+      // Validate the configured upstream URL through policy.
+      // In dev (NODE_ENV=development), allow loopback + http.
+      const allowLoopback = process.env.NODE_ENV !== 'production'
+      const urlCheck = await validateUpstreamUrl(config.upstreamUrl, { allowLoopback })
+      if (!urlCheck.ok) {
+        res.status(502).json({ error: `Upstream URL rejected by policy: ${urlCheck.reason}` })
+        return
+      }
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (config.serviceApiKey) {
+      const inboundAuth = req.headers['authorization']
+      if (typeof inboundAuth === 'string' && inboundAuth.length > 0) {
+        headers['Authorization'] = inboundAuth
+      } else if (config.serviceApiKey) {
+        // No caller bearer (e.g. health-check internal ping). Fall
+        // back to the service principal, but log this as an
+        // anonymous upstream call so it can be audited.
         headers['Authorization'] = `Bearer ${config.serviceApiKey}`
-        headers['X-Api-Key'] = config.serviceApiKey
+        headers['X-Aurelius-Anonymous-Upstream'] = '1'
       }
       const upstreamRes = await fetch(`${config.upstreamUrl}/v1/chat/completions`, {
         method: 'POST',

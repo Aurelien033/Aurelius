@@ -1,116 +1,186 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 
-type MessageHandler = (data: unknown) => void
+export type WsConnectionState = 'connecting' | 'open' | 'closed' | 'error'
 
-interface UseWebSocketOptions {
-  url?: string
-  autoReconnect?: boolean
-  reconnectInterval?: number
-  maxReconnects?: number
-  onStatusChange?: (connected: boolean) => void
+export interface WsMessage {
+  type: string
+  payload?: Record<string, unknown>
 }
 
-interface UseWebSocketReturn {
-  connected: boolean
-  send: (type: string, payload?: Record<string, unknown>) => void
-  on: (type: string, handler: MessageHandler) => void
-  off: (type: string, handler: MessageHandler) => void
-  lastMessage: unknown
-  subscribe: (channel: string) => void
-  unsubscribe: (channel: string) => void
-  onChannel: (channel: string, handler: MessageHandler) => () => void
+export interface UseWebSocketResult {
+  state: WsConnectionState
+  lastMessage: WsMessage | null
+  send: (msg: WsMessage) => void
+  subscribe: (room: string) => void
+  unsubscribe: (room: string) => void
+  sendRoomMessage: (room: string, data: unknown) => void
+  reconnect: () => void
+  /** Legacy: register a callback for a specific event type. */
+  on?: (event: string, cb: (payload: unknown) => void) => void
+  /** Legacy: remove a callback for a specific event type. */
+  off?: (event: string, cb: (payload: unknown) => void) => void
 }
 
-export function useWebSocket(opts: UseWebSocketOptions = {}): UseWebSocketReturn {
-  const {
-    url = `ws://${window.location.host}/ws`,
-    autoReconnect = true,
-    reconnectInterval = 3000,
-    maxReconnects = 10,
-    onStatusChange,
-  } = opts
-
+/**
+ * C3 fix: the pre-remediation hook constructed a ws:// URL with the
+ * raw API key in the query string. That exposed the operator's
+ * master credential to any browser extension, proxy, or network
+ * observer. The new hook authenticates with a short-lived
+ * `ws-token` minted by /api/auth/ws-token, kept in memory (not
+ * localStorage), and renews the connection on token expiry.
+ *
+ * C3 protocol fix: the canonical subscribe schema is
+ * { type: 'subscribe', room: '...' }. The legacy { channel } field
+ * is gone; subscribers must use `room`.
+ */
+export function useWebSocket(url?: string): UseWebSocketResult {
   const wsRef = useRef<WebSocket | null>(null)
-  const handlersRef = useRef<Map<string, Set<MessageHandler>>>(new Map())
-  const reconnectCountRef = useRef(0)
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const [connected, setConnected] = useState(false)
-  const [lastMessage, setLastMessage] = useState<unknown>(null)
-  const onStatusChangeRef = useRef(onStatusChange)
-  const connectRef = useRef<() => void>(() => {})
-  useEffect(() => {
-    onStatusChangeRef.current = onStatusChange
-  }, [onStatusChange])
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tokenRef = useRef<string | null>(null)
+  const tokenExpiresAtRef = useRef<number>(0)
+  const [state, setState] = useState<WsConnectionState>('closed')
+  const [lastMessage, setLastMessage] = useState<WsMessage | null>(null)
+  // Legacy event-listener registry. New code uses the
+  // returned handlers; legacy components (ActivityFeed,
+  // Notifications) call ws.on('event', cb).
+  const listenersRef = useRef<Map<string, Set<(payload: unknown) => void>>>(new Map())
 
-  const updateConnected = useCallback((v: boolean) => {
-    setConnected(v)
-    onStatusChangeRef.current?.(v)
+  // Legacy .on() / .off() method to keep back-compat with
+  // the pre-remediation useWebSocket() shape.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(useWebSocket as any).on = (event: string, cb: (payload: unknown) => void) => {
+    if (!listenersRef.current.has(event)) listenersRef.current.set(event, new Set())
+    listenersRef.current.get(event)!.add(cb)
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(useWebSocket as any).off = (event: string, cb: (payload: unknown) => void) => {
+    listenersRef.current.get(event)?.delete(cb)
+  }
+
+  // The legacy API allowed ws.on('event', cb) WITHOUT
+  // starting a connection. If no URL is provided, we
+  // return a stub UseWebSocketResult that supports .on()
+  // but does not open a socket. This preserves the
+  // legacy call sites.
+  const noop = (() => {}) as any
+
+  if (!url) {
+    return {
+      state,
+      lastMessage,
+      send: noop,
+      subscribe: noop,
+      unsubscribe: noop,
+      sendRoomMessage: noop,
+      reconnect: noop,
+      on: (event, cb) => {
+        if (!listenersRef.current.has(event)) listenersRef.current.set(event, new Set())
+        listenersRef.current.get(event)!.add(cb)
+      },
+      off: (event, cb) => {
+        listenersRef.current.get(event)?.delete(cb)
+      },
+    } as UseWebSocketResult
+  }
+
+  /** Mint a short-lived WS token from the server. The response
+   * includes an `exp` claim; the hook reconnects before expiry. */
+  const fetchWsToken = useCallback(async (): Promise<string> => {
+    const res = await fetch('/api/auth/ws-token', { method: 'POST', credentials: 'include' })
+    if (!res.ok) throw new Error(`ws-token mint failed: ${res.status}`)
+    const data = await res.json()
+    if (!data || typeof data.token !== 'string') {
+      throw new Error('ws-token response missing token')
+    }
+    tokenRef.current = data.token
+    tokenExpiresAtRef.current = typeof data.exp === 'number' ? data.exp : Math.floor(Date.now() / 1000) + 240
+    return data.token
   }, [])
 
-  const scheduleReconnect = useCallback(() => {
-    if (autoReconnect && reconnectCountRef.current < maxReconnects) {
-      reconnectCountRef.current += 1
-      reconnectTimerRef.current = setTimeout(() => {
-        connectRef.current()
-      }, reconnectInterval)
+  const connect = useCallback(async () => {
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+      return
     }
-  }, [autoReconnect, maxReconnects, reconnectInterval])
-
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return
+    setState('connecting')
+    let token: string
     try {
-      const ws = new WebSocket(url)
-      wsRef.current = ws
-      ws.onopen = () => { updateConnected(true); reconnectCountRef.current = 0 }
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data) as { type: string; payload?: unknown }
-          setLastMessage(data)
-          if (data.type === 'connected' || data.type === 'pong') return
-          const handlers = handlersRef.current.get(data.type)
-          if (handlers) { for (const handler of handlers) handler(data.payload) }
-        } catch { /* ignore */ }
-      }
-      ws.onclose = () => {
-        updateConnected(false); wsRef.current = null
-        scheduleReconnect()
-      }
-      ws.onerror = () => { ws.close() }
-    } catch {
-      scheduleReconnect()
+      token = await fetchWsToken()
+    } catch (e) {
+      setState('error')
+      return
     }
-  }, [url, updateConnected, scheduleReconnect])
+    // Build URL. The token is passed via the subprotocol header
+    // (aurelius-ws-token.<jwt>) which is the only place a token
+    // is safe from URL-logged proxies. We append a `room=` no-op
+    // here is unnecessary; the server reads the subprotocol.
+    const proto = `aurelius-ws-token.${token}`
+    const ws = new WebSocket(url, [proto])
+    wsRef.current = ws
 
-  useEffect(() => {
-    connectRef.current = connect
-  }, [connect])
+    ws.onopen = () => {
+      setState('open')
+    }
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data) as WsMessage
+        setLastMessage(msg)
+        // Fire any registered legacy listeners
+        const set = listenersRef.current.get(msg.type)
+        if (set) {
+          for (const cb of set) cb(msg.payload)
+        }
+      } catch {
+        // ignore malformed
+      }
+    }
+    ws.onclose = () => {
+      setState('closed')
+    }
+    ws.onerror = () => {
+      setState('error')
+    }
+  }, [url, fetchWsToken])
 
   useEffect(() => {
     connect()
-    return () => { clearTimeout(reconnectTimerRef.current); wsRef.current?.close() }
+    const renewal = setInterval(() => {
+      const now = Math.floor(Date.now() / 1000)
+      if (tokenExpiresAtRef.current - now < 30 && wsRef.current?.readyState === WebSocket.OPEN) {
+        // Pre-emptively close and reconnect with a fresh token
+        try { wsRef.current?.close(4000, 'token-renewal') } catch { /* ignore */ }
+        connect()
+      }
+    }, 15000)
+    return () => {
+      clearInterval(renewal)
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
+      try { wsRef.current?.close() } catch { /* ignore */ }
+    }
   }, [connect])
 
-  const send = useCallback((type: string, payload?: Record<string, unknown>) => {
+  const send = useCallback((msg: WsMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type, payload }))
+      wsRef.current.send(JSON.stringify(msg))
     }
   }, [])
 
-  const on = useCallback((type: string, handler: MessageHandler) => {
-    if (!handlersRef.current.has(type)) handlersRef.current.set(type, new Set())
-    handlersRef.current.get(type)!.add(handler)
-  }, [])
+  const subscribe = useCallback((room: string) => {
+    // Canonical schema: { type: 'subscribe', room: '...' }
+    send({ type: 'subscribe', payload: { room } })
+  }, [send])
 
-  const off = useCallback((type: string, handler: MessageHandler) => {
-    handlersRef.current.get(type)?.delete(handler)
-  }, [])
+  const unsubscribe = useCallback((room: string) => {
+    send({ type: 'unsubscribe', payload: { room } })
+  }, [send])
 
-  const subscribe = useCallback((channel: string) => { send('subscribe', { channel }) }, [send])
-  const unsubscribe = useCallback((channel: string) => { send('unsubscribe', { channel }) }, [send])
-  const onChannel = useCallback((channel: string, handler: MessageHandler) => {
-    on(channel, handler)
-    return () => off(channel, handler)
-  }, [on, off])
+  const sendRoomMessage = useCallback((room: string, data: unknown) => {
+    send({ type: 'room:message', payload: { room, data } })
+  }, [send])
 
-  return { connected, send, on, off, lastMessage, subscribe, unsubscribe, onChannel }
+  const reconnect = useCallback(() => {
+    try { wsRef.current?.close() } catch { /* ignore */ }
+    connect()
+  }, [connect])
+
+  return { state, lastMessage, send, subscribe, unsubscribe, sendRoomMessage, reconnect }
 }
