@@ -1,0 +1,47 @@
+# Ring 1 Tranche 2 — AMC-Integrated Agent Loop
+# Extends Tranche 1 with live Tier-2 + SDB memory and MCTS-influenced actions.
+
+tranche: 2
+version: "0.1"
+description: >
+  Tranche 2 integrated trace collection. Memory reads/writes participate in the
+  agent loop via AMCTier2Hook and SDBMemoryRuntime. Stub MCTS consults memory.
+
+agent:
+  type: integrated  # integrated | dummy
+
+seeds:
+  base_seed: 5252
+
+model:
+  checkpoint_path: checkpoints/aurelius-1.3b
+  variant: amc_1b_class
+
+domains:
+  - multi_hop_qa
+  - tool_use
+  - closed_world_planning
+
+trace_length_distribution:
+  "4": 0.15
+  "6-8": 0.55
+  "10-12": 0.30
+
+layer_range: [8, 12, 16, 20, 24]
+surprise_threshold: 0.65
+
+mcts:
+  c_puct: 1.414
+  max_depth: 6
+  max_simulations: 16
+  simulation_budget: 12
+
+collection:
+  default_num_traces: 100
+  max_steps: 12
+  output_dir: data/ring1_traces/tranche2
+
+reproducibility:
+  record_git_sha: true
+  record_config_hash: true
+  record_checkpoint_sha256: true

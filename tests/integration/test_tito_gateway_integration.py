@@ -6,16 +6,13 @@ Verifies that:
 3. Pre-existing registry keys are not disturbed by the additive wiring.
 """
 
-from src.training import TRAINING_REGISTRY
-from src.training.tito_gateway import TITOConfig
-
-
 # ---------------------------------------------------------------------------
 # 1. Registry key existence
 # ---------------------------------------------------------------------------
-
-
 import pytest
+
+from src.training import TRAINING_REGISTRY
+from src.training.tito_gateway import TITOConfig
 
 pytestmark = pytest.mark.integration
 

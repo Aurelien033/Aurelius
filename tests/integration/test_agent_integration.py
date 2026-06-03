@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
 from agent.ast_fim import ASTAnalyzer, FIMFormat, FIMSpan, FIMTokenizer
 from agent.patch_synthesis import PatchSynthesizer
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

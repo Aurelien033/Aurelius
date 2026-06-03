@@ -12,7 +12,6 @@ from scripts.export_gguf import export_gguf
 from src.model.config import AureliusConfig
 from src.model.transformer import AureliusTransformer
 
-
 # ---------------------------------------------------------------------------
 # Shared tiny config
 # ---------------------------------------------------------------------------

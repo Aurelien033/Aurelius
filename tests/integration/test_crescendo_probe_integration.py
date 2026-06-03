@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.eval import (
     BENCHMARK_REGISTRY,
     METRIC_REGISTRY,
@@ -10,9 +12,6 @@ from src.eval import (
     eval_crescendo_probe_enabled,
 )
 from src.eval.crescendo_probe import stub_judge_fn
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

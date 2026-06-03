@@ -13,10 +13,9 @@ from src.safety.claw_keeper import (
     SkillPolicyEngine,
     ThreatLevel,
     ThreatRecord,
-    WatchState,
     WatcherMiddleware,
+    WatchState,
 )
-
 
 # ---------------------------------------------------------------------------
 # Layer 1: Skill Policy Engine

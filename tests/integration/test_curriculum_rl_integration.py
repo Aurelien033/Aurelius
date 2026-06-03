@@ -11,10 +11,8 @@ Verifies:
 
 import pytest
 
-
 from src.training import TRAINING_REGISTRY
 from src.training.curriculum_rl import CurriculumRLConfig, CurriculumRLSampler
-
 
 # ---------------------------------------------------------------------------
 # Fixture: fully-wired sampler with 10 tasks

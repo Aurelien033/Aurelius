@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import importlib
 
-import agent as agent_pkg
-
-
 import pytest
+
+import agent as agent_pkg
 
 pytestmark = pytest.mark.integration
 

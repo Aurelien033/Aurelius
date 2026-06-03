@@ -4,6 +4,7 @@ surface's public registry.
 
 from __future__ import annotations
 
+import pytest
 
 from src.safety import (
     HARM_CATEGORIES,
@@ -11,9 +12,6 @@ from src.safety import (
     SAFETY_FILTER_REGISTRY,
     HarmTaxonomyClassifier,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

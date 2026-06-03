@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import difflib
 from dataclasses import dataclass
-from src._compat import StrEnum
 from pathlib import Path
+
+from src._compat import StrEnum
 
 
 class DiffFormat(StrEnum):

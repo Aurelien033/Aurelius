@@ -19,8 +19,9 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
-from src._compat import StrEnum
 from typing import Any
+
+from src._compat import StrEnum
 
 __all__ = [
     "ReleaseTrack",

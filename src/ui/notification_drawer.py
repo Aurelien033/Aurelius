@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from src._compat import StrEnum
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+
+from src._compat import StrEnum
 
 
 class NotificationLevel(StrEnum):

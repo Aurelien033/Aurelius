@@ -9,19 +9,14 @@ Verifies:
 
 from __future__ import annotations
 
-
+# ---------------------------------------------------------------------------
+# 1. Registry contains "muonclip"
+# ---------------------------------------------------------------------------
+import pytest
 import torch
 import torch.nn as nn
 
 from src.optimizers import OPTIMIZER_REGISTRY, MuonClip
-
-
-# ---------------------------------------------------------------------------
-# 1. Registry contains "muonclip"
-# ---------------------------------------------------------------------------
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

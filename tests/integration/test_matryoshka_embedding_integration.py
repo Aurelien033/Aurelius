@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import importlib
 
+import pytest
+
 import src
 import src.model as model_pkg
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

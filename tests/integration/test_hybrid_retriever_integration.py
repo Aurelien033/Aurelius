@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from src.retrieval import RETRIEVER_REGISTRY, BM25Retriever, HybridRetriever
-
-
 import pytest
+
+from src.retrieval import RETRIEVER_REGISTRY, BM25Retriever, HybridRetriever
 
 pytestmark = pytest.mark.integration
 

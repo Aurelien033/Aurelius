@@ -14,7 +14,6 @@ from src.retrieval import (
     InstructionPrefixEmbedder,
 )
 
-
 pytestmark = pytest.mark.integration
 
 

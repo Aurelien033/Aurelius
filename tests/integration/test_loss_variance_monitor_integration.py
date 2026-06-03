@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import math
 
-from src.training import LossVarianceMonitor
-
-
 import pytest
+
+from src.training import LossVarianceMonitor
 
 pytestmark = pytest.mark.integration
 

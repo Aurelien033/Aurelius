@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.eval import (
     BENCHMARK_REGISTRY,
     METRIC_REGISTRY,
@@ -15,9 +17,6 @@ from src.eval.many_shot_jailbreak_probe import (
     stub_target_fn,
 )
 from src.model.config import AureliusConfig
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

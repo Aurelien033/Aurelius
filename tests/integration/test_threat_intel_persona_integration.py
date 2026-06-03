@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.chat import (
     CHAT_TEMPLATE_REGISTRY,
     MESSAGE_FORMAT_REGISTRY,
@@ -12,9 +14,6 @@ from src.chat.threat_intel_persona import (
 )
 from src.model.config import AureliusConfig
 from src.runtime.feature_flags import FEATURE_FLAG_REGISTRY, FeatureFlag
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

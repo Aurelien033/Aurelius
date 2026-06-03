@@ -5,13 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 import src.cli.main as cli_main
 from agent.interface_runtime import AureliusInterfaceRuntime
 from agent.session_manager import SessionManager
 from src.model import AureliusInterfaceFramework
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

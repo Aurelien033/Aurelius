@@ -7,7 +7,6 @@ sensible negatives.
 
 from __future__ import annotations
 
-
 import pytest
 
 import src.retrieval as retrieval_pkg
@@ -17,7 +16,6 @@ from src.retrieval import (
     HardNegative,
     HardNegativeMiner,
 )
-
 
 pytestmark = pytest.mark.integration
 

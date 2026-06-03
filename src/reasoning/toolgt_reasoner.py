@@ -15,8 +15,9 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from src._compat import StrEnum
 from typing import Any
+
+from src._compat import StrEnum
 
 # Re-use existing constrained-decoding types when available.
 try:

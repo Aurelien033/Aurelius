@@ -233,10 +233,13 @@ class AMCTier2Hook:
                 digest_size=16,
             ).hexdigest()  # 32-char hex
 
-            # Derive a pseudo token-id sequence from the content hash
-            # so every unique content maps to a unique-but-deterministic token tuple.
+            # M-01 (CSV): identity tokens — deterministic content-derived bytes
+            # used as *cache-routing* identifiers within the memory runtime,
+            # NOT model vocabulary IDs. These should never be fed to
+            # AureliusTransformer forward() or nn.Embedding directly.
+            # They are blake2b(content)[:8] as 8 ints in [0,255].
             token_hash = blake2b(entry.content.encode("utf-8"), digest_size=8).digest()  # 8 bytes
-            token_ids = tuple(token_hash)  # 8 ints in [0,255]
+            token_ids = tuple(token_hash)
 
             salience = max(0.0, min(1.0, entry.importance))
 

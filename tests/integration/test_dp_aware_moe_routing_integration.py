@@ -6,12 +6,9 @@ via src/model/__init__.py, and that the routing API works end-to-end.
 
 from __future__ import annotations
 
-
 # ---------------------------------------------------------------------------
 # 1. "dp_aware_moe_routing" present in MODEL_COMPONENT_REGISTRY
 # ---------------------------------------------------------------------------
-
-
 import pytest
 
 pytestmark = pytest.mark.integration

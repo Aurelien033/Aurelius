@@ -1,0 +1,152 @@
+{
+  "cycles": [
+    {
+      "seeds": 64,
+      "candidates": 256,
+      "pairs": 64,
+      "writes": 8,
+      "mean_margin": 0.565500020980835,
+      "bank_fill": 8
+    },
+    {
+      "seeds": 64,
+      "candidates": 256,
+      "pairs": 64,
+      "writes": 8,
+      "mean_margin": 0.565500020980835,
+      "bank_fill": 14
+    },
+    {
+      "seeds": 64,
+      "candidates": 256,
+      "pairs": 64,
+      "writes": 8,
+      "mean_margin": 0.565500020980835,
+      "bank_fill": 14
+    }
+  ],
+  "total_writes": 24,
+  "bank_fill": 14,
+  "sleep_cycle_log": [
+    {
+      "cycle": 0,
+      "seeds": 64,
+      "candidates": 256,
+      "pairs": 64,
+      "writes": 8,
+      "mean_margin": 0.565500020980835,
+      "bank_fill": 8
+    },
+    {
+      "cycle": 1,
+      "seeds": 64,
+      "candidates": 256,
+      "pairs": 64,
+      "writes": 8,
+      "mean_margin": 0.565500020980835,
+      "bank_fill": 14
+    },
+    {
+      "cycle": 2,
+      "seeds": 64,
+      "candidates": 256,
+      "pairs": 64,
+      "writes": 8,
+      "mean_margin": 0.565500020980835,
+      "bank_fill": 14
+    }
+  ],
+  "preferences": [
+    {
+      "slot": 0,
+      "strength": 0.6176418662071228,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_1:observation",
+      "metadata_hash": "478f40bd67a6af8a6111ea35c9d6a2f5"
+    },
+    {
+      "slot": 1,
+      "strength": 0.32435208559036255,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_4:reflection",
+      "metadata_hash": "fc63e3ce607b2c63d90a62266cc38417"
+    },
+    {
+      "slot": 2,
+      "strength": 0.40191054344177246,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_2:observation",
+      "metadata_hash": "341a024ae6af4e6cc1f75a6a3fd3b3a1"
+    },
+    {
+      "slot": 3,
+      "strength": 0.46988072991371155,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_2:reflection",
+      "metadata_hash": "36df570f3aab6b32c566ba0abd97602a"
+    },
+    {
+      "slot": 4,
+      "strength": 0.8914927244186401,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_3:observation",
+      "metadata_hash": "914d64be2daf5d4c3963e5601d37538e"
+    },
+    {
+      "slot": 5,
+      "strength": 0.534895658493042,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_3:reflection",
+      "metadata_hash": "f6662326e297a0722d7d205fbe64f273"
+    },
+    {
+      "slot": 6,
+      "strength": 0.44820907711982727,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_4:observation",
+      "metadata_hash": "e3ac06e2c3d71040da551ba476dd22bb"
+    },
+    {
+      "slot": 7,
+      "strength": 0.3611873686313629,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_3:reflection",
+      "metadata_hash": "f6662326e297a0722d7d205fbe64f273"
+    },
+    {
+      "slot": 8,
+      "strength": 0.6207455992698669,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_1:observation",
+      "metadata_hash": "478f40bd67a6af8a6111ea35c9d6a2f5"
+    },
+    {
+      "slot": 9,
+      "strength": 0.40361180901527405,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_3:observation",
+      "metadata_hash": "914d64be2daf5d4c3963e5601d37538e"
+    },
+    {
+      "slot": 10,
+      "strength": 0.4039301872253418,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_2:observation",
+      "metadata_hash": "341a024ae6af4e6cc1f75a6a3fd3b3a1"
+    },
+    {
+      "slot": 11,
+      "strength": 0.47224193811416626,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_2:reflection",
+      "metadata_hash": "36df570f3aab6b32c566ba0abd97602a"
+    },
+    {
+      "slot": 12,
+      "strength": 0.8959726095199585,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_3:observation",
+      "metadata_hash": "914d64be2daf5d4c3963e5601d37538e"
+    },
+    {
+      "slot": 13,
+      "strength": 0.537583589553833,
+      "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_3:reflection",
+      "metadata_hash": "f6662326e297a0722d7d205fbe64f273"
+    }
+  ],
+  "zero_grad_proof": {
+    "pre_cycle_param_hash": "5fcb5e95b24e87a65cf06c78bb59a2561ccb81cb0b78e9832b3f616f8475d483",
+    "post_cycle_param_hash": "5fcb5e95b24e87a65cf06c78bb59a2561ccb81cb0b78e9832b3f616f8475d483",
+    "param_hash_unchanged": true,
+    "inference_mode": true,
+    "model_eval_mode": true
+  }
+}

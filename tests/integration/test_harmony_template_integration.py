@@ -9,17 +9,13 @@ Verifies that:
 
 from __future__ import annotations
 
-
-from src.chat import CHAT_TEMPLATE_REGISTRY
-from src.chat.harmony_template import HarmonyTemplate
-
-
 # ---------------------------------------------------------------------------
 # 1. Registry contains "harmony"
 # ---------------------------------------------------------------------------
-
-
 import pytest
+
+from src.chat import CHAT_TEMPLATE_REGISTRY
+from src.chat.harmony_template import HarmonyTemplate
 
 pytestmark = pytest.mark.integration
 

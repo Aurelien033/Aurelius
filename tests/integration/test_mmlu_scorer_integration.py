@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src import eval as eval_pkg
 from src.eval.mmlu_scorer import MMLUProblem, MMLUScorer
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

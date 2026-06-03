@@ -1,0 +1,135 @@
+{
+  "cycles": [
+    {
+      "seeds": 32,
+      "candidates": 128,
+      "pairs": 32,
+      "writes": 8,
+      "mean_margin": 0.5504999756813049,
+      "bank_fill": 8
+    },
+    {
+      "seeds": 32,
+      "candidates": 128,
+      "pairs": 32,
+      "writes": 8,
+      "mean_margin": 0.5504999756813049,
+      "bank_fill": 14
+    }
+  ],
+  "total_writes": 16,
+  "bank_fill": 14,
+  "sleep_cycle_log": [
+    {
+      "cycle": 0,
+      "seeds": 32,
+      "candidates": 128,
+      "pairs": 32,
+      "writes": 8,
+      "mean_margin": 0.5504999756813049,
+      "bank_fill": 8
+    },
+    {
+      "cycle": 1,
+      "seeds": 32,
+      "candidates": 128,
+      "pairs": 32,
+      "writes": 8,
+      "mean_margin": 0.5504999756813049,
+      "bank_fill": 14
+    }
+  ],
+  "preferences": [
+    {
+      "slot": 0,
+      "strength": 0.5821347236633301,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_1:observation",
+      "metadata_hash": "b9b31562eb348fe5e939ad70a43403df"
+    },
+    {
+      "slot": 1,
+      "strength": 0.24516800045967102,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_4:reflection",
+      "metadata_hash": "fc63e3ce607b2c63d90a62266cc38417"
+    },
+    {
+      "slot": 2,
+      "strength": 0.48115214705467224,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_2:observation",
+      "metadata_hash": "86d1c480cedfd187f94820a5ca5489d2"
+    },
+    {
+      "slot": 3,
+      "strength": 0.47224193811416626,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_2:reflection",
+      "metadata_hash": "36df570f3aab6b32c566ba0abd97602a"
+    },
+    {
+      "slot": 4,
+      "strength": 0.2970075011253357,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_3:observation",
+      "metadata_hash": "ab33ae4b7f6d0300a326bd1d7836c535"
+    },
+    {
+      "slot": 5,
+      "strength": 0.537583589553833,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_3:reflection",
+      "metadata_hash": "f6662326e297a0722d7d205fbe64f273"
+    },
+    {
+      "slot": 6,
+      "strength": 0.5464937686920166,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_4:observation",
+      "metadata_hash": "52cb06d585589cfec66ac733bfb0b565"
+    },
+    {
+      "slot": 7,
+      "strength": 0.29755672812461853,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_4:observation",
+      "metadata_hash": "52cb06d585589cfec66ac733bfb0b565"
+    },
+    {
+      "slot": 8,
+      "strength": 0.5850600004196167,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_1:observation",
+      "metadata_hash": "b9b31562eb348fe5e939ad70a43403df"
+    },
+    {
+      "slot": 9,
+      "strength": 0.2487500011920929,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_1:reflection",
+      "metadata_hash": "f61f5aa64a66dc5b158bf98f9c07070d"
+    },
+    {
+      "slot": 10,
+      "strength": 0.48357000946998596,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_2:observation",
+      "metadata_hash": "86d1c480cedfd187f94820a5ca5489d2"
+    },
+    {
+      "slot": 11,
+      "strength": 0.4746150076389313,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_2:reflection",
+      "metadata_hash": "36df570f3aab6b32c566ba0abd97602a"
+    },
+    {
+      "slot": 12,
+      "strength": 0.2985000014305115,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_3:observation",
+      "metadata_hash": "ab33ae4b7f6d0300a326bd1d7836c535"
+    },
+    {
+      "slot": 13,
+      "strength": 0.5402849912643433,
+      "provenance": "dream_269a83df-931a-4b22-b33f-4954c7e51b35:step_3:reflection",
+      "metadata_hash": "f6662326e297a0722d7d205fbe64f273"
+    }
+  ],
+  "zero_grad_proof": {
+    "pre_cycle_param_hash": "no-model-attached",
+    "post_cycle_param_hash": "no-model-attached",
+    "param_hash_unchanged": true,
+    "inference_mode": true,
+    "model_eval_mode": null
+  }
+}

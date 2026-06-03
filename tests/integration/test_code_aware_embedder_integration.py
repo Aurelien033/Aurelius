@@ -6,7 +6,6 @@ import importlib
 import math
 import sys
 
-
 import pytest
 
 pytestmark = pytest.mark.integration

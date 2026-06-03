@@ -7,7 +7,6 @@ Covers:
 
 from __future__ import annotations
 
-
 import pytest
 
 from src.mcp.mcp_client import LocalMCPClient, MCPClientConfig
@@ -19,7 +18,6 @@ from src.mcp.tool_schema_registry import (
     register_tool_schema,
     validate_tool_call,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixture: isolated registry

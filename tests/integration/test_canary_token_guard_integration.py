@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.model.config import AureliusConfig
 from src.runtime.feature_flags import FEATURE_FLAG_REGISTRY, FeatureFlag
 from src.safety import (
@@ -9,9 +11,6 @@ from src.safety import (
     CanaryDetection,
     CanaryTokenGuard,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import random
 from dataclasses import dataclass
+
 from src._compat import StrEnum
 
 

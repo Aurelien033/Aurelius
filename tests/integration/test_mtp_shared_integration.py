@@ -9,16 +9,11 @@ Verifies:
 
 from __future__ import annotations
 
-
-import torch
-
-
 # ---------------------------------------------------------------------------
 # 1. Registry membership
 # ---------------------------------------------------------------------------
-
-
 import pytest
+import torch
 
 pytestmark = pytest.mark.integration
 

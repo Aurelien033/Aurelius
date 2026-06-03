@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.chat as chat
 from src.chat import (
     CHAT_TEMPLATE_REGISTRY,
@@ -13,9 +15,6 @@ from src.chat import (
     FIMExample,
     FIMFormatter,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

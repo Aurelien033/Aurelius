@@ -7,7 +7,6 @@ import pytest
 from src.training import TRAINING_REGISTRY
 from src.training.slime_framework import SlimeTaskRouter, make_default_router
 
-
 # ---------------------------------------------------------------------------
 # 1. Registry presence
 # ---------------------------------------------------------------------------

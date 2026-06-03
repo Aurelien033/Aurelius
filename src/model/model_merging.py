@@ -16,9 +16,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from src._compat import StrEnum
 
 import torch
+
+from src._compat import StrEnum
 
 
 class MergeError(Exception):

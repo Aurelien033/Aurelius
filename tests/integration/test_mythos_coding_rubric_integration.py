@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.eval as eval_pkg
 from src.eval.mythos_coding_rubric import (
     MYTHOS_GUIDANCE_SYSTEM_PROMPT,
     MythosCodingRubric,
     heuristic_judge,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

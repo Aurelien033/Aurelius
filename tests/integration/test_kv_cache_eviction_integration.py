@@ -7,9 +7,7 @@ most safety-relevant policies: LRU and SINK_PRESERVING.
 
 from __future__ import annotations
 
-
 import pytest
-
 
 pytestmark = pytest.mark.integration
 

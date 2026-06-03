@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from src import eval as ev
-
-
 import pytest
+
+from src import eval as ev
 
 pytestmark = pytest.mark.integration
 

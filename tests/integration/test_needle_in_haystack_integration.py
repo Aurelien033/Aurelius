@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.eval as eval_pkg
 from src.eval import NeedleInHaystackBenchmark
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

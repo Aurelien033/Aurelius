@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.data as data_pkg
 from src.data.tokenizer_contract import (
     TOKENIZER_IDENTITY_REGISTRY,
@@ -9,9 +11,6 @@ from src.data.tokenizer_contract import (
     TokenizerIdentity,
     compute_tokenizer_hash,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

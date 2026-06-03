@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+
 from src._compat import StrEnum
 
 

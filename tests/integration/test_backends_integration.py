@@ -17,7 +17,6 @@ from src.backends.registry import (
     list_engine_adapters,
 )
 
-
 pytestmark = pytest.mark.integration
 
 

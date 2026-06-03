@@ -11,7 +11,6 @@ Verifies end-to-end flow:
 
 from __future__ import annotations
 
-
 import math
 
 import pytest
@@ -24,7 +23,6 @@ from src.training.swe_rl import (
     SWERLTrainer,
     SWETask,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

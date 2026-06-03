@@ -9,7 +9,6 @@ Exercises a realistic batched-inference scenario:
 
 from __future__ import annotations
 
-
 import pytest
 
 from src.inference import DECODER_REGISTRY
@@ -18,7 +17,6 @@ from src.inference.radix_cache import (
     RadixCache,
     RadixCacheConfig,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

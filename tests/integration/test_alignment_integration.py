@@ -7,7 +7,10 @@ model without producing NaN values.
 
 from __future__ import annotations
 
-
+# ---------------------------------------------------------------------------
+# Tiny causal LM
+# ---------------------------------------------------------------------------
+import pytest
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -23,14 +26,6 @@ from src.alignment.spin_trainer import (
     SPINConfig,
     SPINTrainer,
 )
-
-
-# ---------------------------------------------------------------------------
-# Tiny causal LM
-# ---------------------------------------------------------------------------
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

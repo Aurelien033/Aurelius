@@ -5,12 +5,10 @@ GLM-5 §6.2 — verifies LONGCONTEXT_STRATEGY_REGISTRY wiring.
 
 from __future__ import annotations
 
+import pytest
 
 from src.longcontext import LONGCONTEXT_STRATEGY_REGISTRY, HierarchicalContextManager
 from src.longcontext.hierarchical_context_mgr import Turn
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

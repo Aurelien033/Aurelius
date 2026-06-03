@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 import src.inference as inference
@@ -10,9 +11,6 @@ from src.inference import (
     JSONMaskBuilder,
     is_valid_json_prefix,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

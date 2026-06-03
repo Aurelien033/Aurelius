@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.chat.chatml_template import Message
 from src.safety import SAFETY_FILTER_REGISTRY
 from src.safety.prompt_integrity_checker import PromptIntegrityChecker
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

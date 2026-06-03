@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 import src.data as data_pkg
@@ -10,9 +11,6 @@ from src.data.instruction_dataset_packer import (
     InstructionSample,
     PackedBatch,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

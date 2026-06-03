@@ -7,13 +7,11 @@ works, and registry is wired correctly.
 
 from __future__ import annotations
 
-
 import pytest
 import torch
 
 from src.model import MODEL_COMPONENT_REGISTRY
 from src.model.gqa_absorbed import GQAAbsorbedAttention, GQAAbsorbedConfig
-
 
 # ---------------------------------------------------------------------------
 # Shared integration fixture

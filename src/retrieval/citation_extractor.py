@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+
 from src._compat import StrEnum
 
 RETRIEVAL_REGISTRY: dict = {}

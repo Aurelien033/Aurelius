@@ -1,11 +1,9 @@
 """Integration tests for Toggle token-efficient RL registry wiring."""
 
+import pytest
 import torch
 
 from src.alignment import ALIGNMENT_REGISTRY
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

@@ -5,8 +5,8 @@ all four functions in sequence, asserting that counts match, areas sum
 correctly, and no exceptions are raised.
 """
 
+import pytest
 import torch
-
 
 from src.data.programmatic_image_tools import (
     blob_count,
@@ -14,9 +14,6 @@ from src.data.programmatic_image_tools import (
     detect_objects,
     pixel_distance,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

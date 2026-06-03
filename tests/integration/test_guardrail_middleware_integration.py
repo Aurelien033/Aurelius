@@ -7,7 +7,6 @@ enforces pre + post guardrails against real safety detectors.
 
 from __future__ import annotations
 
-
 import pytest
 
 import src.serving as serving
@@ -16,7 +15,6 @@ from src.serving import (
     GuardrailMiddleware,
     MiddlewareDecision,
 )
-
 
 pytestmark = pytest.mark.integration
 

@@ -1,6 +1,6 @@
 # DEPRECATED: Use src directly.
-import warnings
 import os
+import warnings
 
 warnings.warn(
     "Importing from 'aurelius' is deprecated. Use 'src' instead.",

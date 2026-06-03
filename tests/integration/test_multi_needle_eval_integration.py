@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.eval as eval_pkg
 from src.eval import (
     BENCHMARK_REGISTRY,
@@ -10,9 +12,6 @@ from src.eval import (
     multi_needle_build_sample,
     multi_needle_score,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

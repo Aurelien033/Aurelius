@@ -1,0 +1,31 @@
+{
+  "ablation_table": [
+    {
+      "condition": "no_memory_baseline",
+      "task_success_rate": 0.65,
+      "ci_low": 0.56,
+      "ci_high": 0.74,
+      "step_efficiency": 7.79,
+      "notes": "simulated baseline (memory influence stripped)"
+    },
+    {
+      "condition": "full_amc_pre_dreambank",
+      "task_success_rate": 0.85,
+      "ci_low": 0.77,
+      "ci_high": 0.91,
+      "step_efficiency": 7.79,
+      "notes": "train=80 holdout=20"
+    },
+    {
+      "condition": "amc_post_dreambank",
+      "task_success_rate": 0.8042,
+      "ci_low": -0.3416,
+      "ci_high": 0.3510500000000001,
+      "step_efficiency": 8.1,
+      "notes": "bank_fill=14"
+    }
+  ],
+  "failure_modes": {
+    "failure_mode:successful_retrieval": 100
+  }
+}

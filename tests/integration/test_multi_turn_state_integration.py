@@ -9,13 +9,11 @@ Verifies:
 
 from __future__ import annotations
 
+import pytest
 
 import src.chat as chat_pkg
 from src.chat.multi_turn_state import ConversationState, ConversationTurn
 from src.longcontext.context_compaction import ContextCompactor
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

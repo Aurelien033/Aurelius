@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import re
 
-import src.inference as inference_pkg
-
-
 import pytest
+
+import src.inference as inference_pkg
 
 pytestmark = pytest.mark.integration
 

@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.eval as eval_pkg
 from src.eval.alpacaeval_scorer import (
     AlpacaComparison,
     AlpacaEvalScorer,
     AlpacaProblem,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

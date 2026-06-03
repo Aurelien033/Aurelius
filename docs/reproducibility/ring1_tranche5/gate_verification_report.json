@@ -1,0 +1,1236 @@
+{
+  "invocation": {
+    "command": "scripts/ring1_tranche5_workflow.py --config configs/ring1_tranche5.yaml",
+    "config_hash": "f496795c689ea6d9085b0d48a6f72609629bb70612df640d860a908344040ff4",
+    "git_sha": "46ee2f131be7e1a77942c4e5116d853f78f81d0b",
+    "checkpoint_sha256": "3bcfccc73b005f2614958d26135884a1fad73c9cd115b66370b1399e0cbcc216",
+    "amc_traces": "data/ring1_traces/tranche4/amc/traces.jsonl",
+    "baseline_traces": "data/ring1_traces/tranche4/no_memory/traces.jsonl"
+  },
+  "preliminary_all_passed": true,
+  "r1_ga": {
+    "gate": "R1-GA",
+    "passed": true,
+    "verified_at": "2026-05-31T20:14:04.059972+00:00",
+    "steps": [
+      {
+        "step": "trace_corpus",
+        "passed": true,
+        "evidence": "AMC=400 baseline=400 (min=200)",
+        "details": {
+          "amc_count": 400,
+          "baseline_count": 400
+        }
+      },
+      {
+        "step": "memory_write_evidence",
+        "passed": true,
+        "evidence": "20/20 sampled traces show promote+reuse",
+        "details": {
+          "sample_size": 20,
+          "passed_traces": 20,
+          "pass_rate": 1.0,
+          "passed": true,
+          "samples": [
+            {
+              "trace_id": "3bee722c-d8ea-4151-bc6b-f69a8e70b028",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 16,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 12,
+                  "surprise_score": 0.717,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 16,
+                  "surprise_score": 0.895,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 24,
+                  "surprise_score": 0.91,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 16,
+                  "surprise_score": 0.893,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 12,
+                  "surprise_score": 0.844,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 12,
+                  "surprise_score": 0.931,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 8,
+                  "layer": 16,
+                  "surprise_score": 0.835,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 9,
+                  "layer": 24,
+                  "surprise_score": 0.861,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 10,
+                  "layer": 20,
+                  "surprise_score": 0.779,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "746ddb5f-290a-4436-b811-bed2aafa9b82",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 24,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 20,
+                  "surprise_score": 0.792,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 24,
+                  "surprise_score": 0.712,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 24,
+                  "surprise_score": 0.688,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 8,
+                  "surprise_score": 0.729,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 16,
+                  "surprise_score": 0.936,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 24,
+                  "surprise_score": 0.795,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 8,
+                  "layer": 8,
+                  "surprise_score": 0.852,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 9,
+                  "layer": 20,
+                  "surprise_score": 0.882,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 10,
+                  "layer": 24,
+                  "surprise_score": 0.728,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 11,
+                  "layer": 24,
+                  "surprise_score": 0.703,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 12,
+                  "layer": 20,
+                  "surprise_score": 0.799,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "36845cd7-e1a7-4987-9088-2e1446830fc5",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 24,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 12,
+                  "surprise_score": 0.652,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 16,
+                  "surprise_score": 0.724,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 8,
+                  "surprise_score": 0.959,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 24,
+                  "surprise_score": 0.73,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 12,
+                  "surprise_score": 0.697,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 12,
+                  "surprise_score": 0.94,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 8,
+                  "layer": 24,
+                  "surprise_score": 0.82,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 9,
+                  "layer": 20,
+                  "surprise_score": 0.804,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 10,
+                  "layer": 8,
+                  "surprise_score": 0.849,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 11,
+                  "layer": 12,
+                  "surprise_score": 0.721,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 12,
+                  "layer": 20,
+                  "surprise_score": 0.874,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "6f2217a7-b5f5-4808-bed1-dbd409d4bffb",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 16,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 20,
+                  "surprise_score": 0.945,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 16,
+                  "surprise_score": 0.737,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 24,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 20,
+                  "surprise_score": 0.793,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 20,
+                  "surprise_score": 0.708,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 24,
+                  "surprise_score": 0.975,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 8,
+                  "layer": 16,
+                  "surprise_score": 0.815,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 9,
+                  "layer": 8,
+                  "surprise_score": 0.703,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 10,
+                  "layer": 12,
+                  "surprise_score": 0.727,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "eea38bd3-43eb-4365-b93d-72bb04669309",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 12,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 20,
+                  "surprise_score": 0.944,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 8,
+                  "surprise_score": 0.888,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 20,
+                  "surprise_score": 0.872,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 16,
+                  "surprise_score": 0.77,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 24,
+                  "surprise_score": 0.838,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "b7f014cc-da98-40f7-9a40-9389791a2c8f",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 8,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 24,
+                  "surprise_score": 0.875,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 20,
+                  "surprise_score": 0.767,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 24,
+                  "surprise_score": 0.687,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "c5064b40-649f-4960-9d7a-4222b4c4838a",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 8,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 12,
+                  "surprise_score": 0.745,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 8,
+                  "surprise_score": 0.858,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 16,
+                  "surprise_score": 0.754,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 16,
+                  "surprise_score": 0.74,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 24,
+                  "surprise_score": 0.776,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 16,
+                  "surprise_score": 0.838,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 8,
+                  "layer": 12,
+                  "surprise_score": 0.699,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "e1341151-f23e-4227-a3ad-9455f1cc2fa2",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 16,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 8,
+                  "surprise_score": 0.854,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 20,
+                  "surprise_score": 0.937,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 20,
+                  "surprise_score": 0.866,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "d2cdd1a0-931c-4720-883b-7a06abbf0c86",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 24,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 16,
+                  "surprise_score": 0.735,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 16,
+                  "surprise_score": 0.785,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 16,
+                  "surprise_score": 0.875,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 20,
+                  "surprise_score": 0.751,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 12,
+                  "surprise_score": 0.821,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 24,
+                  "surprise_score": 0.703,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "c02cd8e8-afb1-4119-88e3-7095ffe9415f",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 12,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 20,
+                  "surprise_score": 0.873,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 20,
+                  "surprise_score": 0.754,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 20,
+                  "surprise_score": 0.884,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 8,
+                  "surprise_score": 0.764,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 12,
+                  "surprise_score": 0.842,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "a2b0cc55-2fb7-42df-b855-2a04732a6573",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 8,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 20,
+                  "surprise_score": 0.77,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 12,
+                  "surprise_score": 0.949,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 24,
+                  "surprise_score": 0.873,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 20,
+                  "surprise_score": 0.85,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 20,
+                  "surprise_score": 0.798,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 12,
+                  "surprise_score": 0.776,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 8,
+                  "layer": 8,
+                  "surprise_score": 0.794,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 9,
+                  "layer": 20,
+                  "surprise_score": 0.75,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 10,
+                  "layer": 8,
+                  "surprise_score": 0.934,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "d5fecd23-5b3b-4155-a393-e6fb3539441f",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 24,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 24,
+                  "surprise_score": 0.736,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 8,
+                  "surprise_score": 0.912,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 24,
+                  "surprise_score": 0.716,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 8,
+                  "surprise_score": 0.91,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 20,
+                  "surprise_score": 0.743,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 20,
+                  "surprise_score": 0.749,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "2a0fe350-c684-4d74-a818-75abcb386217",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 24,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 8,
+                  "surprise_score": 0.797,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 16,
+                  "surprise_score": 0.74,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 12,
+                  "surprise_score": 0.847,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 16,
+                  "surprise_score": 0.938,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 20,
+                  "surprise_score": 0.912,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 8,
+                  "surprise_score": 0.937,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "ceafde16-24db-4cb6-8dbe-147ca065db9d",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 20,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 8,
+                  "surprise_score": 0.678,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 12,
+                  "surprise_score": 0.748,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 20,
+                  "surprise_score": 0.859,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "5917ede6-bc0b-4cf3-bd65-7907f3d32e6e",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 20,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 20,
+                  "surprise_score": 0.838,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 20,
+                  "surprise_score": 0.928,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 20,
+                  "surprise_score": 0.83,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 12,
+                  "surprise_score": 0.926,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 8,
+                  "surprise_score": 0.78,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 12,
+                  "surprise_score": 0.872,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 8,
+                  "layer": 24,
+                  "surprise_score": 0.804,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "b04ccb34-6756-4515-9949-69434e324a9e",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 20,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 12,
+                  "surprise_score": 0.883,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 12,
+                  "surprise_score": 0.923,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 16,
+                  "surprise_score": 0.736,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 16,
+                  "surprise_score": 0.942,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 12,
+                  "surprise_score": 0.74,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 20,
+                  "surprise_score": 0.904,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "a2db8cda-7681-4047-b3ea-6e5915c14aac",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 16,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 24,
+                  "surprise_score": 0.706,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 12,
+                  "surprise_score": 0.857,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 8,
+                  "surprise_score": 0.708,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 20,
+                  "surprise_score": 0.728,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 20,
+                  "surprise_score": 0.718,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 16,
+                  "surprise_score": 0.829,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 8,
+                  "layer": 16,
+                  "surprise_score": 0.717,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 9,
+                  "layer": 24,
+                  "surprise_score": 0.913,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 10,
+                  "layer": 16,
+                  "surprise_score": 0.681,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "1c802f66-5d93-44e1-87c6-9e3b51366880",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 8,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 12,
+                  "surprise_score": 0.745,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 8,
+                  "surprise_score": 0.858,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 16,
+                  "surprise_score": 0.754,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 16,
+                  "surprise_score": 0.74,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 24,
+                  "surprise_score": 0.776,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 16,
+                  "surprise_score": 0.838,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 8,
+                  "layer": 12,
+                  "surprise_score": 0.699,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "90aade32-c65d-4fb0-a96c-fb2619c6195f",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 20,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 16,
+                  "surprise_score": 0.925,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 8,
+                  "surprise_score": 0.839,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 16,
+                  "surprise_score": 0.712,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            },
+            {
+              "trace_id": "d2dd9d2b-8d7c-4d90-adcc-edbb0656f76a",
+              "promoted_writes": [
+                {
+                  "step_id": 1,
+                  "layer": 8,
+                  "surprise_score": 0.88,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 2,
+                  "layer": 20,
+                  "surprise_score": 0.846,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 3,
+                  "layer": 12,
+                  "surprise_score": 0.879,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 4,
+                  "layer": 8,
+                  "surprise_score": 0.705,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 5,
+                  "layer": 24,
+                  "surprise_score": 0.864,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 6,
+                  "layer": 24,
+                  "surprise_score": 0.853,
+                  "target_tier": "episodic"
+                },
+                {
+                  "step_id": 7,
+                  "layer": 24,
+                  "surprise_score": 0.688,
+                  "target_tier": "episodic"
+                }
+              ],
+              "later_reused": true,
+              "passed": true
+            }
+          ]
+        }
+      },
+      {
+        "step": "task_success_lift",
+        "passed": true,
+        "evidence": "holdout delta=80.00pp (min=5.0pp); amc=0.800 base=0.000",
+        "details": {
+          "amc_success_rate": 0.8,
+          "baseline_success_rate": 0.0,
+          "delta_pp": 80.0
+        }
+      },
+      {
+        "step": "ablation_symmetry",
+        "passed": true,
+        "evidence": "failure_modes tagged in 400 traces",
+        "details": {
+          "failure_modes": {
+            "failure_mode:successful_retrieval": 400
+          }
+        }
+      },
+      {
+        "step": "invocation_record",
+        "passed": true,
+        "evidence": "config hash + git sha + checkpoint sha recorded",
+        "details": {
+          "command": "scripts/ring1_tranche5_workflow.py --config configs/ring1_tranche5.yaml",
+          "config_hash": "f496795c689ea6d9085b0d48a6f72609629bb70612df640d860a908344040ff4",
+          "git_sha": "46ee2f131be7e1a77942c4e5116d853f78f81d0b",
+          "checkpoint_sha256": "3bcfccc73b005f2614958d26135884a1fad73c9cd115b66370b1399e0cbcc216",
+          "seeds": {
+            "base_seed": 7070,
+            "baseline_seed_offset": 100000
+          }
+        }
+      }
+    ]
+  },
+  "r1_gb": {
+    "gate": "R1-GB",
+    "passed": true,
+    "verified_at": "2026-05-31T20:14:04.088568+00:00",
+    "steps": [
+      {
+        "step": "pre_dreambank_baseline",
+        "passed": true,
+        "evidence": "pre success rate=0.800",
+        "details": {
+          "pre_success_rate": 0.8
+        }
+      },
+      {
+        "step": "dreambank_execution",
+        "passed": true,
+        "evidence": "preferences recorded=14",
+        "details": {
+          "preference_count": 14
+        }
+      },
+      {
+        "step": "zero_gradient_proof",
+        "passed": true,
+        "evidence": "pre=5fcb5e95b24e post=5fcb5e95b24e unchanged=True",
+        "details": {
+          "pre_cycle_param_hash": "5fcb5e95b24e87a65cf06c78bb59a2561ccb81cb0b78e9832b3f616f8475d483",
+          "post_cycle_param_hash": "5fcb5e95b24e87a65cf06c78bb59a2561ccb81cb0b78e9832b3f616f8475d483"
+        }
+      },
+      {
+        "step": "post_dreambank_evaluation",
+        "passed": true,
+        "evidence": "post success rate=0.831",
+        "details": {
+          "post_success_rate": 0.8312139945162926
+        }
+      },
+      {
+        "step": "lift_measurement",
+        "passed": true,
+        "evidence": "lift=3.12pp (min=1.0pp); shuffled_control=0.125",
+        "details": {
+          "absolute_lift_pp": 3.1213994516292587,
+          "shuffled_control_rate": 0.125
+        }
+      },
+      {
+        "step": "provenance",
+        "passed": true,
+        "evidence": "DreamBank preferences carry metadata_hash/provenance",
+        "details": {
+          "sample": [
+            {
+              "slot": 0,
+              "strength": 0.6176418662071228,
+              "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_1:observation",
+              "metadata_hash": "478f40bd67a6af8a6111ea35c9d6a2f5"
+            },
+            {
+              "slot": 1,
+              "strength": 0.32435208559036255,
+              "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_4:reflection",
+              "metadata_hash": "fc63e3ce607b2c63d90a62266cc38417"
+            },
+            {
+              "slot": 2,
+              "strength": 0.40191054344177246,
+              "provenance": "dream_807f1a43-6e44-44be-a84c-bab354b30f31:step_2:observation",
+              "metadata_hash": "341a024ae6af4e6cc1f75a6a3fd3b3a1"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "r1_gc": {
+    "gate": "R1-GC",
+    "passed": true,
+    "verified_at": "2026-05-31T20:14:04.088609+00:00",
+    "steps": [
+      {
+        "step": "pack_existence",
+        "passed": true,
+        "evidence": "repro pack layout valid",
+        "details": {
+          "errors": []
+        }
+      },
+      {
+        "step": "one_command_replay",
+        "passed": true,
+        "evidence": "replay within tolerance=0.05",
+        "details": {
+          "headline_amc_rate": 0.8,
+          "replay_amc_rate": 0.8,
+          "headline_lift_pp": 3.1213994516292587,
+          "replay_lift_pp": 3.1213994516292587
+        }
+      },
+      {
+        "step": "zero_gradient_in_pack",
+        "passed": true,
+        "evidence": "pre/post hashes present and match",
+        "details": {}
+      },
+      {
+        "step": "trace_coverage",
+        "passed": true,
+        "evidence": "test_split traces present in pack",
+        "details": {}
+      }
+    ]
+  },
+  "maintainer_signoff_required": true
+}

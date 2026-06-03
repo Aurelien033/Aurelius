@@ -5,10 +5,11 @@ Proves:
 1. Rate limiter is fail-closed: denies requests when uninitialized (C-04)
 2. /metrics endpoint requires authentication (C-03, M-06)
 """
-import pytest
-from unittest.mock import patch, MagicMock
-from fastapi.testclient import TestClient
 import os
+from unittest.mock import MagicMock, patch
+
+import pytest
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -18,6 +19,7 @@ def client():
     with patch.dict(os.environ, {'AURELIUS_ALLOWED_HOSTS': 'localhost,127.0.0.1,testserver'}):
         # Import fresh to avoid state pollution
         import importlib
+
         import gateway.aurelius_api as api_module
         importlib.reload(api_module)
         # Initialize rate limiter to avoid 503 on all requests

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from src.safety.quantclaw_gate import (
     GatingContext,
     QuantClawGate,

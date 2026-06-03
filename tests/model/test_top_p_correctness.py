@@ -8,8 +8,8 @@ Reference: HuggingFace TopPLogitsWarper keeps the first token to exceed top_p.
 """
 from __future__ import annotations
 
-import torch
 import pytest
+import torch
 
 
 class TestApplyTopPFilter:

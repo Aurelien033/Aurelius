@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from src.longcontext import (
@@ -10,9 +11,6 @@ from src.longcontext import (
     KIVIQuantizer,
     KVInt8Compressor,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

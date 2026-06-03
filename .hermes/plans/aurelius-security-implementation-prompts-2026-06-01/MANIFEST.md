@@ -1,0 +1,27 @@
+# Prompt Pack Manifest
+
+- `00-preflight-operator.md`
+- `01-p0-legacy-license-implementer.md`
+- `01-p0-legacy-license-spec-review.md`
+- `01-p0-legacy-license-security-review.md`
+- `02-p0-bff-identity-ws-implementer.md`
+- `02-p0-bff-identity-ws-spec-review.md`
+- `02-p0-bff-identity-ws-security-review.md`
+- `03-p1-boundaries-implementer.md`
+- `03-p1-boundaries-spec-review.md`
+- `03-p1-boundaries-security-review.md`
+- `04-p1-session-auth-implementer.md`
+- `04-p1-session-auth-spec-review.md`
+- `04-p1-session-auth-security-review.md`
+- `05-p1-sandbox-auth-deps-implementer.md`
+- `05-p1-sandbox-auth-deps-spec-review.md`
+- `05-p1-sandbox-auth-deps-security-review.md`
+- `06-p2-runtime-proof-implementer.md`
+- `06-p2-runtime-proof-spec-review.md`
+- `06-p2-runtime-proof-security-review.md`
+- `07-p2-ci-deploy-hardening-implementer.md`
+- `07-p2-ci-deploy-hardening-spec-review.md`
+- `07-p2-ci-deploy-hardening-security-review.md`
+- `99-final-integration-review.md`
+- `99-final-release-gate.md`
+- `README.md`

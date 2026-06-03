@@ -8,13 +8,11 @@ Verifies:
 
 from __future__ import annotations
 
-
 import pytest
 import torch
 
 from src.alignment import ALIGNMENT_REGISTRY
 from src.alignment.grm import DIMENSIONS, GenerativeRewardModel
-
 
 # ---------------------------------------------------------------------------
 # 1. "grm" in ALIGNMENT_REGISTRY

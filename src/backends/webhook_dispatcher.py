@@ -6,9 +6,10 @@ import hmac
 import json
 import time
 from dataclasses import dataclass
-from src._compat import StrEnum
 from urllib.error import URLError
 from urllib.request import Request, urlopen
+
+from src._compat import StrEnum
 
 
 class CircuitState(StrEnum):

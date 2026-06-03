@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src import longcontext as lc
 from src.longcontext.prefix_cache import PrefixCache, PrefixEntry
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import agent as agent_surface
 from agent import (
     AGENT_LOOP_REGISTRY,
@@ -10,9 +12,6 @@ from agent import (
     ToolRegistryDispatcher,
     ToolSpec,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

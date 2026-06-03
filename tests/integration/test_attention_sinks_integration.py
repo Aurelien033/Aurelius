@@ -9,7 +9,6 @@ Verify:
 
 from __future__ import annotations
 
-
 import sys
 
 import pytest
@@ -17,7 +16,6 @@ import torch
 
 import src.longcontext as lc
 from src.longcontext.attention_sinks import AttentionSinkCache
-
 
 pytestmark = pytest.mark.integration
 

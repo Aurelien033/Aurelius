@@ -6,6 +6,7 @@ import json
 import random
 import uuid
 from dataclasses import dataclass, field
+
 from src._compat import StrEnum
 
 

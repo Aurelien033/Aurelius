@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.eval import (
     BEHAVIORAL_AUDIT_TAXONOMY,
     BENCHMARK_REGISTRY,
@@ -14,9 +16,6 @@ from src.eval import (
     eval_behavioral_audit_taxonomy_enabled,
 )
 from src.model.config import AureliusConfig
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

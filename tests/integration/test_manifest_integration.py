@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.model as model_pkg
 import src.model.manifest as manifest_mod
 from src.model import AureliusConfig
@@ -10,9 +12,6 @@ from src.model.manifest import (
     MODEL_MANIFEST_REGISTRY,
     FamilyManifest,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

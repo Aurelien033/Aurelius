@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.longcontext import LONGCONTEXT_STRATEGY_REGISTRY
 from src.longcontext.compaction_trigger import (
     DEFAULT_TIERS,
@@ -9,9 +11,6 @@ from src.longcontext.compaction_trigger import (
 )
 from src.model.config import AureliusConfig
 from src.runtime.feature_flags import FEATURE_FLAG_REGISTRY, FeatureFlag
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

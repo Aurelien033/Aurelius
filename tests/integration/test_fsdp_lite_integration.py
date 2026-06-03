@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 import torch.nn as nn
 
 import src.training as training_pkg
 from src.training import FSDPLite, ShardSpec
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

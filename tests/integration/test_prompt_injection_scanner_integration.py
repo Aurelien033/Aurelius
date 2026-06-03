@@ -7,6 +7,7 @@ joint verdicts on realistic adversarial and benign content.
 
 from __future__ import annotations
 
+import pytest
 
 from src.safety import (
     HARM_CLASSIFIER_REGISTRY,
@@ -16,9 +17,6 @@ from src.safety import (
     JailbreakScore,
     PromptInjectionScanner,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

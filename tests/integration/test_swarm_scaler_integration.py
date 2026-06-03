@@ -9,14 +9,12 @@ Validates:
 
 from __future__ import annotations
 
-
 import random
 
 import pytest
 
 from agent import AGENT_LOOP_REGISTRY
 from agent.swarm_scaler import SwarmScaler, SwarmScalerConfig, WorkerStats
-
 
 pytestmark = pytest.mark.integration
 

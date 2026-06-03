@@ -225,3 +225,13 @@ class FunctionCallValidator:
             "name": name,
             "content": content,
         }
+
+
+# Additive: register into the shared API_SHAPE_REGISTRY so function-calling
+# shapes are discoverable alongside existing validators/handlers.
+try:
+    from .openai_api_validator import API_SHAPE_REGISTRY  # type: ignore[import]
+
+    API_SHAPE_REGISTRY["function_calling.validator"] = FunctionCallValidator
+except Exception:  # noqa: S110
+    pass

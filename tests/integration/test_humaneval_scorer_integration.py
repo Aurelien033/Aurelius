@@ -6,7 +6,6 @@ import pytest
 
 import src.eval as ev
 
-
 pytestmark = pytest.mark.integration
 
 

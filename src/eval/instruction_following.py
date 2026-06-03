@@ -1,6 +1,7 @@
 """Instruction following evaluation: measure format compliance, constraint satisfaction, and instruction adherence."""  # noqa: E501
 
 from __future__ import annotations
+
 import json
 import random
 import re

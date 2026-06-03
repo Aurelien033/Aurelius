@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 import agent as agent_pkg
 from agent.web_browse_tool import DEFAULT_TOOL_DESCRIPTOR, WebBrowseTool
 from src.model.config import AureliusConfig
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

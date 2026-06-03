@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from src._compat import StrEnum
 from re import Pattern
+
+from src._compat import StrEnum
 
 
 class TaskType(StrEnum):

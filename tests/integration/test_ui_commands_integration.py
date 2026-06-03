@@ -5,7 +5,6 @@ Verifies cross-module contracts from the integration_requirements spec.
 
 from __future__ import annotations
 
-
 import pytest
 from rich.console import Console
 
@@ -17,7 +16,6 @@ from src.ui.status_hierarchy import (
     StatusState,
     StatusTree,
 )
-
 
 # ---------------------------------------------------------------------------
 # src.ui namespace exposes COMMAND_PALETTE_REGISTRY

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from src._compat import StrEnum
 from typing import Protocol, runtime_checkable
+
+from src._compat import StrEnum
 
 
 class RewardShapeType(StrEnum):

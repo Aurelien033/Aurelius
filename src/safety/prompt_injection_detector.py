@@ -10,6 +10,7 @@ import base64
 import binascii
 import re
 from dataclasses import dataclass
+
 from src._compat import StrEnum
 
 # ---------------------------------------------------------------------------

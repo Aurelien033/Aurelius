@@ -154,10 +154,11 @@ def test_fetch_rejects_file_scheme(tool):
 def test_fetch_success_mocked(tool):
     mock_resp = MagicMock()
     mock_resp.read.return_value = b"<html>hello</html>"
+    mock_resp.status = 200
     mock_resp.__enter__ = lambda s: s
     mock_resp.__exit__ = MagicMock(return_value=False)
 
-    with patch("urllib.request.urlopen", return_value=mock_resp):
+    with patch("tools.web_tool._opener.open", return_value=mock_resp):
         result = tool.fetch("https://www.example.com/")
 
     assert result.success
@@ -170,7 +171,80 @@ def test_fetch_success_mocked(tool):
 def test_fetch_network_error_mocked(tool):
     import urllib.error
 
-    with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")):
+    with patch("tools.web_tool._opener.open", side_effect=urllib.error.URLError("timeout")):
         result = tool.fetch("https://www.example.com/")
     assert not result.success
     assert "timeout" in result.error
+
+
+# ── H-24 (CSV): redirect re-validation — SSRF-via-open-redirect ──────────────
+
+
+def test_fetch_rejects_redirect_to_private_ip(tool):
+    """A public URL that redirects to 169.254.169.254 must be rejected at hop 2."""
+    import urllib.error
+
+    # First hop: public URL → returns 302 with Location targeting metadata service
+    redirect_err = urllib.error.HTTPError(
+        "https://public.example.com/x",
+        302,
+        "Found",
+        {"Location": "http://169.254.169.254/latest/meta-data/"},  # noqa: S106
+        None,
+    )
+
+    with patch("tools.web_tool._opener.open", side_effect=redirect_err):
+        result = tool.fetch("https://public.example.com/x")
+
+    assert not result.success
+    assert "denied target" in result.error or "169.254" in result.error
+
+
+def test_fetch_follows_safe_redirect(tool):
+    """A redirect to another public URL should be followed."""
+    import urllib.error
+
+    final_resp = MagicMock()
+    final_resp.read.return_value = b"final content"
+    final_resp.status = 200
+    final_resp.__enter__ = lambda s: s
+    final_resp.__exit__ = MagicMock(return_value=False)
+
+    redirect_err = urllib.error.HTTPError(
+        "https://public.example.com/a",
+        301,
+        "Moved",
+        {"Location": "https://public-other.example.com/b"},
+        None,
+    )
+
+    def side(req, timeout=None):
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "public-other" in url:
+            return final_resp
+        raise redirect_err
+
+    with patch("tools.web_tool._opener.open", side_effect=side):
+        result = tool.fetch("https://public.example.com/a")
+
+    assert result.success
+    assert "final content" in result.output
+
+
+def test_fetch_rejects_redirect_loop(tool):
+    """Infinite redirect loops must terminate after _MAX_REDIRECTS."""
+    import urllib.error
+
+    redirect_err = urllib.error.HTTPError(
+        "https://example.com/a",
+        302,
+        "Found",
+        {"Location": "https://example.com/b"},
+        None,
+    )
+
+    with patch("tools.web_tool._opener.open", side_effect=redirect_err):
+        result = tool.fetch("https://example.com/a")
+
+    assert not result.success
+    assert "exceeded" in result.error or "redirect" in result.error

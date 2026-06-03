@@ -10,10 +10,8 @@ Verifies:
 import pytest
 import torch
 
-
 from src.alignment import ALIGNMENT_REGISTRY
 from src.alignment.length_reward import LengthReward, LengthRewardConfig
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -10,20 +10,15 @@ Verifies end-to-end flow:
 
 from __future__ import annotations
 
-
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+import pytest
 import torch
 import torch.nn as nn
 
 from src.training import TRAINING_REGISTRY
 from src.training.pcgrad_v2 import PCGradV2, PCGradV2Config
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

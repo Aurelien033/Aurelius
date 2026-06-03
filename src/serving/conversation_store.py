@@ -1,6 +1,7 @@
 """Persist and load conversation history to/from JSON files."""
 
 from __future__ import annotations
+
 import hashlib
 import json
 import os

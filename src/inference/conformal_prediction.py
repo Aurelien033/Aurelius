@@ -1,6 +1,7 @@
 """Conformal prediction for LLMs: prediction sets with coverage guarantees and RAPS."""
 
 from __future__ import annotations
+
 import math
 from dataclasses import dataclass
 

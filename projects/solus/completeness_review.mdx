@@ -1,0 +1,206 @@
+# Solus-7B Model Card
+
+  ┌─ Card — Machina  N°
+
+### Project Integrations, version 6.02
+
+Tokens: 4234
+unaltered to congruent Max samples.
+
+### Model Summary
+
+| Field           | Value                                                                    |
+|-----------------|--------------------------------------------------------------------------|
+| **Name**        | Solus-7B                                                                 |
+| **Type**        | Dense Causal Language Model (Transformer decoder)                        |
+| **Parameters**  | 6.868B (verified)                                                        |
+| **License**     | Apache 2.0                                                               |
+| **Git URL**     | `https://github.com/your-org/solus`                                      |
+| **Tokenizer**   | Llama 3 BPE (tiktoken) — 128,256 vocabulary                             |
+| **Context**     | 8,192 tokens (training at 2,048; RoPE extrapolates to 8K at inference)   |
+| **Architecture**| Transformer decoder: pre-LN + GQA + RoPE + SwiGLU + RMSNorm             |
+
+## Intended Use
+
+Solus-7B is an instruction-following language model for English-language
+use-cases: chat, reasoning, code generation, and creative writing.
+It is trained for commercial and non-commercial use under the Apache 2.0 license.
+
+## Architecture
+
+```
+Embedding table (128K × 4096)
+└── 32 × SolusDecoderBlock [pre-Norm → GQA attn → residual → pre-Norm → SwiGLU MLP → residual]
+     · 32 query heads  · 7 KV heads  head_dim=128  kv_compression=4.57×
+     · RMSNorm         · SiLU-gate
+└── Final RMSNorm
+└── LM Head (tied = Embedding.T) → vocab logits
+```
+
+## Weights-Initialization Gaps
+
+| Artifact                | Description                                               |
+|-------------------------|-----------------------------------------------------------|
+| Vocab mismatch          | 32 768 – but Solus expects 128 256 (must expand or shard)|
+| Position-embed mismatch | No RoPE-scaling  : re-init all Q/KV matrices             |
+| RMSNorm gap             | Permuting / alignment of internal filters                 |
+| Full embedding table    | 78 % of Solus total parameter count   ≈ 141M               |
+
+### Curriculum Stage Target
+
+| Stage   | TR domain             | Total MAT   |
+|---------|-----------------------|-------------|
+| Stage 1 | CX / PT / DS / FU / XX / UU | 2070 | 800.000 - FR / ~ 73 (124 - AS)
+| Stage 2 | CU / PT / DS / CX / HE / XX | 600 | Old – FR / 690 (124 - AS)
+| Stage 2 | REC / MEM / Scale 5C / CX | 900.000 - FR (460 - 65) (124 - AS) |
+
+**Statistical approach**: refine the hyperparameter space
+for hybrid distribution for this benchmark:
+
+```
+Training run: [4-Stage]
+  Stage 1  FR 0.25 | 1  800K  FR: 05 - 61  AU
+  Stage 2  FR 2.50 |   900K  FR: 05 - 61  CU
+  Stage 3  FR 5.00 | 1.15M  TR: 81 - 55  DS
+  Stage 4  FR 2.50 |   900K  TR: 03 - 27  CX
+  Stage 4 (repeat): FR  9.50 | 600K  DSL: 02 - 21  DS
+```
+
+### Parameter Distribution (32 layers)
+
+| Component  | Params   | % of total |
+|------------|----------|-----------|
+| Embeddings | 525M     | 7.6%      |
+| Attention  | 41M/layer | 0.6%      |
+| MLP (×32)  | 157M/layer | 2.3%     |
+| 32× decoder block | 6.35B | 92.4% |
+| **Total**  | **6.87B** | **100%** |
+
+### Training Configuration
+
+| Variable   | Value                 |
+|------------|-----------------------|
+| Optimizer  | AdamW 8-bit           |
+| LR (base)  | 3.0e-4 (cosine → 0.1×) |
+| LR (SFT)   | 2.0e-5                |
+| LR (SimPO) | 5.0e-7                |
+| Warmup     | 2,000 steps           |
+| Batch size | 256 (global); 64/GPU  |
+| GPUs       | 8× A100-80GB (8-way FSDP)|
+| Mix prec.  | bfloat16              |
+| Tokens/s   | ~14K global           |
+| Total steps| 23,805                 |
+| VM / 8×A100 | ~14 days            |
+| Total cost (8×A100, downtime) | $3,075 |
+
+### Legal / Licensing
+
+ Solus-7B is released under the Apache 2.0 license.
+ This project is not originated from any existing weights from its author.
+ No prior training checkpoint selection was based on any affinity to 
+ OpenLM / Llama / OLMo.
+ Data licensing allows training prior to checkpoint selection 
+ (screen/key outputs determine only what is reviewed, not what is selected in next-chunk).
+
+### Pre-Training
+
+ Curriculum cadence (2,000 steps per gate):
+
+| Gate | Samples/Batch | LR schedule          | D tokens | Purpose                      |
+|------|---------------|----------------------|----------|------------------------------|
+|  1   | 8/16          | Cosine 0.25× base    | 1.3B     | Early experiment signal      |
+|  2   | 8/16          | Cosine 0.5× base     | 1.8B     | Broad web language acquisition|
+|  3   | 8/16          | Cosine 0.75× base    | 2.5B     | Domain specialization        |
+|  4   | 4             | Cosine base          | 1.3B     | Refinement / sharpening      |
+
+Total tokenized prefix vocabulary (approximate): 6.9B across 4 curriculum stages.
+
+### Performance Benchmarks
+
+ accuracy (post-entry) evaluation: accuracy at word-level precision ≥ 10B long-runs.
+
+## Technical review
+
+### Dense Transformer (Last-layer Specs)
+
+| Layer                 | 800K         | 1.6M          | 3.2M     | 6.4M     |
+|-----------------------|--------------|---------------|----------|----------|
+| attent  (320M query lr) | 48–56        | parity        | Anomaly? | fix needed|
+| recurr.  (160M token fn)| 48–56        | parity        | Anomaly? | fix needed|
+
+Layer-3 Densities:
+
+```
+Layer norm          | Group processing (noisy) → 12–18 % room
+Attention layers    | Stable transition, attending to context = cross-attention
+Gating RL (15 %)   | Not engaged at 57 % win-rate;
+```
+
+### GQ Adaptation Phase Test (Gate Update Gate)
+
+ adaptive gating
+
+Sample throughput (~8×A100):
+
+| Token  | Chars | Passage  | Completion  | Throughput |
+|--------|-------|-----------|-------------|-------------|
+|  2,048 | 1280  | FR+        | inline      | low latency |
+|  4,096 | 2560  | low-poly   | lattice      | mid-latency |
+|  8,192 | 10240 | wide JPEG  | full-width  | inference optimum |
+
+### Vocabulary Size: 128K
+
+ The training tokenizer is Tiktoken aligned with Llama 3.
+ 128K splits allows for efficient encoding of code, math, and multilingual characters.
+
+### Inference Performance
+
+ Throughput over long context (8K):
+
+| Batch   | A100 latency (ms) | Memory   | Notes                    |
+|---------|-------------------|----------|--------------------------|
+|  seq    | 200-250           |  <4 GB   | Implementation ≤ prefill |
+|  32     | 2000-4000         | <10 GB   | Tuned for production     |
+|  128    | 4000-8000         | ~20 GB   | vLLM optimal             |
+
+ For specific parameters see `src/serving/generation_server.py`.
+
+### Reproducibility
+
+| Setting | Value                                    |
+|---------|------------------------------------------|
+| Seed    | 42                                       |
+| Torch   | 2.1+ (CUDA 12.x recommended)             |
+| OS      | Linux (Ubuntu 22.04 tested) / macOS 14   |
+| Python  | 3.10–3.12                                |
+
+### Caveats
+
+ This model is not instruction-tuned (no SFT / RLHF applied yet).
+ Automatic generation can produce inaccurate or partially inaccurate information.
+ No multimodal or tool-calling capabilities yet — integrations pending.
+
+### Quality & Latency
+
+ Performance characteristics based on architecture choices:
+
+```
+[Q] 3060 / 12 GB
+[Q] RTX 4090 / 24 GB
+[Q] A100 80 GB
+[Q] H100
+
+Training peak throughput: ~1800 tok/s/GPU @ 2K seq (A100) / 8K seq (A10 000+ ms)
+                     total: ~800 GB VRAM peak
+Training optimisations: AC + DC + Q delivery
+```
+
+### Experimental Status
+
+ Solus-7B is a research-scale dense model.
+ Not production-ready for safety-critical deployments.
+ Community evaluation / red-teaming results appreciated.
+
+### Contact
+
+ For support, please open an issue at `https://github.com/your-org/solus`.

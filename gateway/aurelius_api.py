@@ -511,10 +511,15 @@ def _get_engine() -> Callable[[EngineChatRequest], str]:
 
 
 def _sanitize_completion(text: str) -> str:
-    """Clean model output before returning to client."""
-    text = text.encode("ascii", "ignore").decode("ascii", "ignore")
-    text = " ".join(text.split())
-    return text.strip()
+    """Clean model output before returning to client.
+
+    Preserves Unicode (emoji, CJK, scripts). M-03 (CSV): previously this
+    stripped non-ASCII via ``encode ascii ignore`` which corrupts any
+    non-Latin output. Whitespace normalization is retained.
+    """
+    if not isinstance(text, str):
+        text = str(text)
+    return " ".join(text.split())
 
 
 @app.post("/v1/chat/completions")

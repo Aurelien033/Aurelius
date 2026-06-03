@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 import torch.nn as nn
 
 import src.training as training
 from src.training import LRRangeTest, LRRangeTestResult
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

@@ -10,15 +10,13 @@ Scenario:
 
 from __future__ import annotations
 
+import pytest
 
 from agent import AGENT_LOOP_REGISTRY
 from agent.preserve_thinking import (
     PreserveThinkingBuffer,
     PreserveThinkingConfig,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

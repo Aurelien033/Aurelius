@@ -3,8 +3,9 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import dataclass
-from src._compat import StrEnum
 from typing import Any
+
+from src._compat import StrEnum
 
 __all__ = [
     "HealthStatus",

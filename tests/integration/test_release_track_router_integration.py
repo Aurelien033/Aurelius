@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.model as model_pkg
 from src.model import (
     AURELIUS_REFERENCE_MANIFEST,
@@ -11,9 +13,6 @@ from src.model import (
     PRODUCTION_POLICY,
     ReleaseTrackRouter,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

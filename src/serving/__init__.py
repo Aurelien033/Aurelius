@@ -1,6 +1,7 @@
 # Canonical serving package. Backward-compat shim lives in gateway/__init__.py
 
 from __future__ import annotations
+
 from .agent_cockpit import *  # noqa: F401, F403
 from .agentic_runtime import *  # noqa: F401, F403
 from .api_server import *  # noqa: F401, F403
@@ -54,6 +55,13 @@ from .sse_stream_encoder import *  # noqa: F401, F403
 from .streaming import *  # noqa: F401, F403
 from .streaming_handler import *  # noqa: F401, F403
 from .structured_output_decoder import *  # noqa: F401, F403
+
+# ---------------------------------------------------------------------------
+# Backwards-compatible registry aliases for integration tests
+# ---------------------------------------------------------------------------
+# DECODER_REGISTRY is the historical name for the structured-output decoder
+# registry.  New code should use STRUCTURED_OUTPUT_REGISTRY directly.
+from .structured_output_decoder import STRUCTURED_OUTPUT_REGISTRY  # noqa: E402
 from .system_prompts import *  # noqa: F401, F403
 from .task_api import *  # noqa: F401, F403
 from .terminal_chat import *  # noqa: F401, F403
@@ -65,21 +73,13 @@ from .web_ui import *  # noqa: F401, F403
 from .websocket import *  # noqa: F401, F403
 from .xgrammar_decoder import *  # noqa: F401, F403
 
-# ---------------------------------------------------------------------------
-# Backwards-compatible registry aliases for integration tests
-# ---------------------------------------------------------------------------
-
-# DECODER_REGISTRY is the historical name for the structured-output decoder
-# registry.  New code should use STRUCTURED_OUTPUT_REGISTRY directly.
-from .structured_output_decoder import STRUCTURED_OUTPUT_REGISTRY  # noqa: E402
-
 DECODER_REGISTRY = STRUCTURED_OUTPUT_REGISTRY
 
 # STREAM_HANDLER_REGISTRY maps stream-type keys to handler/encoder classes.
 # "sse"       → generic SSE wire encoder (SSEStreamEncoder)
 # "sse_chat"  → chat-completion SSE streaming (SSEChatStream)
-from .sse_stream_encoder import SSEStreamEncoder  # noqa: E402
 from .sse_chat_stream import SSEChatStream  # noqa: E402
+from .sse_stream_encoder import SSEStreamEncoder  # noqa: E402
 
 STREAM_HANDLER_REGISTRY: dict[str, type] = {
     "sse": SSEStreamEncoder,

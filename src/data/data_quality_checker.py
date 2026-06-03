@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from collections import Counter
 from dataclasses import dataclass, field
+
 from src._compat import StrEnum
 
 

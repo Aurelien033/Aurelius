@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -10,7 +9,6 @@ from agent.tool_sandbox_denylist import (
     DenylistRule,
     ToolSandboxDenylist,
 )
-
 
 # Python-specific rules for code execution sandbox
 PYTHON_CODE_RULES: tuple[DenylistRule, ...] = (

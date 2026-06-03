@@ -7,7 +7,6 @@ an injectable clock.
 
 from __future__ import annotations
 
-
 import pytest
 
 from agent import (
@@ -23,7 +22,6 @@ from agent import (
     make_default_ledger,
     register_ledger,
 )
-
 
 pytestmark = pytest.mark.integration
 

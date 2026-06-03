@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 import hashlib
 import re
 import time
 from dataclasses import dataclass, field
+
 from src._compat import StrEnum
 
 

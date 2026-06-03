@@ -32,8 +32,8 @@ import builtins as _py_builtins
 import concurrent.futures
 import contextlib
 import io
-import threading
 import sys
+import threading
 import weakref
 from concurrent.futures.thread import _worker
 from dataclasses import dataclass, field

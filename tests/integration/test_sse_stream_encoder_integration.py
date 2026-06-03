@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import src.serving as serving
-
-
 import pytest
+
+import src.serving as serving
 
 pytestmark = pytest.mark.integration
 

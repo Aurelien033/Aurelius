@@ -8,16 +8,14 @@ intact, and that generated diffs round-trip through the production
 
 from __future__ import annotations
 
-
 import tempfile
 from pathlib import Path
+
+import pytest
 
 import agent
 from agent import DiffResult, UnifiedDiffGenerator
 from src.eval.swebench_lite_scorer import apply_patch_via_python
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

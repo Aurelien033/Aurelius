@@ -37,10 +37,10 @@ import hashlib
 import logging
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import auto
 from typing import Any
-from collections.abc import Callable
 
 from src._compat import StrEnum
 

@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from src.retrieval import RERANKER_REGISTRY
 from src.retrieval.colbert_late_interaction import ColBERTConfig, ColBERTScorer
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

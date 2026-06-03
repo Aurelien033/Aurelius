@@ -11,10 +11,10 @@ from __future__ import annotations
 import inspect
 import re
 
-import torch
 import pytest
+import torch
 
-from src.model.transformer import _apply_top_p_filter, AureliusTransformer
+from src.model.transformer import AureliusTransformer, _apply_top_p_filter
 
 
 def _huggingface_top_p(logits: torch.Tensor, top_p: float) -> torch.Tensor:

@@ -9,7 +9,6 @@ Apache-2.0, clean-room reimplementation.
 
 from __future__ import annotations
 
-
 import pytest
 
 from src.computer_use.action_verifier import ActionVerifier, verify_trajectory
@@ -34,7 +33,6 @@ from src.computer_use.trajectory_replay import (
     TrajectoryRecorder,
     TrajectoryReplayer,
 )
-
 
 # ---------------------------------------------------------------------------
 # Shared fixture

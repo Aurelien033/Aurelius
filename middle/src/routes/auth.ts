@@ -129,7 +129,7 @@ router.get('/users', requireScope('auth:read'), (_req, res) => {
   res.json({ users: userList })
 })
 
-router.post('/keys/generate', (req, res) => {
+router.post('/keys/generate', requireScope('auth:admin'), (req, res) => {
   const userId = req.user?.id
   if (!userId) {
     res.status(401).json({ error: 'Unauthorized' })

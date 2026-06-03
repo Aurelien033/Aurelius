@@ -9,6 +9,10 @@ Verifies that:
 
 from __future__ import annotations
 
+# ---------------------------------------------------------------------------
+# Registry wiring
+# ---------------------------------------------------------------------------
+import pytest
 
 from src.longcontext import LONGCONTEXT_STRATEGY_REGISTRY
 from src.longcontext.context_budget_controller import (
@@ -17,14 +21,6 @@ from src.longcontext.context_budget_controller import (
     ContextSegment,
     SegmentPriority,
 )
-
-
-# ---------------------------------------------------------------------------
-# Registry wiring
-# ---------------------------------------------------------------------------
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

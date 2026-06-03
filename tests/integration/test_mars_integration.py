@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 import torch.nn as nn
 
 import src.optimizers as optimizers
 from src.optimizers import Mars
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

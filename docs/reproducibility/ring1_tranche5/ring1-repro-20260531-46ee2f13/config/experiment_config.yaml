@@ -1,0 +1,56 @@
+tranche: 5
+version: '0.1'
+description: 'Tranche 5 wires a real checkpoint into DreamBank sleep and replaces
+  the proxy lift estimator with measured bank-on vs bank-off ablation on held-out
+  traces.
+
+  '
+seeds:
+  base_seed: 7070
+  baseline_seed_offset: 100000
+collection:
+  min_traces_per_condition: 200
+  max_steps: 12
+  reuse_existing_traces: true
+  amc_output_dir: data/ring1_traces/tranche4/amc
+  baseline_output_dir: data/ring1_traces/tranche4/no_memory
+agents:
+  amc:
+    type: integrated
+    config: configs/ring1_tranche2.yaml
+  baseline:
+    type: dummy
+    config: configs/ring1_tranche1.yaml
+model:
+  checkpoint_path: checkpoints/aurelius-1.3b
+  checkpoint_step: step-0000002
+  variant: amc_1b_class
+  device: cpu
+  checkpoint_sha256: 3bcfccc73b005f2614958d26135884a1fad73c9cd115b66370b1399e0cbcc216
+  weights_path: checkpoints/aurelius-1.3b/step-0000002/model.safetensors
+eval:
+  holdout_fraction: 0.2
+  use_measured_lift: true
+  lift_delta_scale: 50.0
+dreambank:
+  cycles: 3
+  max_seeds: 64
+  min_margin: 0.05
+  max_writes_per_cycle: 8
+  enforce_zero_grad: true
+  temperatures:
+  - 0.2
+  - 0.7
+  - 1.0
+  - 1.3
+  shuffled_control_seed: 424242
+  bank:
+    bank_size: 14
+    bank_dim: 64
+gates:
+  min_traces_per_condition: 200
+  min_ga_success_delta_pp: 5.0
+  min_gb_lift_pp: 1.0
+  replay_tolerance: 0.05
+reproducibility:
+  output_dir: docs/reproducibility/ring1_tranche5

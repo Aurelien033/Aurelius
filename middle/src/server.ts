@@ -38,7 +38,10 @@ export function buildApp() {
   const app = express()
 
   app.use(cors({ origin: config.corsOrigin, credentials: true }))
-  app.use(express.json({ limit: '50mb' }))
+  // M-04 (CSV): default body limit is 10MB. 50MB was a DoS vector for
+  // all routes; file-upload routes mount a per-route limit via middleware.
+  const jsonLimit = process.env.BFF_JSON_BODY_LIMIT?.trim() || '10mb'
+  app.use(express.json({ limit: jsonLimit }))
   app.use(requestLogger)
   app.use(authMiddleware)
   app.use(rateLimiter)

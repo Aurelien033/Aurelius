@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.eval import (
     ART_DEFAULT_ATTACKER_PROFILES,
     BENCHMARK_REGISTRY,
@@ -15,9 +17,6 @@ from src.eval import (
     eval_agent_red_team_bench_enabled,
 )
 from src.model.config import AureliusConfig
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

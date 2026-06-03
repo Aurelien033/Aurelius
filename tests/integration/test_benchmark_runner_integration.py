@@ -5,11 +5,10 @@ from __future__ import annotations
 import importlib
 import unittest
 
+import pytest
+
 from src.cli import benchmark_runner as BR
 from src.eval.ifeval_scorer import IFEvalConstraint, IFEvalProblem
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

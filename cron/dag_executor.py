@@ -2,8 +2,9 @@ import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from src._compat import StrEnum
 from typing import Any
+
+from src._compat import StrEnum
 
 
 class NodeStatus(StrEnum):

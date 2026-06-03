@@ -5,12 +5,10 @@ from __future__ import annotations
 import subprocess
 import sys
 
+import pytest
 import torch
 
 from src import retrieval
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

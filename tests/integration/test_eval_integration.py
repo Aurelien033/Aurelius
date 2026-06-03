@@ -6,20 +6,16 @@ clean-room implementation.
 
 from __future__ import annotations
 
+# ---------------------------------------------------------------------------
+# WebArena scorer integration
+# ---------------------------------------------------------------------------
+import pytest
 
 from src.eval.webarena_scorer import (
     WEBARENA_TASK_REGISTRY,
     WebArenaResult,
     WebArenaScorer,
 )
-
-
-# ---------------------------------------------------------------------------
-# WebArena scorer integration
-# ---------------------------------------------------------------------------
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

@@ -42,6 +42,7 @@ import argparse
 import json
 import logging
 import mimetypes
+import os
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -1079,13 +1080,31 @@ class AureliusHandler(BaseHTTPRequestHandler, _JSONMixin):
     # SSE (Server-Sent Events)
     # ------------------------------------------------------------------
 
+    def _cors_allowed_origin(self) -> str | None:
+        """Return allowed origin if the request 'Origin' is in CORS_ORIGINS env.
+
+        M-14 (CSV): ACAO:* is an information-disclosure / CSRF vector.
+        The legacy stdlib serving path must restrict CORS to env-configured
+        origins. If CORS_ORIGINS is unset/empty, no origin is allowed and
+        the SSE header is omitted — same-origin clients continue to work.
+        """
+        origins_raw = os.environ.get("CORS_ORIGINS", "")
+        if not origins_raw.strip():
+            return None
+        allowed = {o.strip() for o in origins_raw.split(",") if o.strip()}
+        origin = self.headers.get("Origin", "")
+        return origin if origin in allowed else None
+
     def _handle_sse(self) -> None:
         """Establish an SSE connection for real-time notifications."""
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "keep-alive")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        allowed_origin = self._cors_allowed_origin()
+        if allowed_origin is not None:
+            self.send_header("Access-Control-Allow-Origin", allowed_origin)
+            self.send_header("Vary", "Origin")
         self.end_headers()
 
         hermes = getattr(self.server, "hermes", None)

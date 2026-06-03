@@ -8,15 +8,12 @@ Verifies:
 
 from __future__ import annotations
 
-
+import pytest
 import torch
 import torch.nn as nn
 
 import src.optimizers as optim_pkg
 from src.optimizers import ScheduleFreeAdamW
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

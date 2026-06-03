@@ -1,0 +1,9 @@
+{
+  "pre_success_rate": 0.8,
+  "post_success_rate": 0.8312139945162926,
+  "absolute_lift_pp": 3.1213994516292587,
+  "ci_low": -4.44275868998375,
+  "ci_high": 9.556346886092793,
+  "bank_fill": 14,
+  "param_hash_unchanged": true
+}
