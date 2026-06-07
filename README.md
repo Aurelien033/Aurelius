@@ -1,6 +1,10 @@
 # Aurelius — Frontier AI Research Platform
 
 > 1.395B decoder-only transformer built from scratch — pure PyTorch core, Rust data engine, Node.js BFF, React frontend.
+>
+> **🚧 Status:** Active research — Ring 1 buildout complete, Ring 2 in progress.
+> **📅 Last updated:** June 2026
+> **🎯 Latest milestone:** Ring 1 Tranche 5 — verification gates integrated.
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch 2.11+](https://img.shields.io/badge/PyTorch-2.11+-ee4c2c.svg)](https://pytorch.org/)
@@ -48,6 +52,15 @@ The frontend never talks directly to Python. All API calls route through the BFF
 | MTP | Multi-Token Prediction (n=2, shared params, staged training) |
 | Optimizer | Muon (Newton-Schulz 8+2 steps + Nesterov + RMS rescaling) |
 | Checkpoint | safetensors (legacy .pt fallback with deprecation warning) |
+
+---
+
+## Recent Work
+
+- **Ring 1 Tranche 5** — verification gates integrated, lint clean (`3b1a262e`)
+- **Memory Core** — Tier-3 promotion via proposer/skeptic/judge debate (`fb4a3c61`)
+- **Privacy** — (ε,δ)-DP Gaussian mechanism on DreamBank federation (`2651b35b`)
+- **Evaluation** — greedy-decode cost-proxy serving harness (`72a99589`)
 
 ---
 
