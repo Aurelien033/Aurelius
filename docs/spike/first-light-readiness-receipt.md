@@ -196,3 +196,59 @@ PYEOF
 - [x] Seeds, commands, versions recorded.
 - [x] No history sections of master plan edited.
 - [x] Work on spike branch only. No push. No other branches touched.
+
+---
+
+## Verification Addendum (2026-06-11, independent verification pass)
+
+Independent re-execution of every load-bearing claim. Same seed (42), same 30 task_ids
+(sampler reproduces the receipt's list exactly). Scripts: `scripts/spike_verification/`.
+
+### Reproduced ✓
+
+| Claim | Result |
+|---|---|
+| 7/30 (23.3%) Qwen2.5-1.5B-Instruct, in band | **EXACT** reproduction; pass set {58,68,151,227,269,377,388} |
+| Traces schema-valid (1.1.0) | 10 rows, 0 errors; FORCED_BASELINE / none_forced correct |
+| Revision + config_hash | 989aa798… present; config sha256[:16] = 98d2ff8cc47488d0 ✓ |
+| Identity-skip wrapper | Re-verified: Instruct max_diff 10.88, base 12.72; layer-restore bit-identical to dense |
+| Llama-3.2-1B gated (403) | Cache contains 56 KB metadata, no weights ✓ |
+| Operator survey, remode.py = toy | remode.py has 0 torch imports; docstring self-identifies as DeepSeek-style Residual-MoD+E ✓ |
+
+### Corrected ✗→✓
+
+1. **tokenizer_hash `86a13989cdf0acbe` is unreproducible** — matches no tokenizer file under
+   sha256/md5/sha1; method was never stated. Corrected method: **sha256(tokenizer.json)[:16]**.
+2. **Cascade rule-order defect:** OLMo-2-1B and Qwen2.5-0.5B-Instruct were eliminated using the
+   *buggy* pipeline (pre-fix). Fair re-tests with the fixed pipeline: OLMo-2-1B **3/30 = 10.0%**
+   (not 0%), Qwen2.5-0.5B-Instruct **4/30 = 13.3%** (not 0%). Verdicts unchanged (out of band),
+   but the recorded 0% rows were pipeline artifacts, not model measurements.
+3. **PIN CHANGED — the ratified candidates were never tested.** ADR-1b names BASE
+   Qwen2.5-0.5B/1.5B; the spike substituted Instruct variants without logging the deviation.
+   Gap runs (completion pipeline: signature in prompt, signature prepended to scored completion,
+   top-level truncation): Qwen2.5-0.5B base **5/30 = 16.7%** (miss);
+   **Qwen2.5-1.5B base 7/30 = 23.3% — IN BAND**, pass set {23,58,112,227,269,377,467}.
+
+### FROZEN-BASE-v1 (corrected, rule-compliant)
+
+```yaml
+config_id: FROZEN-BASE-v1
+repo: Qwen/Qwen2.5-1.5B            # BASE — the ratified ADR-1b candidate (Instruct deviation now unnecessary)
+revision: 8faed761d45a263340a0528343f099c05c9a4323
+tokenizer_sha256_16: c0382117ea329cdf
+config_sha256_16: 0e8c8aa86468aba0
+pass_rate_pilot: 0.233   # 7/30, seed 42, fixed completion pipeline
+prompt_pipeline: completion-style (sig in prompt; sig prepended to scored completion; top-level truncation) — NO chat template
+routable_layers: "7..20 (middle 50% of 28)"
+k_skip: 4
+```
+
+**Full cascade in ratified order (fixed pipeline):** OLMo-2-1B 10.0% → Qwen2.5-0.5B 16.7% →
+**Qwen2.5-1.5B 23.3% PIN** → (Llama-3.2-1B gated). The Instruct 23.3% result is retained as a
+pilot datum only. Note: the plan's loose "0.5B–1B" size phrase is superseded by the ADR-1b
+candidate list, which always included 1.5B.
+
+### Decision owed to user
+
+RSS 9.32 GB exceeded the §143.4 7.5 GB gate (framework overhead, not weights). Raise the gate
+or refine the RSS definition (e.g., weights+KV only) before First Light claim-eligibility.
