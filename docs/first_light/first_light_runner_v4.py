@@ -110,7 +110,7 @@ VERIFIERS = {"F1_mbpp": verify_f1, "F2_json": verify_f2, "F3_type": verify_f3}
 
 # ── IdentitySkip (spike-verified, from v3 verbatim) ──
 class IdentitySkip:
-    def __init__(self, model, idxs): self.layers = model.model.layers; self.idxs = idxs; self.orig = {}
+    def __init__(self, layers, idxs): self.layers = layers; self.idxs = idxs; self.orig = {}  # callers pass the decoder-layer ModuleList
     def __enter__(self):
         for i in self.idxs:
             self.orig[i] = self.layers[i].forward
