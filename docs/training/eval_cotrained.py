@@ -11,10 +11,12 @@ Run (on Lightning, after cotrain):
 import argparse, json, random, sys
 from pathlib import Path
 import numpy as np, torch
-sys.path.insert(0, "/Users/christienantonio/aurelius/docs/first_light")
+import os
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "first_light"))   # repo-relative
 import first_light_runner_v4 as R
 
-RESEARCH = Path("/Users/christienantonio/Desktop/AI:ML Research")   # or wherever the gym/split live on Lightning
+# Set AURELIUS_RESEARCH on Lightning to the folder holding the gym + e87_split.json + schema (~12MB upload)
+RESEARCH = Path(os.environ.get("AURELIUS_RESEARCH", "/Users/christienantonio/Desktop/AI:ML Research"))
 OUT = RESEARCH / "e87_receipt"
 ROUTABLE = list(range(7, 21)); SEEDS = [1337, 2026, 7]
 FROZEN_E87 = {1: {"dense": .733, "entropy": .75, "random": .543, "ceiling": .917},

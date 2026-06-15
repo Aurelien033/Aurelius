@@ -17,7 +17,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 MODEL_REPO, MODEL_REVISION = "Qwen/Qwen2.5-1.5B", "8faed761d45a263340a0528343f099c05c9a4323"
 CONFIG_HASH = "0e8c8aa86468aba0"
 ROUTABLE = list(range(7, 21)); K_SKIP = 4; SEEDS = [1337, 2026, 7]; MAX_NEW = 512
-RESEARCH = Path("/Users/christienantonio/Desktop/AI:ML Research")
+import os
+RESEARCH = Path(os.environ.get("AURELIUS_RESEARCH", "/Users/christienantonio/Desktop/AI:ML Research"))
 GYM_V02, GYM_V01 = RESEARCH / "gym-v0.2", RESEARCH / "gym-v0.1-FL"
 SCHEMA = json.load(open(RESEARCH / "directive_trace_schema.json"))
 OUT = RESEARCH / "first_light_receipt"
