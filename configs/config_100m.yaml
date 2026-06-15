@@ -1,0 +1,57 @@
+# config_100m.yaml — Aurelius ~92M pretrain rung (cheap scaling-ladder anchor + co-train substrate)
+# Created 2026-06-14 (training fast-track prep). Schema VERIFIED against TrainConfig.from_yaml.
+# Model dims verified to build at 92.0M (docs/training spike). Token budget 2.1B (ADR-3 ~20:1).
+# Single GPU; ~hours; ~$20-50 spot. Run: python -m src.training.trainer --config configs/config_100m.yaml
+model:
+  name: aurelius-100m
+  d_model: 640
+  n_layers: 14
+  n_heads: 10
+  n_kv_heads: 2          # GQA (10 % 2 == 0)
+  head_dim: 64
+  d_ff: 2048
+  vocab_size: 50257      # GPT-2 tokenizer (matches the validated data path)
+  max_seq_len: 2048
+  rope_theta: 500000.0
+  tie_embeddings: true
+  moe_enabled: false     # dense rung first; routing is the E87/co-train question, not pretrain
+
+optimizer:
+  lr: 6.0e-4             # scaled up for smaller model (HP power law LR ~ N^-0.27)
+  beta1: 0.9
+  beta2: 0.95
+  eps: 1.0e-8
+  weight_decay: 0.1
+
+scheduler:
+  min_lr: 6.0e-5
+  warmup_steps: 1000
+  total_steps: 4000      # 4000 * 524288 = ~2.1B tokens (~23:1 at 92M, ADR-3 default band)
+
+batch:
+  global_batch_tokens: 524288   # 0.5M tokens/step
+  micro_batch_size: 8
+  seq_len: 2048
+
+gradient:
+  max_norm: 1.0
+
+precision:
+  dtype: bf16
+  flash_attention: true
+  gradient_checkpointing: true
+
+checkpoint:
+  save_interval_steps: 1000
+  save_dir: checkpoints/aurelius-100m
+  max_checkpoints: 5
+  format: safetensors
+
+data:
+  train_data_dir: data/pretrain-100m/train    # uint16 .npy shards (docs/training/data_pipeline.py)
+  val_data_dir: data/pretrain-100m/val
+  num_workers: 4
+  pin_memory: true
+
+# READINESS VERIFIED 2026-06-14: repo training path reduces loss end-to-end
+# (docs/training/spike_artifacts/spike_result.txt). Needs cloud GPU + a tokenized 2B-token corpus.

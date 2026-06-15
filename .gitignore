@@ -145,3 +145,4 @@ var/
 pyproject.toml.consolidated
 pyproject.toml.pre_consolidation
 tmp_job_test.sh
+docs/training/spike_artifacts/

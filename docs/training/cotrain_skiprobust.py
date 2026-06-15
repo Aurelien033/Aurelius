@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""Skip-robust co-train — LoRA fine-tune FROZEN-BASE-v1 to be robust to layer-skipping (E87 continuation).
+
+Tests whether co-training under the skip distribution shrinks the ~43pp k=4 skip cost E87 found on the
+frozen base, and makes routing learnable. Trains ONLY LoRA adapters; per step samples a skip-set and
+applies it (identity-skip on routable layers) during the forward, so the adapters learn to compensate
+for skipped layers. Corpus streams from HF (no big download). Designed for a single 16-24GB GPU
+(Lightning.AI free tier). Eval = re-run docs/first_light/e87_chessboard.py with the saved adapters.
+
+Run (on Lightning, after `pip install peft datasets`):
+  python docs/training/cotrain_skiprobust.py --steps 2000 --out checkpoints/cotrain-skiprobust
+"""
+import argparse, json, random, time, types
+from pathlib import Path
+import torch
+import torch.nn.functional as F
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+MODEL, REV = "Qwen/Qwen2.5-1.5B", "8faed761d45a263340a0528343f099c05c9a4323"
+ROUTABLE = list(range(7, 21))
+SKIP_DIST = {0: 0.4, 1: 0.2, 2: 0.2, 4: 0.2}   # frozen at prereg (cotrain_skiprobust_preregistration.yaml)
+
+
+def sample_skip(rng):
+    ks, ws = zip(*SKIP_DIST.items())
+    k = rng.choices(ks, weights=ws, k=1)[0]
+    return sorted(rng.sample(ROUTABLE, k)) if k else []
+
+
+def find_decoder_layers(model):
+    """Robustly locate the decoder-layer ModuleList regardless of peft/HF wrapping."""
+    import torch.nn as nn
+    for m in model.modules():
+        if isinstance(m, nn.ModuleList) and len(m) >= 20 and hasattr(m[0], "self_attn"):
+            return m
+    raise RuntimeError("could not locate decoder layers")
+
+
+class IdentitySkip:
+    """Spike-verified identity-skip; passes gradient through (identity), so LoRA can train under it."""
+    def __init__(self, layers, idxs): self.layers = layers; self.idxs = idxs; self.orig = {}
+    def __enter__(self):
+        for i in self.idxs:
+            self.orig[i] = self.layers[i].forward
+            def ident(self_layer, hidden_states, *a, **k): return hidden_states
+            self.layers[i].forward = types.MethodType(ident, self.layers[i])
+    def __exit__(self, *a):
+        for i, o in self.orig.items(): self.layers[i].forward = o
+        self.orig.clear()
+
+
+def stream_corpus(tok, seq_len, batch, device):
+    """Stream a code+general mix from HF, pack into fixed windows. ~50/50 fineweb-edu / the-stack-smol."""
+    from datasets import load_dataset
+    gen = load_dataset("HuggingFaceFW/fineweb-edu", name="sample-10BT", split="train", streaming=True)
+    code = load_dataset("bigcode/the-stack-smol", split="train", streaming=True)
+    its = [iter(gen), iter(code)]
+    buf, which = [], 0
+    while True:
+        try:
+            ex = next(its[which]); which ^= 1
+        except StopIteration:
+            which ^= 1; continue
+        text = ex.get("text") or ex.get("content") or ""
+        buf.extend(tok(text)["input_ids"] + [tok.eos_token_id])
+        while len(buf) >= batch * (seq_len + 1):
+            chunk = buf[:batch * (seq_len + 1)]; buf = buf[batch * (seq_len + 1):]
+            t = torch.tensor(chunk[:batch * (seq_len + 1)], dtype=torch.long)
+            # reshape into batch x (seq_len+1)
+            t = t[:batch * (seq_len + 1)].view(batch, seq_len + 1).to(device)
+            yield t[:, :-1], t[:, 1:]
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--steps", type=int, default=2000)
+    ap.add_argument("--seq_len", type=int, default=512)
+    ap.add_argument("--batch", type=int, default=4)
+    ap.add_argument("--lr", type=float, default=2e-4)
+    ap.add_argument("--out", default="checkpoints/cotrain-skiprobust")
+    ap.add_argument("--smoke", action="store_true", help="20-step smoke (verify loss drops) before the real run")
+    a = ap.parse_args()
+    if a.smoke: a.steps = 20
+    dev = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
+    rng = random.Random(1337); torch.manual_seed(1337)
+
+    tok = AutoTokenizer.from_pretrained(MODEL, revision=REV)
+    if tok.pad_token is None: tok.pad_token = tok.eos_token
+    model = AutoModelForCausalLM.from_pretrained(MODEL, revision=REV, dtype=torch.bfloat16).to(dev)
+
+    from peft import LoraConfig, get_peft_model
+    lcfg = LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05, bias="none",
+                      target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+                      layers_to_transform=ROUTABLE, task_type="CAUSAL_LM")
+    model = get_peft_model(model, lcfg)
+    model.print_trainable_parameters()
+    model.train()
+    layers = find_decoder_layers(model)   # robust to peft wrapping
+    print(f"  decoder layers located: {len(layers)}")
+    opt = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=a.lr, weight_decay=0.0)
+
+    data = stream_corpus(tok, a.seq_len, a.batch, dev)
+    losses = []; t0 = time.time()
+    for step in range(a.steps):
+        xb, yb = next(data)
+        skip = sample_skip(rng)
+        with IdentitySkip(layers, skip) if skip else _null():
+            out = model(input_ids=xb)
+            logits = out.logits
+        loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), yb.reshape(-1))
+        opt.zero_grad(); loss.backward()
+        torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0); opt.step()
+        losses.append(loss.item())
+        if step % 20 == 0 or step == a.steps - 1:
+            import numpy as np
+            print(f"  step {step:4d}  loss {loss.item():.3f}  k={len(skip)}  ({(time.time()-t0)/(step+1):.2f}s/step)", flush=True)
+    import numpy as np
+    init, final = float(np.mean(losses[:5])), float(np.mean(losses[-5:]))
+    Path(a.out).mkdir(parents=True, exist_ok=True)
+    model.save_pretrained(a.out)
+    (Path(a.out)/"cotrain_result.json").write_text(json.dumps({
+        "steps": a.steps, "init_loss": init, "final_loss": final, "drop": init-final,
+        "skip_dist": SKIP_DIST, "smoke": a.smoke,
+        "verdict": "loss drops under skip distribution" if init-final > 0.3 else "CHECK: loss not dropping"}, indent=2))
+    print(f"\n  init {init:.3f} -> final {final:.3f} (drop {init-final:.3f}); adapters -> {a.out}")
+    print("  NEXT: load these adapters and re-run docs/first_light/e87_chessboard.py to measure the skip-cost change")
+
+
+class _null:
+    def __enter__(self): return None
+    def __exit__(self, *a): return False
+
+
+if __name__ == "__main__":
+    main()
