@@ -50,24 +50,29 @@ class IdentitySkip:
 
 
 def stream_corpus(tok, seq_len, batch, device):
-    """Stream a code+general mix from HF, pack into fixed windows. ~50/50 fineweb-edu / the-stack-smol."""
+    """Stream training text from HF, pack into fixed windows. fineweb-edu (open) is the guaranteed
+    source; an OPEN code source is mixed in if available (non-fatal — gated sources are skipped)."""
     from datasets import load_dataset
-    gen = load_dataset("HuggingFaceFW/fineweb-edu", name="sample-10BT", split="train", streaming=True)
-    code = load_dataset("bigcode/the-stack-smol", split="train", streaming=True)
-    its = [iter(gen), iter(code)]
+    sources = [iter(load_dataset("HuggingFaceFW/fineweb-edu", name="sample-10BT", split="train", streaming=True))]
+    for code_ds in ["nampdn-ai/tiny-codes"]:   # open code data; skipped silently if unavailable
+        try:
+            sources.append(iter(load_dataset(code_ds, split="train", streaming=True)))
+            print(f"  corpus: fineweb-edu + {code_ds}", flush=True); break
+        except Exception as e:
+            print(f"  (code source {code_ds} skipped: {str(e)[:60]}) — fineweb-edu only", flush=True)
     buf, which = [], 0
     while True:
         try:
-            ex = next(its[which]); which ^= 1
+            ex = next(sources[which % len(sources)]); which += 1
         except StopIteration:
-            which ^= 1; continue
-        text = ex.get("text") or ex.get("content") or ""
+            which += 1; continue
+        text = ex.get("text") or ex.get("content") or ex.get("code") or ex.get("response") or ""
+        if not text:
+            continue
         buf.extend(tok(text)["input_ids"] + [tok.eos_token_id])
         while len(buf) >= batch * (seq_len + 1):
             chunk = buf[:batch * (seq_len + 1)]; buf = buf[batch * (seq_len + 1):]
-            t = torch.tensor(chunk[:batch * (seq_len + 1)], dtype=torch.long)
-            # reshape into batch x (seq_len+1)
-            t = t[:batch * (seq_len + 1)].view(batch, seq_len + 1).to(device)
+            t = torch.tensor(chunk, dtype=torch.long).view(batch, seq_len + 1).to(device)
             yield t[:, :-1], t[:, 1:]
 
 
