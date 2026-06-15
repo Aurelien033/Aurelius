@@ -49,31 +49,45 @@ class IdentitySkip:
         self.orig.clear()
 
 
-def stream_corpus(tok, seq_len, batch, device):
-    """Stream training text from HF, pack into fixed windows. fineweb-edu (open) is the guaranteed
-    source; an OPEN code source is mixed in if available (non-fatal — gated sources are skipped)."""
+def load_fixed_corpus(tok, target_tokens, cache="/tmp/cotrain_corpus.npy"):
+    """Download a fixed chunk of fineweb-edu ONCE (with retries) and tokenize to a local .npy, then
+    train OFFLINE from it — no streaming during the loop, so a network hiccup can't crash training.
+    Cached, so reruns are instant."""
+    import numpy as np
+    if Path(cache).exists():
+        arr = np.load(cache)
+        if len(arr) >= target_tokens:
+            print(f"  corpus cache hit: {len(arr):,} tokens ({cache})", flush=True)
+            return arr
     from datasets import load_dataset
-    sources = [iter(load_dataset("HuggingFaceFW/fineweb-edu", name="sample-10BT", split="train", streaming=True))]
-    for code_ds in ["nampdn-ai/tiny-codes"]:   # open code data; skipped silently if unavailable
+    print(f"  downloading ~{target_tokens//1_000_000}M tokens once (then offline)...", flush=True)
+    toks = []
+    for attempt in range(6):
         try:
-            sources.append(iter(load_dataset(code_ds, split="train", streaming=True)))
-            print(f"  corpus: fineweb-edu + {code_ds}", flush=True); break
+            ds = load_dataset("HuggingFaceFW/fineweb-edu", name="sample-10BT", split="train", streaming=True)
+            for ex in ds:
+                t = ex.get("text") or ""
+                if t:
+                    toks.extend(tok(t)["input_ids"] + [tok.eos_token_id])
+                if len(toks) >= target_tokens:
+                    break
+            if len(toks) >= target_tokens:
+                break
         except Exception as e:
-            print(f"  (code source {code_ds} skipped: {str(e)[:60]}) — fineweb-edu only", flush=True)
-    buf, which = [], 0
+            print(f"  download retry {attempt+1}/6 after: {str(e)[:60]}", flush=True); time.sleep(5)
+    arr = np.array(toks[:target_tokens], dtype=np.uint16)
+    np.save(cache, arr); print(f"  corpus ready: {len(arr):,} tokens -> {cache}", flush=True)
+    return arr
+
+
+def batches(arr, seq_len, batch, device, rng):
+    """Yield random fixed-length windows from the in-memory corpus (offline, no network)."""
+    n = batch * (seq_len + 1)
     while True:
-        try:
-            ex = next(sources[which % len(sources)]); which += 1
-        except StopIteration:
-            which += 1; continue
-        text = ex.get("text") or ex.get("content") or ex.get("code") or ex.get("response") or ""
-        if not text:
-            continue
-        buf.extend(tok(text)["input_ids"] + [tok.eos_token_id])
-        while len(buf) >= batch * (seq_len + 1):
-            chunk = buf[:batch * (seq_len + 1)]; buf = buf[batch * (seq_len + 1):]
-            t = torch.tensor(chunk, dtype=torch.long).view(batch, seq_len + 1).to(device)
-            yield t[:, :-1], t[:, 1:]
+        start = rng.randint(0, len(arr) - n - 1)
+        chunk = arr[start:start + n].astype("int64")
+        t = torch.tensor(chunk, dtype=torch.long).view(batch, seq_len + 1).to(device)
+        yield t[:, :-1], t[:, 1:]
 
 
 def main():
@@ -104,7 +118,9 @@ def main():
     print(f"  decoder layers located: {len(layers)}")
     opt = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=a.lr, weight_decay=0.0)
 
-    data = stream_corpus(tok, a.seq_len, a.batch, dev)
+    corpus = load_fixed_corpus(tok, target_tokens=max(a.steps * a.batch * (a.seq_len + 1) * 2, 200_000))
+    data = batches(corpus, a.seq_len, a.batch, dev, random.Random(7))
+    Path(a.out).mkdir(parents=True, exist_ok=True)
     losses = []; t0 = time.time()
     for step in range(a.steps):
         xb, yb = next(data)
@@ -119,6 +135,8 @@ def main():
         if step % 20 == 0 or step == a.steps - 1:
             import numpy as np
             print(f"  step {step:4d}  loss {loss.item():.3f}  k={len(skip)}  ({(time.time()-t0)/(step+1):.2f}s/step)", flush=True)
+        if step > 0 and step % 500 == 0:
+            model.save_pretrained(a.out); print(f"  [checkpoint saved @ step {step}]", flush=True)
     import numpy as np
     init, final = float(np.mean(losses[:5])), float(np.mean(losses[-5:]))
     Path(a.out).mkdir(parents=True, exist_ok=True)
