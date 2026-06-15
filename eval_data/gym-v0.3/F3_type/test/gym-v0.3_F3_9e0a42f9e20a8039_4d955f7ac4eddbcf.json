@@ -1,0 +1,24 @@
+{
+  "instance_id": "gym-v0.3/F3/9e0a42f9e20a8039/4d955f7ac4eddbcf",
+  "broken_artifact": "def count_between(xs: list[int], lo: int, hi: int) -> int:\n    return sum(1 for x in xs if lo < x < hi)\n",
+  "prompt_context": "Repair the broken Python function so the visible test passes.\n\n# Visible test (must pass):\nassert count_between([1,5,10], 2, 8) == 1\n\n# Broken code:\n# Canary GUID: 59b9fee1155ce4ee\ndef count_between(xs: list[int], lo: int, hi: int) -> int:\n    return sum(1 for x in xs if lo < x < hi)\n\n# Corrected code:\ndef count_between(xs: list[int], lo: int, hi: int) -> int:\n",
+  "verifier": "functional: repaired function + hidden asserts (subprocess rc==0)",
+  "hidden_tests": [
+    "assert count_between([1,5,10], 2, 8) == 1",
+    "assert count_between([3,4], 3, 4) == 2"
+  ],
+  "reference_body": "    return sum(1 for x in xs if lo <= x <= hi)",
+  "function_header": "def count_between(xs: list[int], lo: int, hi: int) -> int:",
+  "metadata": {
+    "family": "F3_type",
+    "function_name": "count_between",
+    "mutation_operators": [
+      "body_logic_bug"
+    ],
+    "difficulty": "moderate",
+    "contamination_flag": "CLEAN_BY_CONSTRUCTION",
+    "canary_guid": "59b9fee1155ce4ee",
+    "license": "synthetic-public-domain",
+    "provenance": "synthetic count_between v1"
+  }
+}

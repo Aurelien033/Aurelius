@@ -1,0 +1,23 @@
+{
+  "instance_id": "gym-v0.3/F3/2623847f3a9503cd/02d9db5f95b64525",
+  "broken_artifact": "def clamp_list(xs: list[int], lo: int, hi: int) -> list[int]:\n    return [min(lo, max(x, hi)) for x in xs]\n",
+  "prompt_context": "Repair the broken Python function so the visible test passes.\n\n# Visible test (must pass):\nassert clamp_list([0,5,10], 2, 8) == [2,5,8]\n\n# Broken code:\n# Canary GUID: 5ade37fee33fba7e\ndef clamp_list(xs: list[int], lo: int, hi: int) -> list[int]:\n    return [min(lo, max(x, hi)) for x in xs]\n\n# Corrected code:\ndef clamp_list(xs: list[int], lo: int, hi: int) -> list[int]:\n",
+  "verifier": "functional: repaired function + hidden asserts (subprocess rc==0)",
+  "hidden_tests": [
+    "assert clamp_list([0,5,10], 2, 8) == [2,5,8]"
+  ],
+  "reference_body": "    return [max(lo, min(x, hi)) for x in xs]",
+  "function_header": "def clamp_list(xs: list[int], lo: int, hi: int) -> list[int]:",
+  "metadata": {
+    "family": "F3_type",
+    "function_name": "clamp_list",
+    "mutation_operators": [
+      "body_logic_bug"
+    ],
+    "difficulty": "moderate",
+    "contamination_flag": "CLEAN_BY_CONSTRUCTION",
+    "canary_guid": "5ade37fee33fba7e",
+    "license": "synthetic-public-domain",
+    "provenance": "synthetic clamp_list v0"
+  }
+}

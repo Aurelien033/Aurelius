@@ -1,0 +1,23 @@
+{
+  "instance_id": "gym-v0.3/F3/2379b7b0372b5ea7/23ca3865f365dd5b",
+  "broken_artifact": "def dedup_keep_order(xs: list[int]) -> list[int]:\n    seen: set[int] = set()\n    out: list[int] = []\n    for x in xs:\n        if x in seen:\n            seen.add(x)\n            out.append(x)\n    return out\n",
+  "prompt_context": "Repair the broken Python function so the visible test passes.\n\n# Visible test (must pass):\nassert dedup_keep_order([1,1,2,1,3]) == [1,2,3]\n\n# Broken code:\n# Canary GUID: f7966044dbf5358d\ndef dedup_keep_order(xs: list[int]) -> list[int]:\n    seen: set[int] = set()\n    out: list[int] = []\n    for x in xs:\n        if x in seen:\n            seen.add(x)\n            out.append(x)\n    return out\n\n# Corrected code:\ndef dedup_keep_order(xs: list[int]) -> list[int]:\n",
+  "verifier": "functional: repaired function + hidden asserts (subprocess rc==0)",
+  "hidden_tests": [
+    "assert dedup_keep_order([1,1,2,1,3]) == [1,2,3]"
+  ],
+  "reference_body": "    seen: set[int] = set()\n    out: list[int] = []\n    for x in xs:\n        if x not in seen:\n            seen.add(x)\n            out.append(x)\n    return out",
+  "function_header": "def dedup_keep_order(xs: list[int]) -> list[int]:",
+  "metadata": {
+    "family": "F3_type",
+    "function_name": "dedup_keep_order",
+    "mutation_operators": [
+      "body_logic_bug"
+    ],
+    "difficulty": "moderate",
+    "contamination_flag": "CLEAN_BY_CONSTRUCTION",
+    "canary_guid": "f7966044dbf5358d",
+    "license": "synthetic-public-domain",
+    "provenance": "synthetic dedup_keep_order v6"
+  }
+}

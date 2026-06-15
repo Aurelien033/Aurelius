@@ -1,0 +1,24 @@
+{
+  "instance_id": "gym-v0.3/F3/7d302293d2565280/2563ee401760d0a4",
+  "broken_artifact": "def count_uppercase(s: str) -> int:\n    return sum(1 for c in s if c.islower())\n",
+  "prompt_context": "Repair the broken Python function so the visible test passes.\n\n# Visible test (must pass):\nassert count_uppercase(\"ABc\") == 2\n\n# Broken code:\n# Canary GUID: 916495e55f01c2f0\ndef count_uppercase(s: str) -> int:\n    return sum(1 for c in s if c.islower())\n\n# Corrected code:\ndef count_uppercase(s: str) -> int:\n",
+  "verifier": "functional: repaired function + hidden asserts (subprocess rc==0)",
+  "hidden_tests": [
+    "assert count_uppercase(\"ABc\") == 2",
+    "assert count_uppercase(\"abc\") == 0"
+  ],
+  "reference_body": "    return sum(1 for c in s if c.isupper())",
+  "function_header": "def count_uppercase(s: str) -> int:",
+  "metadata": {
+    "family": "F3_type",
+    "function_name": "count_uppercase",
+    "mutation_operators": [
+      "body_logic_bug"
+    ],
+    "difficulty": "moderate",
+    "contamination_flag": "CLEAN_BY_CONSTRUCTION",
+    "canary_guid": "916495e55f01c2f0",
+    "license": "synthetic-public-domain",
+    "provenance": "synthetic count_uppercase v0"
+  }
+}

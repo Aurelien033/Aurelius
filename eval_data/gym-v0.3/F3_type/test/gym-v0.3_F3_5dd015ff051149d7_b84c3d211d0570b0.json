@@ -1,0 +1,24 @@
+{
+  "instance_id": "gym-v0.3/F3/5dd015ff051149d7/b84c3d211d0570b0",
+  "broken_artifact": "def second_largest(xs: list[int]) -> int:\n    return sorted(set(xs))[-1]\n",
+  "prompt_context": "Repair the broken Python function so the visible test passes.\n\n# Visible test (must pass):\nassert second_largest([4,1,4,3]) == 3\n\n# Broken code:\n# Canary GUID: 9de0ba577b4868b5\ndef second_largest(xs: list[int]) -> int:\n    return sorted(set(xs))[-1]\n\n# Corrected code:\ndef second_largest(xs: list[int]) -> int:\n",
+  "verifier": "functional: repaired function + hidden asserts (subprocess rc==0)",
+  "hidden_tests": [
+    "assert second_largest([4,1,4,3]) == 3",
+    "assert second_largest([5,2]) == 2"
+  ],
+  "reference_body": "    return sorted(set(xs))[-2]",
+  "function_header": "def second_largest(xs: list[int]) -> int:",
+  "metadata": {
+    "family": "F3_type",
+    "function_name": "second_largest",
+    "mutation_operators": [
+      "body_logic_bug"
+    ],
+    "difficulty": "moderate",
+    "contamination_flag": "CLEAN_BY_CONSTRUCTION",
+    "canary_guid": "9de0ba577b4868b5",
+    "license": "synthetic-public-domain",
+    "provenance": "synthetic second_largest v9"
+  }
+}

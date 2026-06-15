@@ -1,0 +1,24 @@
+{
+  "instance_id": "gym-v0.3/F3/b680f8a75d366741/8fa6d364e57e86cb",
+  "broken_artifact": "def vowel_count(s: str) -> int:\n    return sum(1 for c in s if c in 'aeiou')\n",
+  "prompt_context": "Repair the broken Python function so the visible test passes.\n\n# Visible test (must pass):\nassert vowel_count(\"Apple\") == 2\n\n# Broken code:\n# Canary GUID: f2b00c30644ac41e\ndef vowel_count(s: str) -> int:\n    return sum(1 for c in s if c in 'aeiou')\n\n# Corrected code:\ndef vowel_count(s: str) -> int:\n",
+  "verifier": "functional: repaired function + hidden asserts (subprocess rc==0)",
+  "hidden_tests": [
+    "assert vowel_count(\"Apple\") == 2",
+    "assert vowel_count(\"xyz\") == 0"
+  ],
+  "reference_body": "    return sum(1 for c in s.lower() if c in 'aeiou')",
+  "function_header": "def vowel_count(s: str) -> int:",
+  "metadata": {
+    "family": "F3_type",
+    "function_name": "vowel_count",
+    "mutation_operators": [
+      "body_logic_bug"
+    ],
+    "difficulty": "moderate",
+    "contamination_flag": "CLEAN_BY_CONSTRUCTION",
+    "canary_guid": "f2b00c30644ac41e",
+    "license": "synthetic-public-domain",
+    "provenance": "synthetic vowel_count v10"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "aurelius/directive_trace_schema.json",
+  "title": "Aurelius directive trace row (one row per control decision)",
+  "description": "Mandated by §143.10, fields per §143.1 DirectiveOwner packet. Discharged 2026-06-11 (OBL-010); v1.1.0 same day per §148 corrective audit (FORCED_BASELINE + execution_mode + none_forced rung, so First Light's forced-route rows can satisfy H-FL-1's 100% reason-code coverage without lying). BINDING (§143.1): a trace that cannot reconstruct proposal -> projected -> final with a reason code is a FAILED forward pass. One row per (sequence position x layer-group) control decision; sentinel reuses emit rows too (cheap fields only).",
+  "type": "object",
+  "required": [
+    "schema_version", "run_id", "config_id", "adr_branch", "seq_id", "token_pos",
+    "layer_group", "phase", "cadence_path", "proposal", "projected_directive",
+    "final_directive", "reason_code", "estimator_rung", "g_hat", "cost_estimate",
+    "ring", "contaminated_for_paper1"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.1.0" },
+    "run_id": { "type": "string", "description": "links to run manifest + byte ledger + claims.yaml required_artifacts" },
+    "config_id": { "type": "string", "description": "e.g. FROZEN-BASE-v1; must name its ADR branch until ADR-1/2 ratified (§133 rule 4)" },
+    "adr_branch": { "type": "string", "enum": ["A", "B", "C", "D", "ratified"] },
+    "seq_id": { "type": "string" },
+    "token_pos": { "type": "integer", "minimum": 0 },
+    "layer_group": { "type": "string", "description": "single layer index, or 'L8-L11' style group under two-rate slow path (§143.3)" },
+    "phase": { "type": "string", "enum": ["prefill", "decode"], "description": "mandatory per §136/§30.1" },
+    "execution_mode": { "type": "string", "enum": ["live", "offline_replay"], "description": "v1.1.0 (§148): offline_replay = forced-route or shadow-route re-execution per shadow_route_replay_protocol.md §2; absent = live" },
+    "cadence_path": { "type": "string", "enum": ["slow_full", "sentinel_reuse", "emergency_refresh"], "description": "§143.3 two-rate controller path taken" },
+    "proposal": {
+      "type": "object",
+      "description": "MCO proposal BEFORE projection (§143.1). Logits may be quantized/compressed; argmax must be reconstructible.",
+      "required": ["directive", "logits_q"],
+      "properties": {
+        "directive": { "type": "string", "enum": ["SKIP", "NORMAL", "AMPLIFY"] },
+        "logits_q": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }
+      }
+    },
+    "theta_snapshot_id": { "type": "string", "description": "hash of active theta_core values; reserved dials excluded (must be inert, §143.2)" },
+    "projected_directive": { "type": "string", "enum": ["SKIP", "NORMAL", "AMPLIFY"], "description": "after CE/Budget projection (budget.project is the ONLY budget interface)" },
+    "final_directive": { "type": "string", "enum": ["SKIP", "NORMAL", "AMPLIFY"], "description": "after safety override; safety may only preserve/tighten/quarantine/escalate (§143.1)" },
+    "reason_code": {
+      "type": "string",
+      "enum": ["MCO_ACCEPTED", "BUDGET_CLAMP", "AMP_CAP", "GAIN_FLOOR", "SAFETY_ESCALATE", "MIN_NORMAL_COVERAGE", "SENTINEL_REUSE", "EMERGENCY_REFRESH", "FORCED_BASELINE"],
+      "description": "§143.1 enum + the two §143.3 cadence codes + FORCED_BASELINE (v1.1.0, §148: the decision came from a pinned baseline policy, not the MCO — First Light rows 2-3 and replay-protocol forced anchors). Missing reason code = failed forward pass."
+    },
+    "estimator_rung": { "type": "string", "enum": ["g_entropy", "g_gain", "g_vbmca", "none_forced"], "description": "§142.2 ladder rung that produced g_hat; none_forced (v1.1.0, §148) when a pinned baseline policy decided without an estimator (e.g., random_matched_mix)" },
+    "g_hat": { "type": ["number", "null"], "description": "predicted gain density for the chosen rung; units are RUNG-LOCAL (cross-rung comparison is rank-based only, per aurelius_calibration_contract.yaml). null permitted ONLY when estimator_rung=none_forced (§148)" },
+    "cost_estimate": {
+      "type": "object",
+      "required": ["flops_directive", "controller_tax_flops"],
+      "properties": {
+        "flops_directive": { "type": "number" },
+        "controller_tax_flops": { "type": "number", "description": "EntropyGate + MCO + probes + trace emission (§136.2: never omitted)" },
+        "guard_tax_flops": { "type": "number" },
+        "memory_bytes_token": { "type": "number" }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "properties": {
+        "safety_margin": { "type": "number" },
+        "ood_score": { "type": "number" },
+        "verify_paths": { "type": "integer", "minimum": 1, "maximum": 5 }
+      }
+    },
+    "route_cache": {
+      "type": "object",
+      "description": "two-rate controller cache state (§143.3)",
+      "properties": {
+        "cache_hit": { "type": "boolean" },
+        "stability_envelope_ok": { "type": "boolean" },
+        "tokens_since_full_decision": { "type": "integer" }
+      }
+    },
+    "shadow_routes": {
+      "type": "array",
+      "description": "k sampled shadow routes for counterfactual replay (shadow_route_replay_protocol.md); empty when shadow sampling off",
+      "items": {
+        "type": "object",
+        "required": ["directive", "source"],
+        "properties": {
+          "directive": { "type": "string", "enum": ["SKIP", "NORMAL", "AMPLIFY"] },
+          "source": { "type": "string", "enum": ["proposal_sample", "forced_all_normal", "forced_skip_floor", "random_matched_mix"] },
+          "g_hat_shadow": { "type": "number" }
+        }
+      }
+    },
+    "ring": { "type": "string", "enum": ["R0", "R1", "R2", "R3"], "description": "§143.5 isolation ring of every subsystem that touched this decision" },
+    "contaminated_for_paper1": { "type": "boolean", "description": "true if any R1+ behavior affected generation; excludes the run from Paper-1 main tables (§143.5)" }
+  },
+  "additionalProperties": false
+}

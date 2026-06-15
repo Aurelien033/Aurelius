@@ -1,0 +1,23 @@
+{
+  "instance_id": "gym-v0.3/F3/82a09dcd99bd25eb/f4cc0a918b138330",
+  "broken_artifact": "def title_case(s: str) -> str:\n    return ' '.join(w.upper() for w in s.split())\n",
+  "prompt_context": "Repair the broken Python function so the visible test passes.\n\n# Visible test (must pass):\nassert title_case(\"hello world\") == \"Hello World\"\n\n# Broken code:\n# Canary GUID: a573be2e2744e0db\ndef title_case(s: str) -> str:\n    return ' '.join(w.upper() for w in s.split())\n\n# Corrected code:\ndef title_case(s: str) -> str:\n",
+  "verifier": "functional: repaired function + hidden asserts (subprocess rc==0)",
+  "hidden_tests": [
+    "assert title_case(\"hello world\") == \"Hello World\""
+  ],
+  "reference_body": "    return ' '.join(w.capitalize() for w in s.split())",
+  "function_header": "def title_case(s: str) -> str:",
+  "metadata": {
+    "family": "F3_type",
+    "function_name": "title_case",
+    "mutation_operators": [
+      "body_logic_bug"
+    ],
+    "difficulty": "moderate",
+    "contamination_flag": "CLEAN_BY_CONSTRUCTION",
+    "canary_guid": "a573be2e2744e0db",
+    "license": "synthetic-public-domain",
+    "provenance": "synthetic title_case v4"
+  }
+}

@@ -18,7 +18,10 @@ MODEL_REPO, MODEL_REVISION = "Qwen/Qwen2.5-1.5B", "8faed761d45a263340a0528343f09
 CONFIG_HASH = "0e8c8aa86468aba0"
 ROUTABLE = list(range(7, 21)); K_SKIP = 4; SEEDS = [1337, 2026, 7]; MAX_NEW = 512
 import os
-RESEARCH = Path(os.environ.get("AURELIUS_RESEARCH", "/Users/christienantonio/Desktop/AI:ML Research"))
+# resolution: $AURELIUS_RESEARCH > local Mac Research folder (full data) > bundled repo/eval_data (Lightning)
+_mac = Path("/Users/christienantonio/Desktop/AI:ML Research")
+_bundled = Path(__file__).resolve().parents[2] / "eval_data"
+RESEARCH = Path(os.environ["AURELIUS_RESEARCH"]) if os.environ.get("AURELIUS_RESEARCH") else (_mac if _mac.exists() else _bundled)
 GYM_V02, GYM_V01 = RESEARCH / "gym-v0.2", RESEARCH / "gym-v0.1-FL"
 SCHEMA = json.load(open(RESEARCH / "directive_trace_schema.json"))
 OUT = RESEARCH / "first_light_receipt"

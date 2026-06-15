@@ -1,0 +1,24 @@
+{
+  "instance_id": "gym-v0.3/F3/79fc3535080687da/ca0f1d3107f7214d",
+  "broken_artifact": "def nth_from_end(xs: list[int], n: int) -> int:\n    return xs[n]\n",
+  "prompt_context": "Repair the broken Python function so the visible test passes.\n\n# Visible test (must pass):\nassert nth_from_end([1,2,3,4], 1) == 4\n\n# Broken code:\n# Canary GUID: 234ae1b1d4d9992b\ndef nth_from_end(xs: list[int], n: int) -> int:\n    return xs[n]\n\n# Corrected code:\ndef nth_from_end(xs: list[int], n: int) -> int:\n",
+  "verifier": "functional: repaired function + hidden asserts (subprocess rc==0)",
+  "hidden_tests": [
+    "assert nth_from_end([1,2,3,4], 1) == 4",
+    "assert nth_from_end([1,2,3,4], 3) == 2"
+  ],
+  "reference_body": "    return xs[-n]",
+  "function_header": "def nth_from_end(xs: list[int], n: int) -> int:",
+  "metadata": {
+    "family": "F3_type",
+    "function_name": "nth_from_end",
+    "mutation_operators": [
+      "body_logic_bug"
+    ],
+    "difficulty": "moderate",
+    "contamination_flag": "CLEAN_BY_CONSTRUCTION",
+    "canary_guid": "234ae1b1d4d9992b",
+    "license": "synthetic-public-domain",
+    "provenance": "synthetic nth_from_end v0"
+  }
+}
