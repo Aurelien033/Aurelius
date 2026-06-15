@@ -118,12 +118,26 @@ def main():
     init, final = float(np.mean(losses[:5])), float(np.mean(losses[-5:]))
     Path(a.out).mkdir(parents=True, exist_ok=True)
     model.save_pretrained(a.out)
+
+    # ---- SELF-PROOF (so the verifier can confirm the adapters are REAL + ACTIVE, not a no-op) ----
+    model.eval()
+    probe = tok("def add(a: int, b: int) -> int:", return_tensors="pt").to(dev)
+    with torch.no_grad():
+        lora_on = model(**probe).logits.float().cpu()
+        with model.disable_adapter():          # peft: run the FROZEN base
+            lora_off = model(**probe).logits.float().cpu()
+    max_diff = float((lora_on - lora_off).abs().max())
+    lora_norm = float(sum(p.detach().float().norm()**2 for n, p in model.named_parameters() if "lora" in n.lower() and p.requires_grad) ** 0.5)
+    proof = {"frozen_vs_cotrained_max_logit_diff": max_diff, "lora_weight_norm": lora_norm,
+             "adapters_active": max_diff > 0.5 and lora_norm > 0.0}
     (Path(a.out)/"cotrain_result.json").write_text(json.dumps({
-        "steps": a.steps, "init_loss": init, "final_loss": final, "drop": init-final,
-        "skip_dist": SKIP_DIST, "smoke": a.smoke,
+        "model": {"repo": MODEL, "rev": REV}, "steps": a.steps, "seq_len": a.seq_len, "batch": a.batch,
+        "init_loss": init, "final_loss": final, "drop": init-final, "skip_dist": SKIP_DIST, "smoke": a.smoke,
+        "self_proof": proof,
         "verdict": "loss drops under skip distribution" if init-final > 0.3 else "CHECK: loss not dropping"}, indent=2))
-    print(f"\n  init {init:.3f} -> final {final:.3f} (drop {init-final:.3f}); adapters -> {a.out}")
-    print("  NEXT: load these adapters and re-run docs/first_light/e87_chessboard.py to measure the skip-cost change")
+    print(f"\n  init {init:.3f} -> final {final:.3f} (drop {init-final:.3f})")
+    print(f"  SELF-PROOF: frozen-vs-cotrained logit diff {max_diff:.2f} (>0.5 => adapters active), lora_norm {lora_norm:.3f}")
+    print(f"  adapters -> {a.out}/  (bring back the WHOLE folder + cotrain_result.json for verification)")
 
 
 class _null:
