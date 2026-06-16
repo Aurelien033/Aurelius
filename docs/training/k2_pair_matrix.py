@@ -99,6 +99,8 @@ def main():
     ap.add_argument("--adapters", default=None, help="optional LoRA adapters; default = FROZEN base")
     ap.add_argument("--batch_size", type=int, default=30)
     ap.add_argument("--max_new", type=int, default=256)
+    ap.add_argument("--dtype", choices=["bf16", "fp16"], default="bf16",
+                    help="fp16 is ~2-3x faster on T4/Turing (no native bf16 there); keep bf16 on A100/L4/H100")
     ap.add_argument("--out_dir", default=None, help="write outputs here (e.g. a Google Drive path) so they survive a VM recycle; resume reads from here too")
     ap.add_argument("--smoke", action="store_true", help="2 tasks × 3 pairs — validate the pipeline first")
     a = ap.parse_args()
@@ -121,7 +123,8 @@ def main():
     tok = R.AutoTokenizer.from_pretrained(R.MODEL_REPO, revision=R.MODEL_REVISION)
     if tok.pad_token is None: tok.pad_token = tok.eos_token
     tok.padding_side = "left"   # decoder-only batched generation needs left padding
-    base = R.AutoModelForCausalLM.from_pretrained(R.MODEL_REPO, revision=R.MODEL_REVISION, dtype=torch.bfloat16)
+    DT = torch.bfloat16 if a.dtype == "bf16" else torch.float16
+    base = R.AutoModelForCausalLM.from_pretrained(R.MODEL_REPO, revision=R.MODEL_REVISION, dtype=DT)
     if a.adapters:
         from peft import PeftModel
         model = PeftModel.from_pretrained(base, a.adapters).to(DEV).eval()
@@ -141,7 +144,7 @@ def main():
         done_pairs = {tuple(r["pair"]) for r in rows if r["pair"] is not None}
         dense_done = any(r["dense"] for r in rows)
     todo = [p for p in pairs if tuple(p) not in done_pairs]
-    print(f"k=2 EXACT pair matrix on {tag} ({DEV}, bf16, batch {a.batch_size}): "
+    print(f"k=2 EXACT pair matrix on {tag} ({DEV}, {a.dtype}, batch {a.batch_size}): "
           f"{len(test)} tasks × {len(pairs)} pairs (+dense), GREEDY", flush=True)
     if done_pairs or dense_done:
         print(f"  RESUME: {len(done_pairs)}/{len(pairs)} pairs + dense({dense_done}) already done; "
