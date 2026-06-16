@@ -99,12 +99,14 @@ def main():
     ap.add_argument("--adapters", default=None, help="optional LoRA adapters; default = FROZEN base")
     ap.add_argument("--batch_size", type=int, default=30)
     ap.add_argument("--max_new", type=int, default=256)
+    ap.add_argument("--out_dir", default=None, help="write outputs here (e.g. a Google Drive path) so they survive a VM recycle; resume reads from here too")
     ap.add_argument("--smoke", action="store_true", help="2 tasks × 3 pairs — validate the pipeline first")
     a = ap.parse_args()
     R.MAX_NEW = a.max_new
     pairs = PAIRS[:3] if a.smoke else PAIRS
     tag = ("smoke_" if a.smoke else "") + ("frozen" if not a.adapters else Path(a.adapters).name.replace("/", "_"))
-    rd = OUT / f"k2_matrix_{tag}"; (rd / "completions").mkdir(parents=True, exist_ok=True)
+    rd = Path(a.out_dir) if a.out_dir else (OUT / f"k2_matrix_{tag}")
+    (rd / "completions").mkdir(parents=True, exist_ok=True)
     DEV = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 
     test = sorted(set(json.loads((OUT / "e87_split.json").read_text())["test"]))
