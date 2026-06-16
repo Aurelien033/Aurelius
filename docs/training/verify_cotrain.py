@@ -67,11 +67,12 @@ def main():
     if tok.pad_token is None: tok.pad_token = tok.eos_token
     base = R.AutoModelForCausalLM.from_pretrained(R.MODEL_REPO, revision=R.MODEL_REVISION, dtype=torch.bfloat16)
     from peft import PeftModel
-    model = PeftModel.from_pretrained(base, a.adapters).to("mps").eval()
+    DEV = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
+    model = PeftModel.from_pretrained(base, a.adapters).to(DEV).eval()
     layers = find_layers(model)
 
     # ---- SELF-PROOF: adapters real + active (re-derived locally, not trusted from their receipt) ----
-    probe = tok("def add(a: int, b: int) -> int:", return_tensors="pt").to("mps")
+    probe = tok("def add(a: int, b: int) -> int:", return_tensors="pt").to(DEV)
     with torch.no_grad():
         on = model(**probe).logits.float().cpu()
         with model.disable_adapter(): off = model(**probe).logits.float().cpu()
