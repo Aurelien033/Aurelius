@@ -130,24 +130,38 @@ def main():
     prompts = [idx[iid]["prompt_context"] for iid in test]
     vfs = [R.VERIFIERS[idx[iid]["metadata"]["family"]] for iid in test]
     fams = [idx[iid]["metadata"]["family"] for iid in test]
+
+    # RESUME: rows.jsonl is written only after a pair fully completes (all 60 tasks), so it's never
+    # partially-corrupt. Reload it and skip dense + any pairs already done (survives disconnects).
+    rows, done_pairs, dense_done = [], set(), False
+    if (rd / "rows.jsonl").exists():
+        rows = [json.loads(l) for l in open(rd / "rows.jsonl")]
+        done_pairs = {tuple(r["pair"]) for r in rows if r["pair"] is not None}
+        dense_done = any(r["dense"] for r in rows)
+    todo = [p for p in pairs if tuple(p) not in done_pairs]
     print(f"k=2 EXACT pair matrix on {tag} ({DEV}, bf16, batch {a.batch_size}): "
           f"{len(test)} tasks × {len(pairs)} pairs (+dense), GREEDY", flush=True)
+    if done_pairs or dense_done:
+        print(f"  RESUME: {len(done_pairs)}/{len(pairs)} pairs + dense({dense_done}) already done; "
+              f"{len(todo)} pairs to go", flush=True)
 
-    rows = []
-    # dense (no skip)
-    dcomps = batched_greedy(tok, model, prompts, [], layers, DEV, a.batch_size, a.max_new)
-    for ti, iid in enumerate(test):
-        rows.append({"iid": iid, "family": fams[ti], "pair": None, "passed": bool(vfs[ti](idx[iid], dcomps[ti])), "dense": True})
-    print(f"  dense done: {np.mean([r['passed'] for r in rows])*100:.1f}%", flush=True)
+    if not dense_done:
+        dcomps = batched_greedy(tok, model, prompts, [], layers, DEV, a.batch_size, a.max_new)
+        for ti, iid in enumerate(test):
+            rows.append({"iid": iid, "family": fams[ti], "pair": None, "passed": bool(vfs[ti](idx[iid], dcomps[ti])), "dense": True})
+        with open(rd / "rows.jsonl", "w") as f:
+            for r in rows: f.write(json.dumps(r) + "\n")
+    print(f"  dense done: {np.mean([r['passed'] for r in rows if r['dense']])*100:.1f}%", flush=True)
 
-    for pi, (i, j) in enumerate(pairs):
+    for pi, (i, j) in enumerate(todo):
         comps = batched_greedy(tok, model, prompts, [i, j], layers, DEV, a.batch_size, a.max_new)
         for ti, iid in enumerate(test):
             passed = bool(vfs[ti](idx[iid], comps[ti]))
             rows.append({"iid": iid, "family": fams[ti], "pair": [i, j], "passed": passed, "dense": False})
             (rd / "completions" / f"{iid.replace('/','_')}_{i}_{j}.txt").write_text(comps[ti])
-        if (pi + 1) % 10 == 0 or pi == len(pairs) - 1:
-            print(f"  [{pi+1}/{len(pairs)} pairs] last ({i},{j})", flush=True)
+        done_n = len(pairs) - len(todo) + (pi + 1)
+        if done_n % 10 == 0 or pi == len(todo) - 1:
+            print(f"  [{done_n}/{len(pairs)} pairs] last ({i},{j})", flush=True)
         with open(rd / "rows.jsonl", "w") as f:      # crash-safe incremental save
             for r in rows: f.write(json.dumps(r) + "\n")
 
