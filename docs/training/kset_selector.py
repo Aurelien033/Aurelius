@@ -78,33 +78,42 @@ def main(matrix_path, feats_path):
     yy = np.array([M[t][s] for t in tasks for s in sets])
     print(f"EARLY READ: corr(set_interference, pass) = {np.corrcoef(inter, yy)[0,1]:+.3f}  (|.|~0 => feature weak)")
 
+    fam = {r["iid"]: r["family"] for r in rows}
     rng = np.random.RandomState(0); ts = tasks[:]; rng.shuffle(ts); K = 5
     folds = [ts[i::K] for i in range(K)]
-    res = defaultdict(list)
+    out = defaultdict(dict)   # policy -> {task: outcome}  (each task tested once, in its fold)
     for kf in range(K):
         test = folds[kf]; train = [t for t in tasks if t not in set(test)]
         rate = {s: np.mean([M[t][s] for t in train]) for s in sets}
         ranked = sorted(sets, key=lambda s: -rate[s]); best = ranked[0]
-        res["random"].append(np.mean([M[t][s] for t in test for s in sets]))
-        res["dense"].append(np.mean([dense[t] for t in test]))
-        res["global_best_set"].append(np.mean([M[t][best] for t in test]))
-        res["sampled_ceiling"].append(np.mean([1 if any(M[t].values()) else 0 for t in test]))
-        for Mtop in [3, 5]:
-            top = ranked[:Mtop]
-            res[f"verified_top{Mtop}"].append(np.mean([1 if any(M[t][s] for s in top) else 0 for t in test]))
+        for t in test:
+            out["random"][t] = float(np.mean([M[t][s] for s in sets]))   # expected pass (rate)
+            out["dense"][t] = dense[t]
+            out["global_best_set"][t] = M[t][best]
+            out["sampled_ceiling"][t] = 1 if any(M[t].values()) else 0
+            for Mtop in [3, 5]:
+                out[f"verified_top{Mtop}"][t] = 1 if any(M[t][s] for s in ranked[:Mtop]) else 0
         for up, name in [(False, "C_struct"), (True, "C_full")]:
             Xtr, ytr, _ = build(train, up, rate); mdl = logistic_fit(Xtr, ytr)
-            sel = []
             for t in test:
                 Xt, _, keyt = build([t], up, rate); P = logistic_pred(mdl, Xt)
-                sel.append(M[t][keyt[int(np.argmax(P))][1]])
-            res[name].append(np.mean(sel))
-    print(f"\n5-fold task-level CV (held-out tasks), k={k}:")
+                out[name][t] = M[t][keyt[int(np.argmax(P))][1]]
+
+    def mean(pol, ts=tasks): return float(np.mean([out[pol][t] for t in ts]))
+    f2 = [t for t in tasks if fam[t] == "F2_json"]; f3 = [t for t in tasks if fam[t] == "F3_type"]
+    print(f"\nHeld-out (each task tested once via 5-fold), k={k}  [overall | F2 | F3]:")
     for n in ["random", "dense", "global_best_set", "C_struct", "C_full", "verified_top3", "verified_top5", "sampled_ceiling"]:
-        v = np.array(res[n]); print(f"  {n:16s}: {v.mean()*100:5.1f}%  (±{v.std()*100:.1f})")
-    g, d, cf, cs = (np.array(res[x]) for x in ["global_best_set", "dense", "C_full", "C_struct"])
-    print(f"\n  H-K4-0  global_best_set − dense = {(g.mean()-d.mean())*100:+.1f}pp  (a PERMANENT {k}-layer prune >= full model? the prize)")
-    print(f"  H-K4-2  C_full − C_struct       = {(cf.mean()-cs.mean())*100:+.1f}pp  (per-task PROMPT signal at k={k}?)")
+        print(f"  {n:16s}: {mean(n)*100:5.1f}%  | {mean(n,f2)*100:5.1f}% | {mean(n,f3)*100:5.1f}%")
+
+    def boot(a, b, n=5000):   # PAIRED per-task bootstrap CI of mean(a)-mean(b)
+        d = np.array([out[a][t] - out[b][t] for t in tasks])
+        bs = np.array([d[rng.randint(0, len(d), len(d))].mean() for _ in range(n)])
+        return d.mean() * 100, np.percentile(bs, 2.5) * 100, np.percentile(bs, 97.5) * 100
+    for label, a, b, h in [("H-K4-0 (prune ≥ dense?)", "global_best_set", "dense", f"a permanent {k}-layer prune vs full model"),
+                           ("H-K4-2 (per-task prompt signal?)", "C_full", "C_struct", "prompt features vs no-prompt model")]:
+        m, lo, hi = boot(a, b)
+        sig = "SIGNIFICANT" if (lo > 0 or hi < 0) else "n.s. (CI spans 0)"
+        print(f"\n  {label}: {a} − {b} = {m:+.1f}pp  [95% CI {lo:+.1f}, {hi:+.1f}]  {sig}  ({h})")
     pr = {s: np.mean([M[t][s] for t in tasks]) for s in sets}
     top = sorted(sets, key=lambda s: -pr[s])[:6]
     print("\ntop sets (full-data rate):", [(",".join(map(str, s)), round(pr[s] * 100)) for s in top])
