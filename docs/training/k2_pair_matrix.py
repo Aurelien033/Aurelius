@@ -104,6 +104,7 @@ def main():
     ap.add_argument("--out_dir", default=None, help="write outputs here (e.g. a Google Drive path) so they survive a VM recycle; resume reads from here too")
     ap.add_argument("--no_completions", action="store_true",
                     help="don't write per-(task,pair) .txt files — output is just rows.jsonl+summary.json (avoids burying them under 5460 files / Kaggle output-file limits)")
+    ap.add_argument("--split", default=None, help="path to a split json with an 'all' list of instance_ids (e.g. selector_split_v0.1.json); default = the E87 60")
     ap.add_argument("--smoke", action="store_true", help="2 tasks × 3 pairs — validate the pipeline first")
     a = ap.parse_args()
     R.MAX_NEW = a.max_new
@@ -113,10 +114,13 @@ def main():
     (rd / "completions").mkdir(parents=True, exist_ok=True)
     DEV = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 
-    test = sorted(set(json.loads((OUT / "e87_split.json").read_text())["test"]))
+    if a.split:
+        test = sorted(set(json.loads(Path(a.split).read_text())["all"]))
+    else:
+        test = sorted(set(json.loads((OUT / "e87_split.json").read_text())["test"]))
     idx = {}
     for root, fam in [(R.RESEARCH / "gym-v0.1-FL", "F2_json"), (R.RESEARCH / "gym-v0.3", "F3_type")]:
-        for sp in ["test", "smoke"]:
+        for sp in ["dev", "test", "smoke", "train"]:
             for f in (root / fam / sp).glob("*.json"):
                 d = json.loads(f.read_text()); idx[d["instance_id"]] = d
     test = [i for i in test if i in idx]
