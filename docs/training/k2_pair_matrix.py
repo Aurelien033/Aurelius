@@ -102,6 +102,8 @@ def main():
     ap.add_argument("--dtype", choices=["bf16", "fp16"], default="bf16",
                     help="fp16 is ~2-3x faster on T4/Turing (no native bf16 there); keep bf16 on A100/L4/H100")
     ap.add_argument("--out_dir", default=None, help="write outputs here (e.g. a Google Drive path) so they survive a VM recycle; resume reads from here too")
+    ap.add_argument("--no_completions", action="store_true",
+                    help="don't write per-(task,pair) .txt files — output is just rows.jsonl+summary.json (avoids burying them under 5460 files / Kaggle output-file limits)")
     ap.add_argument("--smoke", action="store_true", help="2 tasks × 3 pairs — validate the pipeline first")
     a = ap.parse_args()
     R.MAX_NEW = a.max_new
@@ -163,7 +165,8 @@ def main():
         for ti, iid in enumerate(test):
             passed = bool(vfs[ti](idx[iid], comps[ti]))
             rows.append({"iid": iid, "family": fams[ti], "pair": [i, j], "passed": passed, "dense": False})
-            (rd / "completions" / f"{iid.replace('/','_')}_{i}_{j}.txt").write_text(comps[ti])
+            if not a.no_completions:
+                (rd / "completions" / f"{iid.replace('/','_')}_{i}_{j}.txt").write_text(comps[ti])
         done_n = len(pairs) - len(todo) + (pi + 1)
         if done_n % 10 == 0 or pi == len(todo) - 1:
             print(f"  [{done_n}/{len(pairs)} pairs] last ({i},{j})", flush=True)
