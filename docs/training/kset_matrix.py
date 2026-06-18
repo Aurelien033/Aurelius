@@ -98,6 +98,8 @@ def main():
     ap.add_argument("--max_new", type=int, default=256)
     ap.add_argument("--dtype", choices=["bf16", "fp16"], default="fp16")
     ap.add_argument("--no_completions", action="store_true")
+    ap.add_argument("--sample_completions", type=int, default=0,
+                    help="even with --no_completions, save ~N random completions (spread across the run) so the matrix stays spot-check re-scorable")
     ap.add_argument("--smoke", action="store_true")
     a = ap.parse_args()
     R.MAX_NEW = a.max_new
@@ -130,6 +132,8 @@ def main():
     prompts = [idx[i]["prompt_context"] for i in test]
     vfs = [R.VERIFIERS[idx[i]["metadata"]["family"]] for i in test]
     fams = [idx[i]["metadata"]["family"] for i in test]
+    srng = np.random.RandomState(0)
+    sample_p = a.sample_completions / max(1, len(test) * len(sets))   # ~N random completions even under --no_completions
 
     # RESUME (rows.jsonl written only after a set fully completes => never partial)
     rows, done, dense_done = [], set(), False
@@ -155,7 +159,7 @@ def main():
         for ti, iid in enumerate(test):
             passed = bool(vfs[ti](idx[iid], comps[ti]))
             rows.append({"iid": iid, "family": fams[ti], "set": sk, "passed": passed, "dense": False})
-            if not a.no_completions:
+            if (not a.no_completions) or (a.sample_completions and srng.random_sample() < sample_p):
                 (rd / "completions" / f"{iid.replace('/','_')}_{'-'.join(map(str,sk))}.txt").write_text(comps[ti])
         n = len(sets) - len(todo) + (si + 1)
         if n % 20 == 0 or si == len(todo) - 1:
