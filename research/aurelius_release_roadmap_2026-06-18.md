@@ -61,6 +61,18 @@ mechanisms on paper.
 - Build out the serving stack from the inference research (budget ledger, prefix/response cache, structured-output
   constraints, spec-decode *with acceptance telemetry*).
 
+**v1.x experiment queue (tooling built — run after v1 ships):**
+| # | experiment | tool | the question |
+|---|---|---|---|
+| 1 | **base ablation** | `sweep_v1x.py` / `aurelius_v1x_sweep_colab.ipynb` (`--bases`) | VibeThinker-3B vs Qwen3-8B vs Coder-7B + our SFT — which wins? |
+| 2 | **trace scaling** | same (`--trace_sizes 60,150,300`) | does pass-rate keep climbing with #verified traces? where's the plateau? |
+| 3 | teacher ablation | `make_traces.py --teacher` | R1-Distill vs QwQ-32B vs Qwen-Coder — best *verified* traces? |
+| 4 | real DPO pairs | (small builder, TODO) | verified-correct vs verified-wrong from rejection sampling → real preference signal |
+| 5 | LayerDelta on release model | `layerdelta.py` | compress the SFT'd model on its serving distribution → measured decode savings |
+
+Sweep harness emits a ranked held-out-pass-rate table + `sweep_results.json`; the winning base/trace-budget feeds
+straight back into the v1 notebook config. #1 + #2 are the highest-leverage and share one job.
+
 ### Aurelius v2 — the ambitious from-scratch model, GATED on a research positive
 Triggered **only if** the research track (skip-native OBL-063, or LayerDelta-frontier) yields a *validated,
 replicated* mechanism worth owning. Then a from-scratch model that bakes in **that validated mechanism + grounded

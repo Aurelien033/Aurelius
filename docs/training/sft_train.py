@@ -138,6 +138,9 @@ def main():
     after = gym_passrate(tok, model, idx, eids, dev, max_new=64 if a.smoke else 256)
     Path(a.out).mkdir(parents=True, exist_ok=True)
     model.save_pretrained(a.out); tok.save_pretrained(a.out)
+    json.dump({"base": a.base, "before": before, "after": after, "delta": after - before,
+               "n_eval": len(eids), "n_rows": len(enc), "data": a.data, "max_rows": a.max_rows},
+              open(Path(a.out) / "result.json", "w"), indent=1)   # machine-readable for sweeps
     print(f"\n  gym pass-rate AFTER: {after*100:.1f}%  (before {before*100:.1f}%, Δ {(after-before)*100:+.1f}pp)")
     print(f"  saved -> {a.out}/  (LoRA adapters; merge for release)" if not a.full_ft else f"  saved -> {a.out}/")
     print("  Δ>0 => the verified-trace SFT specialized the base toward the task. If Δ<=0, revisit data/lr/epochs.")
