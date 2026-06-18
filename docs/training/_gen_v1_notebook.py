@@ -18,6 +18,7 @@ code("""# 1. Setup
 !git clone --depth 1 -b spike/first-light-readiness https://github.com/S3nna13/Aurelius.git
 %cd Aurelius
 !pip -q install -U transformers peft accelerate jsonschema pyyaml
+!pip -q uninstall -y torchao   # Colab ships torchao 0.10 which peft's LoRA dispatch rejects; we don't use it
 import torch
 print("GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "NONE — set Runtime>Change runtime type>A100")"""),
 
