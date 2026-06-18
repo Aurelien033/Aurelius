@@ -125,6 +125,7 @@ def main():
     ap.add_argument("--train_family", choices=["both", "F2_json", "F3_type"], default="both")
     ap.add_argument("--eval_family", choices=["both", "F2_json", "F3_type"], default="both")
     ap.add_argument("--n_train", type=int, default=120)
+    ap.add_argument("--n_eval", type=int, default=0, help="cap eval set size (0=all) — for a tight GPU budget")
     ap.add_argument("--steps", type=int, default=300)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--batch", type=int, default=4)
@@ -144,6 +145,7 @@ def main():
     idx = load_idx()
     eval_ids = sorted(set(json.loads(Path(a.eval_split).read_text())["all"]))
     eval_ids = [i for i in eval_ids if i in idx and (a.eval_family == "both" or idx[i]["metadata"]["family"] == a.eval_family)]
+    if a.n_eval: eval_ids = eval_ids[:a.n_eval]
     pool = [i for i in idx if i not in set(eval_ids) and (a.train_family == "both" or idx[i]["metadata"]["family"] == a.train_family)]
     rng.shuffle(pool); train_ids = pool[:a.n_train]
     if a.smoke: ks, eval_ids, train_ids, a.steps = [2, 4], eval_ids[:4], train_ids[:4], 6
