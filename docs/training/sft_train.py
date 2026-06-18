@@ -19,13 +19,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "first_light"))
 import first_light_runner_v4 as R
 
 
-def chat_encode(tok, prompt, response, max_len):
-    """Tokenize prompt+response with the chat template; labels = -100 on prompt, response tokens kept."""
+def chat_encode(tok, prompt, response, max_len, system=None):
+    """Tokenize (system+)prompt+response with the chat template; labels = -100 on prompt, response tokens kept."""
+    sys_msg = [{"role": "system", "content": system}] if system else []
     if getattr(tok, "chat_template", None):
-        full = tok.apply_chat_template([{"role": "user", "content": prompt}, {"role": "assistant", "content": response}], tokenize=False)
-        pre = tok.apply_chat_template([{"role": "user", "content": prompt}], tokenize=False, add_generation_prompt=True)
+        full = tok.apply_chat_template(sys_msg + [{"role": "user", "content": prompt}, {"role": "assistant", "content": response}], tokenize=False)
+        pre = tok.apply_chat_template(sys_msg + [{"role": "user", "content": prompt}], tokenize=False, add_generation_prompt=True)
     else:
-        pre, full = prompt, prompt + response
+        pre = (system + "\n\n" if system else "") + prompt
+        full = pre + response
     fid = tok(full, add_special_tokens=False)["input_ids"][:max_len]
     plen = min(len(tok(pre, add_special_tokens=False)["input_ids"]), len(fid))
     labels = [-100] * plen + fid[plen:]
@@ -75,7 +77,7 @@ def main():
             d = json.loads(l)
             if not d.get("response", "").strip(): continue
             if a.verified_only and not d.get("verified", True): continue
-            rows.append((d["prompt"], d["response"]))
+            rows.append((d["prompt"], d["response"], d.get("system_prompt")))   # v20 carries the Aurelius persona
     if a.smoke: rows = rows[:8]
     if not rows: print("  NO training rows (check --verified_only / --data)"); return
 
@@ -91,7 +93,7 @@ def main():
         model.print_trainable_parameters()
     model.train()
 
-    enc = [chat_encode(tok, p, r, a.max_len) for p, r in rows]
+    enc = [chat_encode(tok, p, r, a.max_len, sysp) for p, r, sysp in rows]
     enc = [e for e in enc if len(e[0]) > len([x for x in e[1] if x == -100])]   # has >=1 response token
     print(f"SFT {a.base} on {dev}/{a.dtype}: {len(enc)} examples, {'LoRA r%d' % a.rank if not a.full_ft else 'FULL'}, lr {a.lr}, {a.epochs} ep", flush=True)
 
