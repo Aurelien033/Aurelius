@@ -47,17 +47,18 @@ def batches(arr, seq, bs, dev, rng):
 
 
 @torch.no_grad()
-def routability_headroom(model, data, routable, dist, dev, n_batches=8, n_cand=8):
+def routability_headroom(model, data, routable, dist, dev, use_amp=False, n_batches=8, n_cand=8):
     """On held-out batches: dense loss vs random-skip vs ORACLE-per-batch (best of n_cand sampled sets).
     oracle << random gap = there IS per-input structure to route (the precondition for a cheap selector)."""
     model.eval(); rng = random.Random(99)
     d, r, o = [], [], []
     for _ in range(n_batches):
         xb, yb = next(data)
-        ld, _, _ = model(input_ids=xb, labels=yb); d.append(ld.item())
-        cand = [sample_skip(rng, routable, {k: v for k, v in dist.items() if k}) for _ in range(n_cand)]
-        losses = [model(input_ids=xb, labels=yb, skip_layers=s)[0].item() for s in cand]
-        r.append(float(np.mean(losses))); o.append(float(np.min(losses)))
+        with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=use_amp):
+            ld = model(input_ids=xb, labels=yb)[0].item()
+            cand = [sample_skip(rng, routable, {k: v for k, v in dist.items() if k}) for _ in range(n_cand)]
+            losses = [model(input_ids=xb, labels=yb, skip_layers=s)[0].item() for s in cand]
+        d.append(ld); r.append(float(np.mean(losses))); o.append(float(np.min(losses)))
     model.train()
     return float(np.mean(d)), float(np.mean(r)), float(np.mean(o))
 
@@ -76,6 +77,7 @@ def main():
     ap.add_argument("--curriculum", type=int, default=1000, help="steps to ramp skip prob 0->1")
     ap.add_argument("--routable", default=None, help="comma layer idxs; default = middle band")
     ap.add_argument("--out", default="checkpoints/skipnative")
+    ap.add_argument("--amp", type=int, default=1, help="1=fp16 autocast + GradScaler on CUDA (~2x faster than bf16 on T4); auto-off on mps/cpu")
     ap.add_argument("--smoke", action="store_true")
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
@@ -97,27 +99,39 @@ def main():
     data = batches(arr, a.seq, a.bs, dev, random.Random(7))
     heldout = batches(arr, a.seq, a.bs, dev, random.Random(54321))   # disjoint RNG => held-out windows
     opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=0.1, betas=(0.9, 0.95))
+    # AMP: model weights stay fp32 (master copy); autocast runs the forward in fp16; GradScaler scales the
+    # loss so fp16 grads don't underflow (the exact failure raw-fp16 hit). On a T4 this is ~2x vs emulated bf16.
+    use_amp = bool(a.amp) and dev == "cuda"
+    try:
+        scaler = torch.amp.GradScaler("cuda", enabled=use_amp)          # modern API (torch>=2.x)
+    except (AttributeError, TypeError):
+        scaler = torch.cuda.amp.GradScaler(enabled=use_amp)             # fallback (older torch)
+    print(f"  precision: {'fp16 AMP (autocast + GradScaler, fp32 master weights)' if use_amp else 'fp32 (amp off: not cuda or --amp 0)'}", flush=True)
     Path(a.out).mkdir(parents=True, exist_ok=True)
 
     for step in range(a.steps):
         xb, yb = next(data)
-        loss_dense, logits_dense, _ = model(input_ids=xb, labels=yb)
-        loss = loss_dense
-        if not a.no_skip:
-            p_skip = min(1.0, step / max(1, a.curriculum))                 # curriculum ramp
-            sk = sample_skip(rng, routable, dist) if rng.random() < p_skip else []
-            if sk:
-                loss_skip, logits_skip, _ = model(input_ids=xb, labels=yb, skip_layers=sk)
-                kl = F.kl_div(F.log_softmax(logits_skip.reshape(-1, V).float(), -1),
-                              F.log_softmax(logits_dense.detach().reshape(-1, V).float(), -1),
-                              log_target=True, reduction="batchmean")
-                loss = loss_dense + loss_skip + a.distill * kl              # SANDWICH + DISTILL
-        opt.zero_grad(); loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0); opt.step()
+        opt.zero_grad()
+        with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=use_amp):
+            loss_dense, logits_dense, _ = model(input_ids=xb, labels=yb)
+            loss = loss_dense
+            if not a.no_skip:
+                p_skip = min(1.0, step / max(1, a.curriculum))             # curriculum ramp
+                sk = sample_skip(rng, routable, dist) if rng.random() < p_skip else []
+                if sk:
+                    loss_skip, logits_skip, _ = model(input_ids=xb, labels=yb, skip_layers=sk)
+                    kl = F.kl_div(F.log_softmax(logits_skip.reshape(-1, V).float(), -1),     # .float() => KL in fp32 (stable)
+                                  F.log_softmax(logits_dense.detach().reshape(-1, V).float(), -1),
+                                  log_target=True, reduction="batchmean")
+                    loss = loss_dense + loss_skip + a.distill * kl          # SANDWICH + DISTILL
+        scaler.scale(loss).backward()
+        scaler.unscale_(opt)                                               # unscale grads before clipping
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        scaler.step(opt); scaler.update()                                  # step (skips on inf/nan grads) + adapt scale
         if step % 50 == 0 or step == a.steps - 1:
             print(f"  step {step:5d}  loss {loss.item():.3f}  dense {loss_dense.item():.3f}", flush=True)
 
-    dn, ra, orc = routability_headroom(model, heldout, routable, dist, dev)
+    dn, ra, orc = routability_headroom(model, heldout, routable, dist, dev, use_amp)
     print(f"  ROUTABILITY HEADROOM (held-out): dense {dn:.3f} | random-skip {ra:.3f} | oracle-per-batch {orc:.3f} "
           f"(oracle<<random gap = per-input structure exists)", flush=True)
     torch.save({"model": model.state_dict(), "config_path": str(a.config), "routable": routable,
