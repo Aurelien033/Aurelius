@@ -20,7 +20,13 @@ code("""# 1. Setup
 !pip -q install -U transformers peft accelerate jsonschema pyyaml
 import torch; print("GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "NONE — set A100")"""),
 
-md("""## 2. Run the sweep
+md("""## 2. Regenerate the clean SFT data
+Deterministic synthetic; recreates the 105k-example v20 dataset byte-identically in ~2 s (not shipped in the repo: 161 MB > GitHub limit)."""),
+code("""!python scripts/generate_aurelius_reasoning_data_v7.py \\
+  --scale 150 --base-scale 400 --version aurelius-reasoning-sft-v20 --seed 20260614 \\
+  --output data/aurelius_reasoning_sft_v20"""),
+
+md("""## 3. Run the sweep
 - **Base ablation:** list bases in `--bases`, one `--trace_sizes`.
 - **Trace scaling:** one base, list sizes (e.g. `--trace_sizes 60,150,300`).
 Generates traces once per size (reused across bases), SFTs each grid cell, evals held-out, prints a ranked table + saves `sweep_results.json`."""),

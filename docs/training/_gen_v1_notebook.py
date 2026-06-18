@@ -21,7 +21,14 @@ code("""# 1. Setup
 import torch
 print("GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "NONE — set Runtime>Change runtime type>A100")"""),
 
-md("""## 2. Verified traces (quality layer)
+md("""## 2. Regenerate the clean SFT data
+The 105k-example dataset isn't in the repo (its `train.jsonl` is 161 MB > GitHub's limit), but it's **deterministic synthetic** and the generator *is* in the repo — so this recreates it **byte-identically** in ~2 s. (Zero external-model outputs; fully clean.)"""),
+code("""!python scripts/generate_aurelius_reasoning_data_v7.py \\
+  --scale 150 --base-scale 400 --version aurelius-reasoning-sft-v20 --seed 20260614 \\
+  --output data/aurelius_reasoning_sft_v20
+!echo "train rows:" && wc -l < data/aurelius_reasoning_sft_v20/sft/train.jsonl"""),
+
+md("""## 3. Verified traces (quality layer)
 Run gym tasks through the clean teacher; keep only answers that **pass the verifier**. Watch `kept N (M verified)` — M is your usable data."""),
 code("""# EDIT: teacher / #tasks / samples.  Of 300 tasks, the other 150 stay held-out for eval.
 !python docs/training/make_traces.py \\
@@ -29,7 +36,7 @@ code("""# EDIT: teacher / #tasks / samples.  Of 300 tasks, the other 150 stay he
   --split eval_data/selector_split_v0.1.json --n 150 --samples 3 \\
   --max_new 2048 --gen_batch 8 --dtype bf16 --out /content/traces_r1.jsonl"""),
 
-md("""## 3. SFT — scaffold (v20) + quality (traces)
+md("""## 4. SFT — scaffold (v20) + quality (traces)
 Gentle LoRA, loss masked to responses. Eval is **held out** (`--eval_exclude` drops the traced tasks). Watch the **BEFORE → AFTER Δ**: Δ>0 = the SFT specialized the base."""),
 code("""# EDIT: --base (e.g. Qwen/Qwen3-8B for a stronger model), --max_rows, --epochs, --lr
 !python docs/training/sft_train.py \\
@@ -39,17 +46,17 @@ code("""# EDIT: --base (e.g. Qwen/Qwen3-8B for a stronger model), --max_rows, --
   --eval_exclude /content/traces_r1.jsonl --n_eval 60 \\
   --dtype bf16 --out /content/vibethinker-sft"""),
 
-md("""## 4. DPO — sharpen (optional)
-Continues from the SFT adapter on the clean preference pairs. Many v20 chosen/rejected pairs are close, so the margin can be small — DPO here mainly reinforces format/persona. Skip this cell for a faster first pass (cell 5 falls back to the SFT model automatically)."""),
-code("""# EDIT: keep --base identical to cell 3's; --n = #pairs
+md("""## 5. DPO — sharpen (optional)
+Continues from the SFT adapter on the clean preference pairs. Many v20 chosen/rejected pairs are close, so the margin can be small — DPO here mainly reinforces format/persona. Skip this cell for a faster first pass (cell 6 falls back to the SFT model automatically)."""),
+code("""# EDIT: keep --base identical to cell 4's; --n = #pairs
 !python docs/training/dpo_train.py \\
   --base WeiboAI/VibeThinker-3B --adapter /content/vibethinker-sft \\
   --data data/aurelius_reasoning_sft_v20/preferences.jsonl --n 4000 --beta 0.1 --lr 5e-6 \\
   --dtype bf16 --out /content/vibethinker-dpo"""),
 
-md("""## 5. Merge + final held-out eval + save
+md("""## 6. Merge + final held-out eval + save
 Merges the (DPO, else SFT) LoRA into the base, runs one held-out gym eval, saves a standalone model + a zip you can download from the Files panel."""),
-code("""BASE = "WeiboAI/VibeThinker-3B"   # EDIT: must match cells 3-4
+code("""BASE = "WeiboAI/VibeThinker-3B"   # EDIT: must match cells 4-5
 N_EVAL = 60
 import sys, json, torch
 from pathlib import Path
@@ -83,7 +90,7 @@ import subprocess; subprocess.run("cd /content && zip -qr aurelius-v1.zip aureli
 print("saved -> /content/aurelius-v1/  + /content/aurelius-v1.zip (download from the Files panel)")"""),
 
 md("""### Done.
-A clean, specialized, merged small model + the headline held-out pass-rate. Next levers (highest first): **bigger base** (set `--base Qwen/Qwen3-8B` in cells 3–5), **more verified traces** (raise `--n`/`--samples` in cell 2), then **LayerDelta** compression."""),
+A clean, specialized, merged small model + the headline held-out pass-rate. Next levers (highest first): **bigger base** (set `--base Qwen/Qwen3-8B` in cells 4–6), **more verified traces** (raise `--n`/`--samples` in cell 3), then **LayerDelta** compression."""),
 ]
 
 nb["cells"] = cells
