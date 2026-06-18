@@ -1,0 +1,77 @@
+# k4_routing_preregistration.yaml — organized k=4 skipping: is there a real compute win? (E87 / selector follow-up)
+# Written 2026-06-17 BEFORE the run. Follows the k=2 result: GLOBAL routing >= dense at k=2 (modest, 0.93x);
+# per-task PROMPT-conditioned selection = clean powered NULL (cheap activations don't predict good sets).
+# k=4 raises the stakes: 0.857x compute (~14% saving) AND a fixed 4-set = a PERMANENT 4-layer PRUNE
+# (a real smaller/faster 24-layer model, not identity-skip).
+id: K4-ROUTING-PREREG-v0.1
+status: design_draft
+
+reframed_question: >
+  PRIMARY: is there an organized k=4 operating point whose held-out accuracy >= dense (62% on the
+  representative pool) at 0.857x compute? Specifically, does the GLOBAL best 4-set (= a permanent 4-layer
+  prune) match-or-beat the full 28-layer model? That would be a deployable smaller/faster model.
+  SECONDARY: re-test the PER-TASK prompt-conditioned selector at k=4 (bigger headroom than k=2 — does the
+  cheap-feature null survive, or does more headroom make features informative?).
+
+the_combinatorics_constraint: >
+  C(14,4)=1001 >> 91. Exhaustive is infeasible (1001 x N gens). So SAMPLE: a FIXED set S of k=4 subsets
+  used for ALL tasks (so the matrix is a clean N x S, baselines are comparable, the k=2 pipeline reuses
+  directly). Honest: the achievable ceiling from S is a LOWER BOUND (sampled, not exhaustive) — state it.
+
+design:
+  base: "FROZEN-BASE-v1 (Qwen2.5-1.5B), routable [7..20], k=4, greedy, fp16. Same gym (F2+F3), validated harness."
+  N: 200            # balanced 100 F2 + 100 F3, hash-pinned (subset of / consistent with the 300 selector split)
+  S: 300            # FIXED sample of 300 distinct k=4 sets (~30% of the 1001), seeded/pinned, used for every task. MORE COVERAGE (was 150=15%) -> tighter lower-bound ceiling + better global-prune search.
+  matrix: "N x S = 200 x 300 = 60k greedy gens + N dense; batched fp16 (--batch_size 48) = ONE Kaggle commit ~7h (well inside the 12h limit). k2_pair_matrix.py generalized: --sets <file of skip-sets> instead of the hardcoded 91 pairs."
+  features: >
+    Reuse feat_extract.py (one dense prefill/task). Per-layer features unchanged. SET feature generalizes
+    pair_align: for a 4-set, the logit-space interference of the removed contributions —
+    ||sum_{l in S} proj(r_l)||^2 normalized, and mean pairwise alignment. Structural 4-set features:
+    count of poison layers {11,14,15}, #adjacent pairs, longest contiguous run, band spread, early/late counts.
+  policies_heldout_CV:   # leave-tasks-out; same A/B/C ladder, generalized to 4-sets
+    - "random            : mean over the S sampled 4-sets        (floor; expect ~15%)"
+    - "global_best_set   : top-1 4-set by TRAIN pass-rate = the PERMANENT PRUNE candidate (the headline)"
+    - "structural        : rule/learned on 4-set structure (avoid {11,14,15}, avoid adjacency, spread)"
+    - "prompt_selector   : + per-task prompt features (the k=2 KILL, re-tested with more headroom)"
+    - "sampled_ceiling   : best of the S per task = verifier-assisted upper bound (LOWER bound on true oracle)"
+    - "verified_top_M    : best-of-M of the top-M global sets (M in {2,3}) — self-verifying regime"
+    - "dense             : 62% (the bar to beat for a compute win)"
+
+hypotheses:
+  H-K4-0 (PRUNE compute-win): "the GLOBAL best 4-set (held-out) >= dense (62%); paired per-task CI excludes 0 for >=. => a permanent 24-layer prune that is no worse (ideally better) than the 28-layer base. THE prize."
+  H-K4-1 (routing matters): "organized (global/structural) >> random (~15%) by a large margin. Near-certain; quantifies how much routing buys at k=4."
+  H-K4-2 (per-task from prompt features): "prompt_selector > structural/global on held-out tasks. Prediction: NULL again (k=2 corr~0), but bigger headroom makes it worth one cheap re-test."
+  H-K4-KILL: "best organized k=4 policy < dense AND prompt features still null => layer-skip gives NO compute win on this base even at k=4 => the lever is exhausted; pivot to from-scratch skip-native or width/AMPLIFY. Decisive."
+
+primary_endpoint: "global_best_set (held-out) minus dense, paired per-task bootstrap CI. >=0 => deployable prune win."
+
+non_claims:
+  - "S=300 sampled (~30% of the 1001, not exhaustive) => the ceiling is still a LOWER bound and global_best_set is the best-of-sampled; but 30% coverage makes both materially tighter than S=150."
+  - "identity-skip k=4 is still ~no wall-clock speedup (OBL-052); BUT a FIXED global 4-set = a permanent prune = a genuinely smaller model -> THAT is a real compute win if >= dense. Per-task routing remains accuracy-at-FLOPs, not latency."
+  - "one base, F2+F3, k=4 — existence proof, not law."
+
+reuse: "selector_split.py (N=200 draw), k2_pair_matrix.py (+ --sets), feat_extract.py (+ set_align), selector_train.py (S sets + 4-set struct features). ~minimal new code; all k=2-validated."
+decision_map:
+  - "H-K4-0 holds (prune >= dense): REAL result — a 4-layer-pruned model that matches/beats the base. Next: confirm at scale / bigger model; try k=6; ship the prune."
+  - "H-K4-0 fails but routing >> random: organized helps but not enough to beat dense at k=4 -> the headroom is real but the operating cost (per-task control / verification) isn't worth it on this base."
+  - "H-K4-KILL: lever exhausted -> from-scratch skip-native / width-sparsity."
+RESULT_2026_06_18:
+  status: H-K4-KILL (single-pass layer-skip lever EXHAUSTED on the frozen base)
+  run: "Kaggle notebook0b2b9081aa (k=4 re-use), fp16, N=200 (hash e243effbcfbc5ea9) x S=300 sets (30%, hash fee932f6). Old kset_selector (pre-bootstrap) — point estimates clear; paired-CI re-derivation PENDING (Kaggle API throttled)."
+  matrix: "ceiling(sampled) 92.0%, avg-random 14.8% (collapses far harder than k=2's 36%), dense 64.0%."
+  ablation_heldout_CV: >
+    random 14.8 | global_best_set 52.0 | C_struct 52.0 | C_full 48.5 | dense 64.0 | verified_top3 68.0 |
+    verified_top5 69.0 | sampled_ceiling 92.0. H-K4-0 = -12.0pp ; H-K4-2 = -3.5pp ; corr(set_interf,pass)=+0.025.
+  verdict: >
+    H-K4-0 FAILS: a permanent 4-layer prune (52%) is 12pp BELOW dense (64%) — the k=2 'free ~2 layers'
+    does NOT extend to 4; by 4 layers you cut capability. H-K4-2 NULL again (per-task prompt features add
+    nothing; corr ~0 model-free) = the THIRD powered null on cheap per-input routing. The ONLY policy that
+    beats dense is verified multi-try (top-3/5 = 68-69%) — i.e. MORE compute + a verifier, not a single-pass
+    win. KILL triggered: the single-pass layer-skip lever is EXHAUSTED on FROZEN-BASE-v1.
+  implication_for_OBL-062_LayerDelta: >
+    LayerDelta's k=4 target set now has identity-skip 12pp BELOW dense, so H-LD-1 (>= dense) requires the
+    cheap surrogates to RECOVER ~12pp — a harder bar but a cleaner test ('can a cheap surrogate recover what
+    a hard prune loses?'). Prior drops; still the cheapest frozen-base probe before the skip-native bet.
+  next: "per §156/§157: pivot off frozen-base whole-layer skip -> (1) from-scratch SKIP-NATIVE (train routability in; the only bet that could revive dynamic routing on a base BUILT for it); (2) width-sparsity/AMPLIFY (untested 3rd action); (3) LayerDelta as a cheap recover-the-loss probe. OR consolidate + write the negative."
+
+blocks_remaining: [DISCHARGED]

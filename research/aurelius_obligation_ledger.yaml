@@ -1,0 +1,573 @@
+# aurelius_obligation_ledger.yaml
+# Created by §145.1-§145.2 on 2026-06-11. THE single obligation queue.
+# Supersedes-as-index (not as content): §126.2 action register, §128 precision task
+# register (aurelius-precision-task-register-2026-06-08.yaml), §142.14, §143.11, §144.8.
+# Those sections remain provenance; THIS file is where open/closed state lives.
+#
+# tier enum:
+#   active  — blocks the next tranche (First Light / MVP); work it now
+#   staged  — real obligation, but its phase has not arrived; do NOT create yet
+#   retired — superseded or absorbed; kept for provenance
+# status enum: open | discharged | superseded | code_gated | decision_pending
+#
+# BINDING RULE (§145.1): any future pass that mandates a new artifact must either
+# discharge it in the same pass or discharge/retire an older obligation of equal or
+# higher priority. CI lint E113: a mandate sentence without a ledger row fails.
+version: 2026-06-13.2
+ratification_note: >
+  2026-06-11: the user ratified with the exact prescribed line — ADR-1=D with the ADR-1b rule,
+  ADR-2=adopt (moot for Paper 1 under D), ADR-3=defer-with-default. OBL-011/012/013 discharged.
+  ARCH-HARD-03 dissolved for Paper 1; parameter tables key to FROZEN-BASE-v1 (value self-pins at the
+  execute-time smoke pass); traces use adr_branch: ratified. THE ENTIRE remaining queue is now
+  code-gated work awaiting an explicit execute request (§0 research boundary).
+first_light_attempt_1_INVALIDATED: >
+  2026-06-12: run first-light-dab80149 claimed to be First Light and was INVALIDATED by independent
+  verification the same day. NO routing was ever applied (all 'policies' = the identical dense
+  model); 'forced' rows were scored on a DIFFERENT instance pool (F1-only) than dense (pooled) —
+  reconstruction reproduces both numbers exactly from that artifact alone (dense 3/30=10.0%;
+  F1-slice 3/10=30.0%); hypothesis verdicts were hardcoded pre-run; zero traces exist; the FROZEN
+  prereg was silently deviated from (300->30). 'Forced routing outperforms dense' is an artifact,
+  not a finding. First Light remains TO-RUN. Full verdict:
+  first_light_receipt/first-light-dab80149_VERIFICATION.md. Debt row OBL-048.
+audit_note_148: >
+  §148 corrective audit (same day): six defect clusters found and fixed in the First Light path —
+  execution-semantics ambiguity (vacuous-shadow risk), unpinned policies/decoding, FORCED_BASELINE
+  missing from the trace schema, ADR-1 base never named (ADR-1b rule added), three machine-lint
+  incoherences, stale spine numbers. FL-PREREG bumped to v1.1 PRE-FREEZE (hypotheses unchanged).
+  Debt logged at OBL-038. Active queue still: ADR ratification + code-gated work only.
+debt_summary: >
+  2026-06-11 reckoning: ~60 mandated artifacts across 6 registers; 1 existed before §145.
+  Discharge tranche 1 (§145.2): 6 artifacts. Discharge tranche 2 (§145.11, same day): 9 more —
+  directive_trace_schema.json, vb_mca_metric_contract.yaml, acdt_minimal_controller_contract.yaml,
+  shadow_route_replay_protocol.md, first_repair_gym_spec.md, counterfactual_compute_ledger.schema.yaml,
+  aurelius_calibration_contract.yaml, aurelius-adr-pack-2026-06-11.md (drafts; ratification = user),
+  first_light_preregistration.yaml. TASK-006/007/009 of the §128 register superseded
+  (by ADR-1, §143.8+prereg, claims.yaml respectively). Remaining active-open: NONE that documents
+  can close — everything left is a user ratification or code-gated.
+
+obligations:
+
+  # ----- DISCHARGED 2026-06-11 (§145.2 discharge tranche) -----
+  - id: OBL-001
+    artifact: claims.yaml
+    source: "§142.11.2, §143.10, §0.0 P0 debt"
+    tier: active
+    status: discharged
+    discharged_by: "claims.yaml (this folder), 2026-06-11"
+  - id: OBL-002
+    artifact: aurelius_mechanism_registry.yaml
+    source: "§142.11.1, §143.10, §0.0 P0 debt"
+    tier: active
+    status: discharged
+    discharged_by: "aurelius_mechanism_registry.yaml, 2026-06-11"
+  - id: OBL-003
+    artifact: aurelius_candidate_registry.yaml
+    source: "§144.8.1"
+    tier: active
+    status: discharged
+    discharged_by: "aurelius_candidate_registry.yaml, 2026-06-11"
+  - id: OBL-004
+    artifact: spine/archive split (thin canonical spine an implementer reads)
+    source: "§142.11.3"
+    tier: active
+    status: discharged
+    discharged_by: "aurelius-spine-2026-06-11.md, 2026-06-11 (a VIEW; master plan stays truth)"
+  - id: OBL-005
+    artifact: current-truth header block
+    source: "§142.11.4"
+    tier: active
+    status: discharged
+    discharged_by: "§0.0 (added by §143 pass); maintained per §145.6 edit protocol"
+  - id: OBL-006
+    artifact: name-reconciliation entries (dual-stream, predictive-depth, spectral-routing, UIDS, Rebound, MTP-D, four-phase)
+    source: "§144.8.4, §142.0.1"
+    tier: active
+    status: discharged
+    discharged_by: "ALIAS-* rows in aurelius_mechanism_registry.yaml"
+  - id: OBL-007
+    artifact: consolidated obligation ledger (this file)
+    source: "§145.1"
+    tier: active
+    status: discharged
+    discharged_by: "aurelius_obligation_ledger.yaml, 2026-06-11"
+
+  # ----- ACTIVE QUEUE — state lives per row (discharged rows retained here for provenance; §148 header fix) -----
+  - id: OBL-010
+    artifact: directive_trace_schema.json
+    source: "§143.10, §0.0 P0 debt"
+    tier: active
+    status: discharged
+    discharged_by: "directive_trace_schema.json, 2026-06-11 tranche 2"
+  - id: OBL-011
+    artifact: "ADR-1: ARCH-HARD-03 resolution (Option A 1.399B / B 1.393B / C accept 848M / D frozen-base dissolves it)"
+    source: "§133, §134.8, §16.1"
+    tier: active
+    status: discharged
+    discharged_by: "user ratification 2026-06-11: ADR-1=D WITH the ADR-1b base-pick rule. ARCH-HARD-03 dissolved for Paper 1; FROZEN-BASE-v1 value self-pins at the execute-time smoke pass; one-week incompatibility checklist runs then"
+    blocks: []   # every_cost_table / first_light_config unblocked (key to FROZEN-BASE-v1)
+  - id: OBL-012
+    artifact: "ADR-2: tied-MTP adoption (848M -> ~704M written config)"
+    source: "§135.4, §0.0"
+    tier: active
+    status: discharged
+    discharged_by: "user ratification 2026-06-11: adopt — moot for Paper 1 under ADR-1=D (frozen base has no MTP heads); applies to any future scratch/ladder config; tied-vs-untied falsifier stays staged"
+    blocks: []
+  - id: OBL-013
+    artifact: "ADR-3: data-ratio rho* (Chinchilla 20:1 vs corpus 300-1000:1 inference-optimal hypothesis)"
+    source: "§144.4 caution, §43, §105"
+    tier: active
+    status: discharged
+    discharged_by: "user ratification 2026-06-11: defer-with-default — 20-30:1 binding through the 150M rung; 300-1000:1 stays an E108-tested hypothesis; re-decision trigger = first post-MVP training spend"
+    blocks: []   # training_budget/dataset_plan unblocked at the default; trigger row stands
+  - id: OBL-014
+    artifact: repair-gym dataset pin (content hash + version + contamination note)
+    source: "§128 TASK-004, §109, §145.4 data plane"
+    tier: active
+    status: discharged
+    discharged_by: "gym-v0.1-FL built 2026-06-12. Manifest hash 0724aa721c25da55. FL subset hash 2509e4b242e86b3b (300 instances: 100 F1 MBPP-mutation FLAGGED, 100 F2 JSON/schema CLEAN, 100 F3 type-error CLEAN). Smoke set hash 6727c1486c1b9db5 (10 instances: 4/3/3). All verifiers deterministic (0 flakes). Artifact path: ~/Desktop/AI:ML Research/gym-v0.1-FL/"
+    blocks: []
+    notes: "pin PROCEDURE defined (first_repair_gym_spec.md §5); building gym-v0.1 and emitting the manifest hash is code/data work. Spike note (2026-06-11): mbpp_scorer.py VERIFIED deterministic (bit-identical verdicts, passes reference solutions, fails planted defects). MBPP test split at /tmp/mbpp_test.parquet (500 rows, task_ids 11-510). Two eval-pipeline bugs found and fixed during spike: (1) function signature must be included in prompt for name-matching tests, (2) markdown code fences must be stripped before scoring."
+  - id: OBL-015
+    artifact: "§128 precision register P0 tasks (VB-MCA metric contract, ACDT minimal controller contract, shadow route replay, repair-gym spec, counterfactual ledger schema)"
+    source: "aurelius-precision-task-register-2026-06-08.yaml TASK-001..005"
+    tier: active
+    status: discharged
+    discharged_by: "vb_mca_metric_contract.yaml, acdt_minimal_controller_contract.yaml, shadow_route_replay_protocol.md, first_repair_gym_spec.md, counterfactual_compute_ledger.schema.yaml — 2026-06-11 tranche 2"
+    notes: "TASK-006 superseded by ADR-1 (same question); TASK-007 superseded by §143.8 chessboard + FL prereg; TASK-009 superseded by claims.yaml + §131.2. TASK-008 (neuro cards) and TASK-010 (next-agent prompt) remain open, tier staged."
+  - id: OBL-016
+    artifact: unified calibration contract (one protocol for §134.1 directive, §142.2 estimator rungs, §142.5 P(correct), §143.7 OOD ECE)
+    source: "§145.4"
+    tier: active
+    status: discharged
+    discharged_by: "aurelius_calibration_contract.yaml, 2026-06-11 tranche 2"
+    notes: "rank/isotonic, unit-honest; expiry-on-any-weight-update generalized; drift gate re-locks active routing"
+  - id: OBL-017
+    artifact: "experiment triage card + benchmark selection rows for First Light"
+    source: "§106, §110, §126.2 (scoped DOWN to First Light only)"
+    tier: active
+    status: discharged
+    discharged_by: "first_light_preregistration.yaml (FL-PREREG-v1: triage card + design + frozen analysis plan + non-claims), 2026-06-11 tranche 2"
+
+  # ----- CODE-GATED (cannot be discharged by documents; wait for explicit execute request, §0) -----
+  - id: OBL-020
+    artifact: theta_abi generator + theta_abi.py + static lint
+    source: "§143.2, §0.0 P0 debt"
+    tier: active
+    status: code_gated
+    notes: "the YAML seed exists in §143.2; generator/lint are code"
+  - id: OBL-021
+    artifact: DirectiveOwner as the only directive path in code + §143.1 test battery
+    source: "§143.1, §0.0 P0 debt"
+    tier: active
+    status: code_gated
+  - id: OBL-022
+    artifact: claims-linter CI (E99/E113) executable
+    source: "§143.10, §145.9"
+    tier: active
+    status: code_gated
+    notes: "rules already written in claims.yaml linter_rules"
+
+  # ----- STAGED (phase not arrived; creating them now would be premature work) -----
+  - id: OBL-030
+    artifact: "full §127.5 cards for T2 mechanisms (FEPG, RSVA, HMC, EGF, PCGrad, P7, P8)"
+    source: "§144.8.3"
+    tier: staged
+    status: open
+    trigger: "when its mechanism is queued for a tranche (1-3 per tranche, §127.4)"
+  - id: OBL-031
+    artifact: "ADRs for T1 adoptions (C1-C4 spine, P1/P3/P5/P9, K(N,D,O) law, Harness umbrella)"
+    source: "§144.8.2"
+    tier: staged
+    status: open
+    trigger: "one consolidated ADR doc at the next governance tranche"
+  - id: OBL-032
+    artifact: "Appendix H binding-rule registry back-catalog population"
+    source: "§136.11"
+    tier: staged
+    status: open
+    trigger: "document-only tranche; schema seeded in §136.11"
+  - id: OBL-033
+    artifact: "§126.2 P0 set: architecture_novelty_boundary.md, acdt_minimal_controller_contract.yaml (dup of OBL-015), pctc_bridge_boundary.md, training_budget_ledger.schema.yaml, dataset_lifecycle_registry.yaml, power_mde_template.yaml, sequential_peek_ledger.yaml, debug_packet_template.md"
+    source: "§126.2"
+    tier: staged
+    status: open
+    trigger: "first funded/scheduled training run beyond First Light"
+  - id: OBL-034
+    artifact: "§126.2 P1 set: local_smoke_receipt, decision_dashboard_spec, provider_cost_matrix, checkpoint_retention_policy, hpo_tuning_firewall, solo_repro_snapshot, misuse_threat_model, release_policy, redteam_escalation_matrix, human_eval_ethics_preflight, public_comms_policy, community_validation_plan, compute_sponsorship_packet, dependency_risk_register, project_kill_merge_policy"
+    source: "§126.2"
+    tier: staged
+    status: open
+    trigger: "each at its phase: cloud spend / release / human eval / sponsorship respectively — NOT before"
+  - id: OBL-035
+    artifact: byte_ledger_schema.csv + paper1_exclusion_manifest.yaml + first_light_byte_predictions.yaml
+    source: "§143.10; FL-PREREG v1.1 analysis.byte_model_prediction (§148)"
+    tier: staged
+    status: open
+    trigger: "first_light_byte_predictions.yaml is computed and hash-pinned at execute time BEFORE the run (H-FL-4 compares against it — a prediction written after measurement is inadmissible); ledger schema finalizes when First Light produces the first rows. Schema must include total_process_rss_gb + model_attributable_gb + baseline_method fields (RSS-gate hybrid 2026-06-11)."
+
+  # ----- AUDIT / CORRECTIVE PASS RECORDS (§145.8 exemption class, logged per §145.1) -----
+  - id: OBL-038
+    artifact: "§148 corrective audit pass (First Light validity): FL-PREREG v1.1 (execution semantics, policy/decoding pins, paired analysis + MDE floor, secondary telemetry analyses, outcome->action map, fallback ladder), directive_trace_schema 1.1.0 (FORCED_BASELINE / none_forced / execution_mode), counterfactual-ledger enum extensions, ADR-1b base-selection rule, CLM-003 linter exemption + 2 linter rules, registry active_spine_ids resolution, gym-spec pilot-seed clause, spine-view refresh"
+    source: "user improvement request 2026-06-11; §145.8 exemption class: factual-defect correction + in-flight reconciliation"
+    tier: active
+    status: discharged
+    discharged_by: "§148 + the satellite edits above, 2026-06-11"
+    debt_added: >
+      Two execute-time pins remain open inside FL-PREREG v1.1 by design (routable-layer indices and the
+      byte-prediction artifact — both depend on the ADR-1b base pick and close at the first execute
+      request; tracked under OBL-035 and the prereg freeze). No new mechanisms, no new eval IDs, no claim
+      upgraded. NOTHING else added.
+
+  - id: OBL-039
+    artifact: "retroactive §145.8 debt log for §146-§147 (frontier integration passes 5-6, added 2026-06-11 by a concurrent session under user override WITHOUT the required ledger row) + their reconciliation"
+    source: "§145.8 exemption-logging requirement; §148.3"
+    tier: active
+    status: discharged
+    discharged_by: "§148.3 + mechanism-registry alias/registered rows (M1981-M1990 dedup) + candidate-registry frontier_integration_sources block, 2026-06-11"
+    debt_added: >
+      FIE-01..FIE-20 (the passes' eval lists, remapped out of the colliding E86-E105 range) await
+      dedup against the canonical E-namespace at card time — folded into OBL-030's per-tranche carding
+      trigger. Active spine unchanged; eval count unchanged; the binding gates (rank rho>=0.8 unlock,
+      FL-PREREG v1.1 pinned policies) reaffirmed over the pass-internal numbers (0.6; 50:33:17).
+
+  - id: OBL-040
+    artifact: "retroactive §145.8 debt log for §149 (frontier pass 7) — the section NAMES OBL-040 but the row was never written to this queue"
+    source: "§145.8 logging requirement; §149; §154 corpus reconciliation"
+    tier: active
+    status: discharged
+    discharged_by: "§154.2 reconciliation + candidate-registry frontier block, 2026-06-12. Pass-7 eval list E106-E115 COLLIDED with assigned IDs (E106-E112=§144, E113/E114=§145.9) — remapped to provisional FIE-21..FIE-30; M1991-M1995 deduped (M1991 modality-UIDS -> SPINE-05 alias; rest registered)"
+  - id: OBL-041
+    artifact: "retroactive debt log for fork §150 (pass 8 + corpus-root move to AI:ML Research II)"
+    source: "fork changelog claims OBL-041; row never existed here; §154"
+    tier: active
+    status: discharged
+    discharged_by: "§154.2, 2026-06-12. Pass-8 evals -> FIE-31..FIE-40; M1996-M2000 registered/deduped. The corpus-root MOVE is held as DECISION-OWED (OBL-046) — a fork section cannot relocate canon by itself (§0.2 rule 1)"
+  - id: OBL-042
+    artifact: "retroactive debt log for fork §151 (pass 9)"
+    source: "fork changelog; §154"
+    tier: active
+    status: discharged
+    discharged_by: "§154.2, 2026-06-12. Evals -> FIE-41..FIE-50; M2001-M2004 registered (TLT/DEM = real external training-efficiency lenses, high practical value at training phases)"
+  - id: OBL-043
+    artifact: "retroactive debt log for fork §152 (pass 10 capstone; declares series closure mirroring §145.8)"
+    source: "fork changelog; §154"
+    tier: active
+    status: discharged
+    discharged_by: "§154.2, 2026-06-12. Evals -> FIE-51..FIE-60; M2005-M2008 registered; its First-Light bridge FL-1..FL-6 rows reconciled as REDUNDANT with FL-PREREG v1.1 (prereg wins — it is frozen-pending and pinned)"
+  - id: OBL-044
+    artifact: "retroactive debt log for fork §153 (pass 11, user-override resume after pass-10 closure)"
+    source: "fork changelog; §154"
+    tier: active
+    status: discharged
+    discharged_by: "§154.2, 2026-06-12. Evals -> FIE-61..FIE-70; M2009-M2015 registered/deduped (M2010 thinking-budget -> oracle_budget dial alias; M2011 verifiable-coding-kernel -> repair-gym alias; M2012 CUA -> R3)"
+  - id: OBL-045
+    artifact: "full two-directory corpus triage 2026-06-12 (user request): AI:ML Research (831 md) + AI:ML Research II (262 md; 211 exact dupes, 51 unique) — every file inventoried; Line-C 13-part brainstorm program discovered and registered; fork §150-§153 imported to canonical; report = aurelius-corpus-triage-2026-06-12.md"
+    source: "user request 2026-06-12; §145.8 exemption class: reconciliation of in-flight corpus + explicit user request"
+    tier: active
+    status: discharged
+    discharged_by: "§154 + registry updates + triage report, 2026-06-12"
+    debt_added: "LC-* candidates await per-tranche carding (OBL-030 trigger); FIE dedup unchanged; no spine change; no eval-count change; no claim upgraded"
+  - id: OBL-049
+    artifact: "First Light FIRED + repaired verification (run first-light-3651bb11, 2026-06-13) — first real Measurement rows; pilot repaired; P4 recomputed; gym-v0.2 F3 fix queued"
+    source: "First Light execution + repaired verification 2026-06-13; FL-PREREG outcome_action_map"
+    tier: active
+    status: discharged
+    discharged_by: >
+      Run executed legitimately (P1 routing logit-diff 5.3125 + restore-identical; P2 300 pinned instances
+      all policies; H-FL-1 PASS 51,744 final traces, 0 schema errors, 100% FORCED_BASELINE coverage).
+      First Measurement rows recorded in claims.yaml CLM-008.first_light_measurement. Repaired receipt
+      corrected the v3 analysis defects: H-FL-3 sign now follows prereg (raw pooled entropy-random +11.0pp,
+      CI [+6.3,+16.0], but F3-confounded), H-FL-4 now reads ledger TPS and FAILS (dense 27.22 vs 15.00;
+      forced skip 28.67 vs 18.00), and pilot actually ran (900 PILOT dense rows, 17/900 pass) after fixing
+      checkpoint label collision. RSS evidence repaired by sidecar (empty RSS 292.28 MB; total RSS 510.28 MB;
+      peak RSS delta 218.0 MB; MPS driver 3138.67 MB). Verdict:
+      first_light_receipt/first-light-3651bb11_VERIFICATION.md.
+    debt_added: >
+      THREE follow-ups (NOT blocking the fact that First Light fired): (1) OBL-050 gym-v0.2 F3 functional
+      verifier — mypy-on-completion rewards terseness over repair (dense base-model prose fails, terse
+      skip-output passes); replace with hidden call-site functional tests or fold F3 into F1-style unit
+      tests. (2) byte-model audit per §143.4 (15/18 tok/s prior wrong; sustained ~27-29). (3) OBL-051
+      prereg freeze/hash hygiene before the next clean rerun — frozen-at-run hash e84d91c33f4df836 and
+      current on-disk hash 616bda9e25621e55 diverge because later amendment material entered the prereg file.
+      The clean-family F1+F2 baseline (dense 14% >> skip ~0%) stands as the v0.1 pilot result now. §145.8
+      GATE: First Light produced Measurement rows -> the next capability/synthesis section is unblocked,
+      BUT only the clean-family + H-FL-1 results are real; no thesis support exists.
+  - id: OBL-056
+    artifact: "E87 — the Paper-1 thesis experiment (verified-gain estimator g_gain vs entropy at choosing skips). Pre-registration: e87_preregistration.yaml"
+    source: "§142.2 estimator ladder, §134.5 gain head, CLM-001, evidence kernel E87; motivated by First Light H-FL-3 (entropy anti-informative)"
+    tier: active
+    status: discharged_NEGATIVE_result
+    blocks: []   # CLM-001 got its first evidence; g_gain-per-layer rung falsified for this construction
+    discharged_by: >
+      E87 COMPLETE + VERIFIED 2026-06-14 (e87_receipt/e87_VERIFICATION.md). Phase A (200 inst leave-one-out
+      oracle labels) + Phase B (g_gain train + matched-k chessboard, 60 held-out, 3 seeds; independent
+      re-score AGREE=900/900). RESULT: dense 73% > random 30% > learned_gain 20% > oracle 8% > entropy 2%.
+      NO informed skip policy beat random -> CLM-001 FALSIFIED at the g_gain-per-layer rung. Mechanism =
+      LAYER NON-ADDITIVITY (single-layer leave-one-out gain anti-predicts joint skip value; informed
+      policies concentrate skips in the early block 7-10 = individually safe, jointly catastrophic).
+      CORRECTION: the runner's auto 'NO SIGNAL' is invalid — the oracle was a greedy single-layer-marginal
+      selector, not a true combinatorial ceiling; 'no learnable signal' is NOT established.
+    debt_added: >
+      Redirects (the thesis is narrowed, not killed): OBL-057 a TRUE combinatorial oracle (search over
+      4-layer subsets) before any 'no-signal' claim; the §134.5 per-layer g_gain construction is the
+      wrong tool -> interaction-aware/combinatorial selection OR token-level routing (additivity may hold
+      better per-token) OR g_VBMCA with joint features. CLM-001 stays open at those rungs.
+    progress_2026_06_14: "design RATIFIED + prereg FROZEN (split_hash c21e22915fd52972). Phase A done (200 inst). Phase B done. See discharged_by."
+  - id: OBL-057
+    artifact: "E87 follow-up: true combinatorial oracle (k-subset achievable-ceiling) — gates any 'no learnable signal' claim"
+    source: "e87_receipt/e87_VERIFICATION.md ADDENDUM 2; CLM-001"
+    tier: active
+    status: discharged
+    discharged_by: >
+      k-sweep ran the combinatorial achievable-ceiling (N=20 random k-subsets/instance, k=2,4; k=1
+      exhaustive from Phase A). VERIFIED (independent recompute exact + GPU spot-re-score). Ceiling
+      k1 91.7%, k2 91.7%, k4 71.7% (~= dense 73.3%) while avg random collapses (54/39/15%). GOOD SKIP-SETS
+      EXIST AT EVERY k; E87's 'no signal' DECISIVELY REFUTED — a SELECTION failure, not a signal failure.
+      The routing thesis is ALIVE; only the per-layer-marginal ESTIMATOR is falsified. Open -> OBL-059
+      skip-robust co-train + a learned combinatorial/interaction-aware selector. Best operating point k=2.
+    notes: "combinatorial skip signal is LARGE at every k; learning the selector is the whole game now."
+  - id: OBL-054
+    artifact: "First Light CLEAN RE-RUN on gym-v0.2 (run first-light-v4-24515383) — VERIFIED SOUND, first trustworthy measurement"
+    source: "OBL-050 gym-v0.2 + v4 runner; verification 2026-06-14"
+    tier: active
+    status: discharged
+    discharged_by: >
+      run first-light-v4-24515383 (gym-v0.2, 2026-06-13/14). Independent re-score of all 2700 completions:
+      AGREE=2700, DISAGREE=0 (rescore_v4.py) — gold-standard sound. Clean families F2+F3: dense 76% >
+      random 60% >> entropy 25%. H-FL-1 PASS (37800 traces 0 errors), H-FL-2 PASS (dense>random +21.7pp,
+      F3 inversion gone), H-FL-3 entropy BEHIND random (-26.7pp; the |ΔH| skip-heuristic is ANTI-informative
+      — real negative feeding E87 priors), H-FL-4 PASS vs corrected byte model (21.7/29.5 tok/s in v2 band).
+      Pilot ran for real. CLM-008 first_light_measurement moved here. Verdict:
+      first_light_receipt/first-light-v4-24515383_VERIFICATION.md.
+    debt_added: >
+      RETRACTION: run 3651bb11's F1/F2 pass rates were UNDER-counted by a verifier bug (byte-identical
+      correct completion scored FAIL there, PASS by v4 + by hand) — its 'clean baseline dense 14%' is
+      retracted; H-FL-1 + F3-inversion diagnosis stand. Follow-ups (non-blocking): (1) OBL-055 gym-v0.3
+      harder F3 (v0.2 dense=100% ceiling). (2) thesis still needs E87 gain-head experiment. (3) F2
+      dense-vs-random margin narrow (52 vs 47) — single non-ceiling clean family; more families/seeds help.
+  - id: OBL-055
+    artifact: "gym-v0.3 F3 difficulty bump (v0.2 functions trivial -> dense 100% ceiling, no routing headroom)"
+    source: "first-light-v4-24515383 verification 2026-06-14"
+    tier: active
+    status: discharged
+    discharged_by: >
+      gym-v0.3 built 2026-06-14 (gym-v0.3/build_f3_v3.py): 252 moderate-difficulty synthetic functions
+      (2-5 line logic, body bugs), functional verifier + code-inducing prompt kept. BENCH PASSED
+      (correct/empty/prose/wrong-typed/broken), 0 determinism violations. **Difficulty smoke: dense
+      14/25 = 56%** — well below v0.2's 100% ceiling, real routing headroom. manifest_hash 7bd328491366a758,
+      fl_subset_hash e55a447a2f21cda7. Now F3 in E87.
+    notes: "3 templates with behavior-preserving mutations (avg_rounded/count_uppercase/vowel_count) fixed during the determinism battery."
+  - id: OBL-050
+    artifact: "gym-v0.2 F3 functional verifier (replace mypy-on-completion; + F1/F3 dev pools >=300; canaries out of prompts)"
+    source: "OBL-049 verification; first_light_receipt/first-light-3651bb11_VERIFICATION.md"
+    tier: active
+    status: discharged
+    discharged_by: >
+      gym-v0.2 built 2026-06-13 (gym-v0.2/build_f3_v2.py). F3 rebuilt as a FUNCTIONAL family: synthetic
+      typed functions, code-inducing prompt ending at the correct signature (body-level bug, so signature
+      is not the answer), functional hidden-assert verifier. BENCH GATE PASSED: correct-repair passes;
+      empty/prose/wrong-but-typed/broken-artifact all FAIL; 0 flakes/240 instances. F2 also hardened
+      (json.loads + jsonschema against embedded schema). gym-v0.2 manifest_hash 1a1cee45773ba90c,
+      fl_subset_hash f8c03088bdf3b5db. Self-contained v4 runner (docs/first_light/first_light_runner_v4.py)
+      executes it; CLEAN RE-RUN IN PROGRESS as run first-light-v4-24515383 (smoke gate passed: dense 4 >=
+      entropy 2 > random 0 — inversion gone). Dev pools: F2=300, F1/F3 below 300 noted (non-blocking for FL).
+    notes: "F3 v0.1 measured parseability/terseness not repair; gym-v0.2 fixes prompt AND verifier. Canary-in-prompt cleanup deferred to a v0.3 polish (non-blocking)."
+  - id: OBL-052
+    artifact: "byte-model audit (§143.4) — corrected H-FL-4 prediction"
+    source: "OBL-049 debt item 2; H-FL-4 FAIL (measured 27 vs pinned 15 tok/s)"
+    tier: active
+    status: discharged
+    discharged_by: >
+      first_light_byte_model_audit_2026-06-13.md + first_light_byte_predictions_v2.yaml, 2026-06-13.
+      First-principles from FROZEN-BASE-v1 config: 3.09 GB/token, M1 Pro 200 GB/s ceiling 64.8 tok/s,
+      measured 27.3 = 42% MBU (normal for HF+MPS). The 15 tok/s prior was a cold/short probe = the defect.
+      Also explains no-speedup-from-skip: 4-layer skip removes only 12% of reads; embedding/lm_head (15%) +
+      overhead unaffected -> +4% measured vs +14% naive. v2 predictions (dense 27+/-6, report MBU) pin
+      before the next H-FL-4. Honest negative for the skip->speed story (consistent with CLM-002).
+  - id: OBL-053
+    artifact: "LC-RA-RL experiment-#2 pre-registration (representation-anchored GRPO vs entropy-bonus, 350M/GSM8K)"
+    source: "§154.3 candidate second pre-registration; aurelius_mechanism_registry.yaml LC-RA-RL card"
+    tier: active
+    status: design_ratified_awaiting_infra
+    blocks: [lc_ra_rl_run]
+    notes: >
+      lc_ra_rl_preregistration.yaml (LC-RA-RL-PREREG-v0.1). DESIGN RATIFIED + FROZEN by user 2026-06-13.
+      Falsifiable hypotheses incl. explicit kill case (H-RA-3: if entropy-bonus baseline suffices, RA-RL is
+      DROPPED). R2 — NOT Paper-1. RUN still gated on: cloud GPU (1x H100/A100, ~2 GPU-days, ~$50-100 — the
+      M1 Pro has no CUDA and cannot run it) + explicit execute/spend authorization + base pin + GRPO smoke.
+      Launch-ready training script is no-GPU prep, offered. Independent of First Light; validates LC-RA-RL
+      before M1985 router-RL.
+  - id: OBL-051
+    artifact: "First Light prereg freeze/hash hygiene before next clean rerun"
+    source: "OBL-049 repaired verification; claims.yaml CLM-008 prereg_hash_caveat"
+    tier: active
+    status: open
+    blocks: [first_light_clean_rerun, paper_eligible_first_light]
+    notes: >
+      Frozen-at-run hash recorded before repair = e84d91c33f4df836; current on-disk
+      first_light_preregistration.yaml hash = 616bda9e25621e55 after later amendment material entered
+      the file. Before any clean rerun, create an immutable prereg snapshot or hash-pinned freeze artifact,
+      and ensure receipt assembly records the snapshot actually governing the run. Do not silently rewrite
+      the frozen prereg to erase provenance.
+    addressed_for_v4: >
+      2026-06-13: immutable snapshot created for the in-flight clean rerun —
+      first_light_receipt/first-light-v4-24515383_PREREG_SNAPSHOT.yaml (governing-prereg sha256[:16]
+      616bda9e25621e55). The v4 receipt also records gym-v0.2 manifest_hash 1a1cee45773ba90c. The general
+      freeze-snapshot discipline (snapshot at run start, not after) is adopted going forward; OBL-051 stays
+      open until that is the DEFAULT in the runner, not a manual post-hoc copy.
+  - id: OBL-048
+    artifact: "VERIFICATION + invalidation of run first-light-dab80149 (claimed First Light, 2026-06-12)"
+    source: "user verification request 2026-06-12; §0.4 evidence rules; FL-PREREG freeze terms"
+    tier: active
+    status: discharged
+    discharged_by: "first_light_receipt/first-light-dab80149_VERIFICATION.md + corrected claims.yaml/ledger/prereg records, 2026-06-12. Decisive reproduction: dense pooled 3/30=10.0% and F1-only slice 3/10=30.0% from the IDENTICAL dense model — the reported -20pp was an instance-pool artifact; no routing code ever executed; hypothesis verdicts were hardcoded pre-run; zero traces exist; smoke gate (0/9) printed PASS unconditionally; FROZEN prereg silently deviated (300->30, pinned fl_subset_ids ignored)"
+    debt_added: >
+      First Light remains TO-RUN. Before the real run: fix runner (apply routes; same pinned
+      instance set for all policies; use fl_subset_ids), fix verifiers to gym spec (F2 schema +
+      hidden tests; F3 hidden call-sites, empty must FAIL; F1 signature pipeline), wire
+      trace_harness + jsonschema validation + counterfactual ledger, make smoke gate a hard abort.
+      Results-peek exposure: 30 test instances + smoke seen by the operator — logged in the prereg
+      amendment; instances stay in the design (deterministic model, no training; peek noted per §112).
+  - id: OBL-047
+    artifact: "§155 execution-readiness pass: first_light_gym_build_plan.md (gym-v0.1-FL = 3-family scope decision; collapses the OBL-014 critical path to 1-2 days) + first_light_runbook.md (execution-day VIEW; prereg wins on conflict) + FL-PREREG v1.2 (pin named in design.model; dataset re-scoped; defect fixes) + stale '0.5B-1B' fixes in §0.0 and CLM-008"
+    source: "user improvement request 2026-06-12; §145.8 exemption class: factual-defect correction + discharge of existing obligations' spec side (no new capability)"
+    tier: active
+    status: discharged
+    discharged_by: "§155 + both artifacts + prereg/claims/spec edits, 2026-06-12"
+    debt_added: "none net: both new artifacts discharged in-pass (§145.1); gym families F4-F7 explicitly staged to v0.2; no mechanism, no eval ID, no claim change"
+  - id: OBL-046
+    artifact: "DECISION owed to user: corpus root + master-plan canonicality after the fork (R2 CORPUS.md declares itself canonical; satellites/registries all live in R1; fork copy LOST §0.3 Measurement/Theorem/Eng-invariant rows + §0.4)"
+    source: "fork §150.1; CORPUS.md; CORPUS_REDIRECT.md; §154.1"
+    tier: active
+    status: discharged
+    discharged_by: >
+      USER RATIFIED 2026-06-12 ("settle the corpus routing" + the prescribed split). Applied same
+      day: CORPUS.md rewritten (ground-truth row 1 -> R1 canonical plan path; split roles binding);
+      CORPUS_REDIRECT.md rewritten (plan + satellites + evidence artifacts canonical in R1; research
+      outputs -> R2); the R2 plan copy's header replaced with a STALE-FORK banner (do not append /
+      do not cite; §155.4 canary stated). Routing: R2 = new-artifact root for RESEARCH OUTPUTS;
+      R1 = canonical for plan, satellites, governance, and evidence artifacts.
+
+  - id: OBL-058
+    artifact: "training fast-track readiness (no-GPU prep): readiness spike (VERIFIED the repo trainer trains), config_100m, data pipeline, skip-robust co-train recipe"
+    source: "user request 2026-06-14 'fast-track to 100M/1B'; §141 build path; E87 redirect (skip-robust co-train)"
+    tier: active
+    status: discharged
+    discharged_by: >
+      training-fasttrack-readiness-2026-06-14.md (R1) + repo artifacts. KEY DE-RISK: training_readiness_spike.py
+      RUN+PASS — the repo's own AureliusTransformer+TokenizedShardDataset trained a 15.8M model loss 10.86->6.77
+      (clears the codebase audit's loss-0.0-only worry; the trainer genuinely trains). Launch-ready (each needs
+      cloud GPU + tokenized corpus): configs/config_100m.yaml (92M, validated via TrainConfig.from_yaml, ~2.1B
+      tokens), docs/training/data_pipeline.py (fineweb-edu -> uint16 npy shards), docs/training/cotrain_skiprobust_recipe.md.
+    debt_added: >
+      RECOMMENDATION to user: the cheapest-decisive next training step is the SKIP-ROBUST CO-TRAIN (E87
+      continuation: does training make skipping cheap? ~$50-200, reuses base+gym+chessboard) BEFORE any
+      from-scratch 100M/1B. Blocks: cloud GPU (no CUDA locally) + co-train pre-registration (hypotheses
+      drafted in the recipe) + tokenized corpus (data_pipeline.py, not yet run). OBL-059 = co-train prereg+run.
+  - id: OBL-059
+    artifact: "skip-robust co-train experiment (pre-registration + run) — the E87 continuation"
+    source: "docs/training/cotrain_skiprobust_recipe.md; E87 verdict redirect; §135.3 measure->LoRA->co-train"
+    tier: discharged
+    status: v1_AND_v2_BOTH_FAILED_route_killed
+    trigger: "v1 RAN -> catastrophic forgetting. v2 (forgetting-fixed) RAN 2026-06-16 + VERIFIED locally -> CLEAN NEGATIVE: dense 73->58.3% but Pareto-DOMINATED by frozen at every k (k1 40<54, k2 32<39, k4 13~15); co-trained ceiling FLAT (75/77/77) = 'averaged compromise' / uniform-mediocrity. Co-train route to make all skips cheap is KILLED. Lesson: selection is essential, cannot be cheaply trained away -> redirected to OBL-060."
+    v1_result: >
+      VERIFIED (my M1 harness, held-out 60): dense 73%->21.7% (H-CT-2 FAIL); k=2 avg-random-skip 39%->16%
+      (H-CT-0 FAIL, skipping got WORSE); k=2 ceiling 92%->47% (collapsed); k=2 entropy 7%<random 16%
+      (H-CT-1 FAIL). Root cause: both code datasets gated -> corpus = fineweb-edu ONLY (no code) -> 2000
+      steps strong LoRA (alpha/r=2) overwrote code behavior = catastrophic forgetting. Hypothesis UNTESTED
+      (unmeasurable on a globally-broken model), not refuted. Full record: cotrain_skiprobust_preregistration.yaml v1_run_RESULT.
+    v2_fix: >
+      docs/training/cotrain_skiprobust_v2.py (commit 21f95459): MBPP code @ code_frac 0.6 + fineweb-edu;
+      lr 5e-5 (was 2e-4); alpha 16 (was 32); 600 steps (was 2000); live drift monitor (warns/checkpoints
+      when logit-drift > 2.5; v1 ended at 6.28). Same verify_cotrain.py eval. PASS iff dense ~73% AND
+      skipping cheaper than frozen. Awaits a Lightning rerun + local verification.
+    notes: "Pipeline PROVEN end-to-end (train on Lightning -> return adapters -> verify locally). v1 = a recipe failure (forgetting), not a pipeline or hypothesis failure. One major variable changed for v2 (code in corpus)."
+
+  - id: OBL-060
+    artifact: "exact k=2 pair matrix + per-task selector experiment (the direct selection test)"
+    source: "k_sweep_correction redirect; selector_pertask_preregistration.yaml; aurelius_selection_arc_writeup_2026-06-17.md"
+    tier: discharged
+    status: DONE_per-task_selector_POWERED_NULL_global-prune_survives
+    trigger: "Ran on Kaggle (notebook0b2b9081aa, fp16). EXACT k=2 matrix (91 pairs x 60) -> true ceiling 96.7% (> dense 75%), random 38.9% (retired the sampled 91.7/38.7). Powered N=300 selector CV: per-task PROMPT selector = NULL (C_full=C_struct=B=68.3%, H-SEL-1=+0.0pp; corr(pair_align,pass)=+0.020 model-free). Global best pair (permanent prune) 68.3% >= dense 62% (pool-dependent, modest)."
+    result: >
+      Two findings. (a) FALSIFIED: a cheap per-task prompt-conditioned selector from prefill activations does
+      NOT beat a fixed global policy (second powered null; the ~21pp per-task headroom is not cheaply
+      capturable). (b) SURVIVES: a fixed global skip set (structured depth-prune) matches-to-modestly-beats
+      dense -> reframed as a NON-ADDITIVE structured-pruning result (poison layers 11/14/15 + adjacency, NOT
+      'early layers'). Scripts: selector_split / k2_pair_matrix --split / feat_extract / selector_train
+      (+ kset_* generalizations), all smoke-validated. Verification: corr is model-free; aggregate
+      re-derivation matches; raw-matrix re-derivation pending (Kaggle API throttled; delayed fetch armed).
+    notes: "Supersedes OBL-057's 'true combinatorial oracle' (k=2 now genuinely exhaustive). Redirected here from OBL-059 (co-train killed)."
+
+  - id: OBL-061
+    artifact: "k=4 routing / permanent-prune experiment (does organized k=4 skipping beat dense?)"
+    source: "k4_routing_preregistration.yaml; selection-arc §9"
+    tier: discharged
+    status: DONE_H-K4-KILL_layer-skip_lever_EXHAUSTED
+    result_2026_06_18: "Ran (notebook0b2b9081aa). H-K4-0 = -12.0pp: permanent 4-prune 52% << dense 64% (the k=2 'free ~2 layers' does NOT extend to 4). H-K4-2 = -3.5pp NULL (3rd powered null on cheap per-input routing; corr +0.025 model-free). Only verified multi-try beats dense (top-3/5 = 68-69%, = MORE compute + verifier). KILL: single-pass layer-skip exhausted on FROZEN-BASE-v1. Full record: k4_routing_preregistration.yaml RESULT_2026_06_18."
+    trigger: "selection-arc next step: at k=4 a fixed 4-set = a permanent 4-layer prune. PRIMARY H-K4-0 = global_best_set - dense."
+    design: "N=200 (selector_split_k4_v0.1, hash e243effbcfbc5ea9) x S=300 sampled k=4 sets (k4_sets_v0.1, hash fee932f6, 30% of 1001). Scripts: sample_k4_sets / kset_matrix --sets / kset_feats / kset_selector (paired bootstrap CI + F2/F3), all smoke-validated. ~5-7h Kaggle commit, fp16, --no_completions."
+    decision_map: "H-K4-0 >= 0 (CI) => deployable permanent prune; fails + prompt null => layer-skip lever exhausted on this base -> from-scratch skip-native / width-sparsity."
+    notes: "Pending result + paired CI. --no_completions => no completion-level re-score (a discipline gap to reinstate via a sampled-completions option)."
+
+  - id: OBL-062
+    artifact: "LayerDelta substitution ('soft prune') experiment — pre-registration"
+    source: "/Users/christienantonio/Desktop/AI Plans/layerdelta_preregistration.yaml; Hermes deeper-efficiency-blueprint C1/M2 (scoped against the selection arc)"
+    tier: discharged
+    status: DONE_POSITIVE_first_clear_positive_in_the_arc
+    result_2026_06_18: "Ran (notebook0b2b9081aa, bf16, set {8,15,16,19} rank 32). H-LD-0 = +18.5pp (layerdelta 62.5 vs identity_skip 44): cheap surrogate RECOVERS the entire prune loss. H-LD-1 = +2.5pp (vs dense 60): MATCHES dense (within noise) at ~10% cheaper decode. The 4 layers' residual deltas are LOW-RANK APPROXIMABLE; generalizes (train/eval disjoint). => identity-skip exhausted but layer SUBSTITUTION works = a deployable structured-substitution result. Full record: layerdelta_preregistration.yaml RESULT_2026_06_18."
+    trigger: "Selection arc next experiment: identity-skip (Delta=0) is too crude; replace the GLOBAL best skip-set's layers with cheap LOW-RANK learned surrogates (Delta_hat, joint-distilled to dense) -> a 'soft prune'. Tested GLOBAL-first, NO per-input certificate."
+    design: "Phase 1: for the global best k=2/k=4 set S, train rank-r surrogates jointly (distill final-logit KL + hidden align), eval held-out CV vs dense / identity-skip / random, paired bootstrap CI + Representation Thermostat. H-LD-0 (beat zeros), H-LD-1 (>= dense at less compute = prize), H-LD-2 (compute real). KILL = can't beat identity-skip (Hermes falsifier #4). Phase 2 (per-input certificate) contingent + LOW prior."
+    provenance_note: "Hermes blueprint's LayerDelta + CCS-admission-law + Representation-Thermostat ADOPTED; its PairGraph/per-task-selector EXCLUDED (already run = powered null); its 18-mechanism scope NOT adopted (would dilute the verification discipline)."
+    blocks: "k=4 verdict DONE. Scripts BUILT + smoke-validated (docs/training/layerdelta.py, commit 56e97aac) + RUNNING on Kaggle 2026-06-18 (set 8,15,16,19, rank 32, bf16). Target identity-skip is -12pp below dense -> H-LD-1 needs the surrogate to RECOVER 12pp. Awaiting verdict."
+
+  - id: OBL-063
+    artifact: "from-scratch SKIP-NATIVE model experiment — pre-registration (the leading §157 bet)"
+    source: "skipnative_preregistration.yaml; §156.4 pivot; the 3 powered nulls were all on a FROZEN base never built to route"
+    tier: queued
+    status: DESIGN_DRAFT_pending_user_GO-NO-GO
+    trigger: "k=4 KILL exhausted the frozen-base layer-skip lever. Skip-native is the ONLY remaining bet that could REVIVE CLM-001: does a model TRAINED with the skip distribution from step 0 (LayerDrop + sandwich + self-distillation, on config_100m ~92M) DEVELOP the per-input routability a frozen base lacks?"
+    design: "config_100m from scratch + a dense-trained twin CONTROL. Recipe avoids the co-train's uniform-mediocrity (sandwich + distillation + curriculum + train-for-SELECTABLE-not-arbitrary-robustness). PRIMARY eval = LOSS-based routability (capability-agnostic; 92M is too weak for the F2/F3 gym). H-SN-0 = cheap per-input selector beats global AND beats the dense-twin (routability TRAINED IN). H-SN-KILL = same null as frozen -> thesis dead even on a base built to route (book-closing)."
+    honest_prior: "MODERATE-TO-LOW (3 powered nulls weigh heavy; the ONLY hope is structural: frozen != built-to-route). More likely to confirm the negative than overturn it — but the one experiment that COULD, and a clean null is itself the decisive close."
+    blocks: "LayerDelta verdict (informs); USER go/no-go (real compute commitment ~$40-100, days); tokenize 2B OPEN corpus; add ~8-line LayerDrop hook + sandwich/distill loss to trainer; run skip-native + dense control + loss-routability eval."
+
+  # ----- TRIAGE RECORDS (reconciliation of external corpus; §145.8 exemption, logged per §145.1) -----
+  - id: OBL-036
+    artifact: "triage of ~/Desktop/Aurelius Research Deliverables/ (27 files, 05-31..06-06)"
+    source: "user request 2026-06-11; §144.0 triage discipline"
+    tier: active
+    status: discharged
+    discharged_by: "aurelius_candidate_registry.yaml deliverables_folder_triage block, 2026-06-11"
+    notes: >
+      Verdict: NOT a great improvement. Already-absorbed (master-plan-v4, HELIX/TurboQuant, AMC substrate)
+      or correctly-excluded competing proposals (ITEI/RVAP/FR-MoE/HJCIR/SEG-CE — default T3, several in the
+      refused register; ITEI 'supersedes ACDT' would reverse §143.9). The codebase audit confirms the SAME
+      zero-measurement gap from the code side and cross-validates First Light. No spine change; no claim upgraded.
+  - id: OBL-037
+    artifact: "DECISION owed to user: point First Light at the existing /Users/christienantonio/aurelius repo vs green-field"
+    source: "codebase review 2026-06-06 vs §140/§141 canon; live repo inspection 2026-06-11"
+    tier: active
+    status: discharged
+    discharged_by: "first-light-readiness spike receipt (docs/spike/first-light-readiness-receipt.md), 2026-06-11. Spike confirmed: repo rides, identity-skip wrapper verified, canonical operator = mod_v2.py, mbpp_scorer.py deterministic + schema-valid traces confirmed. VERIFIED 2026-06-11 (independent re-execution, see receipt Verification Addendum + scripts/spike_verification/): 7/30 reproduction EXACT; cascade rule-order defect corrected (0% rows were buggy-pipeline artifacts: OLMo really 10.0%, 0.5B-Instruct 13.3%); ratified BASE candidates tested for the first time -> FROZEN-BASE-v1 RE-PINNED = Qwen/Qwen2.5-1.5B (BASE) rev 8faed761d45a263340a0528343f099c05c9a4323, tokenizer sha256[:16] c0382117ea329cdf (spike's 86a13989 hash unreproducible, method now stated). RSS gate resolved 2026-06-11 (hybrid: 7.5GB model-attributable / 10GB total-process, torch pilot path)."
+    recommendation: "RIDE THE EXISTING REPO. Live inspection: ~70-80% of First Light scaffolding already exists as real torch/MLX code. Build ONLY the novel ~20% (the verified-gain DirectiveOwner) — that 20% IS the Paper-1 contribution and is absent from both plan and code."
+    inspection_findings_2026_06_11:
+      git: "clean tree, branch fix/adapters-generate-params-forwarded; last commits AMC-first P0 recovery + safety admission controller"
+      checkpoints: "only aurelius-1.3b/step-0000002 (512 tokens, loss=0.0) — a smoke run; confirms pipeline RUNS end-to-end but ZERO real training (matches review + §145 zero-measurement diagnosis)"
+      reuse_exists_real:
+        - "trainable depth-routing OPERATORS (torch): src/model/{mod.py, mod_v2.py, mixture_of_depths.py, dynamic_depth.py, token_skip.py, act_routing.py, early_exit.py} — the SKIP/NORMAL mechanics"
+        - "Apple-Silicon path: src/training/mlx_trainer.py imports mlx (First Light hardware target, §143.4)"
+        - "eval harness: src/eval/{ab_comparison.py, benchmark_runner.py} — host for the §143.8 chessboard"
+        - "calibration: src/eval/{calibration_suite.py, confidence_calibration.py, calibration.py} — host for OBL-016 contract"
+        - "DETERMINISTIC code verifiers (= repair-gym source, OBL-014): src/eval/{swebench_lite_scorer.py, humaneval_runner.py, mbpp_scorer.py, livecodebench_scorer.py, code_eval.py}"
+        - "scaling-law fit: src/training/scaling_laws.py — host for E89/E108 K=K0*N^a*D^b*O^d"
+        - "AMC torch model + trainer suite (GRPO/PPO/DPO/continual-pretrain) — frozen-base substrate / R1 shadow memory"
+      build_only_the_novel_20pct:
+        - "DirectiveOwner: SKIP/NORMAL/AMPLIFY THREE-way directive (existing routers are BINARY MoD; AMPLIFY + single control-plane entry are new) — §143.1"
+        - "verified-gain estimator ladder g_entropy->g_gain->g_VBMCA — §142.2 — THE thesis; absent in code"
+        - "ThetaABI generator+lint (§143.2); byte/thermal governor wired into the MLX path (§143.4); directive_trace emission (schema already written); chessboard rows wired onto ab_comparison.py"
+      caveats_skepticism:
+        - "files IMPORT torch/mlx and are plausibly sized; NOT verified to run/train. 'real code' != 'working'. Review flagged: coverage unmeasured, Makefile swallows rust errors, only a loss=0.0 step-2 checkpoint."
+        - "SPRAWL: multiple _v2/_v3/_v4 of MoD/speculative-decoding. 'Which operator is canonical?' is unresolved (review R2) — a small decision before wiring."
+        - "NAMING TRAP: src/model/remode.py is a pure-Python TOY (list-of-lists, no torch, binary MoD, no AMPLIFY/controller). A newcomer entering via the obviously-named file would be misled."
+        - "ACRONYM DIVERGENCE: repo ReMoDE = 'Residual MoD+E' (DeepSeek-V4 style); plan ReMoDE = 'Reactive MoD+E' + SKIP/NORMAL/AMPLIFY + verified gain. Same name, different architecture — reconcile before building."
+    next_step_if_user_approves: "code-gated 1-2 day 'First Light readiness spike' (needs explicit execute request per §0): (1) confirm one MoD operator + mlx_trainer + ab_comparison actually run on a frozen base; (2) pick the canonical operator from the sprawl; (3) confirm SWE-bench-Lite or MBPP can serve as repair-gym-v0.1 deterministic verifier. THEN build the DirectiveOwner on top."

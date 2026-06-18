@@ -1,0 +1,64 @@
+# skipnative_preregistration.yaml — from-scratch SKIP-NATIVE model: can routability be TRAINED IN?
+# The leading §157 bet after the frozen-base layer-skip lever was exhausted (k=4 KILL, OBL-061).
+# Written 2026-06-18 BEFORE the run. This is the thesis at its STRONGEST form — and likely its last decisive test.
+id: SKIPNATIVE-PREREG-v0.1
+status: design_draft
+
+the_bet: >
+  EVERY cheap-routing null in this program (per-layer g_gain; per-task selector at k=2 AND k=4; co-train) was
+  on a FROZEN base that was never BUILT to route — its layers were trained assuming all of them always run.
+  The single structural reason the null might not be fundamental: a model trained WITH the skip distribution
+  from step 0 (LayerDrop) might DEVELOP per-input routable structure a frozen base cannot have. Skip-native
+  tests exactly that. It is the only remaining experiment that could REVIVE the strong CLM-001 (cheap,
+  input-conditioned compute organization). A null here closes the book on this base family.
+
+core_question: >
+  Does a model PRE-TRAINED to be skip-tolerant exhibit (a) per-INPUT routability — a cheap selector beats a
+  fixed global skip policy (the thing that was a 3x powered null on the frozen base) — and (b) a deeper prune
+  frontier (tolerates more skipped layers than the frozen base's ~2) — WITHOUT losing dense quality?
+
+design:
+  substrate: "config_100m.yaml (~92M, 14 layers, GPT-2 tok, 2.1B-token budget; validated from-scratch trainer src/training/trainer.py + AureliusTransformer). FROM SCRATCH, not Qwen. Routable = the middle band of the 14 layers (e.g. [3..11])."
+  trainer_hook: "transformer.py:295 layer loop — add config flags layer_skip_train + skip_dist + routable; when self.training, sample a skip-set and identity-pass those layers. ~8 lines, default-off (zero behavior change when flag absent)."
+  recipe_INFORMED_BY_THE_COTRAIN_KILL:   # v2 co-train died of 'uniform mediocrity' (level-down). Skip-native must NOT repeat it.
+    - "SANDWICH (Once-for-All): per step train BOTH the full (dense, k=0) path AND skipped path(s). The dense path keeps full quality (defeats the co-train's uniform-mediocrity failure)."
+    - "SELF-DISTILLATION: the dense path is the TEACHER for the skipped path(s) (KL(dense || skip)). Anchors skipped paths to dense behavior instead of letting them drift down."
+    - "CURRICULUM: ramp skip probability (start ~0, increase) so early training builds a strong dense model before stressing it with skips."
+    - "TRAIN FOR *SELECTABLE* ROUTABILITY, NOT ARBITRARY ROBUSTNESS (the key design principle): the co-train made ALL skips equally-cheap -> nothing to select -> mediocrity. Skip-native must PRESERVE variation across skip-sets (some inputs route well to set A, others to set B) so a selector has signal. The sandwich+distillation+curriculum aim for 'tolerant but differentiated', not 'uniformly numb'."
+  control: "a DENSE-trained twin (same config, same tokens, same seed, NO skip training). The RESULT is the CONTRAST: does skip-native show per-input routability while the dense twin shows the frozen-base null? Without the control, a positive is uninterpretable."
+
+eval:
+  PRIMARY_loss_based_routability: >
+    Scale-agnostic, works at 92M (where the F2/F3 gym is too hard — see caveat). On held-out TEXT, for each
+    context, measure next-token loss under: dense | global-best-skip-set | per-input-selected-skip-set (cheap
+    features) | per-input ORACLE (best set by actual loss). H-SN-0 = does the cheap per-input selector beat
+    the global policy on held-out loss? This is the frozen-base null, re-asked on a base built to route.
+  SECONDARY_gym: "IF the skip-native (or a scaled-up) model reaches non-trivial F2/F3 pass-rate, re-run the exact selector ablation (kset_matrix/kset_selector) for apples-to-apples with the frozen-base results. Capability-gated."
+  prune_frontier: "sweep k; does skip-native tolerate more skipped layers at fixed quality than the frozen base (which lost 12pp at k=4)?"
+
+hypotheses:
+  H-SN-0 (ROUTABILITY TRAINED IN — the revival test): "on skip-native, a cheap per-input selector beats the global skip policy on held-out loss, AND beats it by MORE than on the dense-twin control. => training-to-route CREATES the per-input signal the frozen base lacked. The one result that revives CLM-001."
+  H-SN-1 (deeper prune frontier): "skip-native tolerates more skipped layers at fixed quality than the frozen base / its dense twin."
+  H-SN-2 (dense preserved — sandwich works): "skip-native's k=0 (dense) loss ~= the dense twin's (no uniform-mediocrity tax; the co-train's failure NOT repeated)."
+  H-SN-KILL: "skip-native shows the SAME per-input null as the frozen base (cheap selector ~ global) -> per-input routability is NOT trainable in either -> the cheap-dynamic-routing thesis is DEAD even on a base built to route. Decisive, book-closing negative."
+
+honest_prior: >
+  MODERATE-TO-LOW. Three powered nulls weigh heavily. The ONLY reason for hope is the structural one (frozen
+  != built-to-route). State it plainly: this is more likely to CONFIRM the negative than overturn it — but it
+  is the single experiment that COULD overturn it, and a clean null here is itself the decisive close. Do not
+  let a small-scale positive be over-read: 92M << 1.5B; a positive needs replication at scale before any
+  generality claim.
+
+caveats_and_dependencies:
+  scale_caveat: "92M from-scratch is FAR weaker than Qwen2.5-1.5B; the F2/F3 gym will likely score ~0 on it -> the PRIMARY eval is LOSS-based routability (capability-agnostic), NOT the gym. Gym is secondary, capability-gated. A model strong enough for the gym would cost more (~0.5-1B)."
+  data_dependency: "needs a tokenized ~2B-token corpus (fineweb-edu + code; the gated-dataset trap from the co-train applies — use OPEN data). ~hours to tokenize."
+  compute: "2x config_100m runs (skip-native + dense control), ~2.1B tokens each, hours-to-~1day on a cloud GPU, ~$40-100 spot total. Plus the loss-based eval (cheap)."
+  not_a_speedup: "identity-skip in training/eval is accuracy/loss-at-FLOPs; a real speedup still needs a depth-pruned kernel. The CONTRIBUTION here is the SCIENCE question (is routability trainable?), not a deployed speedup."
+
+decision_map:
+  - "H-SN-0 holds (routability trained in, > dense-twin): CLM-001 REVIVED at small scale -> replicate at ~0.5-1B, then it's a real result (a model that routes its own compute per input)."
+  - "H-SN-KILL (same null as frozen): the cheap-dynamic-routing thesis is DEAD on this base family -> consolidate + publish the full negative (frozen AND skip-native); the program's honest core becomes the structured-pruning result + the methodology + the decisive negative."
+  - "mixed (H-SN-2 holds, H-SN-0 null): skip-native preserves quality but still no cheap per-input selection -> same as KILL for the thesis, but confirms sandwich+distillation works (useful for any future skip-tolerant deployment)."
+
+relation_to_layerdelta: "LayerDelta (OBL-062, running) is the CHEAP frozen-base probe; skip-native is the BIG from-scratch bet. If LayerDelta recovers the k=4 loss, its learned-surrogate idea informs skip-native (surrogates instead of identity-skip during training). If LayerDelta fails, skip-native is the ONLY live bet. Run LayerDelta first (cheap); decide skip-native with its result in hand."
+blocks_remaining: ["LayerDelta verdict (informs/confirms)", "user GO/NO-GO (real compute commitment; honest prior is low)", "tokenize 2B open corpus", "add the ~8-line LayerDrop hook + sandwich/distill loss to the trainer", "run skip-native + dense control + loss-based routability eval"]
