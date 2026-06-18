@@ -58,6 +58,8 @@ def main():
     ap.add_argument("--verified_only", type=int, default=1, help="use only verified=True traces (the good ones)")
     ap.add_argument("--eval_split", default="eval_data/selector_split_v0.1.json")
     ap.add_argument("--n_eval", type=int, default=48)
+    ap.add_argument("--eval_exclude", default=None, help="jsonl of traces; exclude their instance_ids from eval (no train/test leak)")
+    ap.add_argument("--max_rows", type=int, default=0, help="cap #training rows after shuffle (0=all); v20 train is 105k")
     ap.add_argument("--full_ft", action="store_true", help="full fine-tune (big GPU); default = LoRA")
     ap.add_argument("--rank", type=int, default=32); ap.add_argument("--alpha", type=int, default=64)
     ap.add_argument("--lr", type=float, default=1e-4); ap.add_argument("--epochs", type=float, default=2)
@@ -78,6 +80,8 @@ def main():
             if not d.get("response", "").strip(): continue
             if a.verified_only and not d.get("verified", True): continue
             rows.append((d["prompt"], d["response"], d.get("system_prompt")))   # v20 carries the Aurelius persona
+    rng.shuffle(rows)                                          # v20 is domain-ordered; shuffle before capping
+    if a.max_rows: rows = rows[:a.max_rows]
     if a.smoke: rows = rows[:8]
     if not rows: print("  NO training rows (check --verified_only / --data)"); return
 
@@ -104,7 +108,11 @@ def main():
         for sp in ["dev", "test", "smoke", "train"]:
             for f in (root / fam / sp).glob("*.json"):
                 d = json.loads(f.read_text()); idx[d["instance_id"]] = d
-    eids = [i for i in eids if i in idx][:(4 if a.smoke else a.n_eval)]
+    excl = set()
+    if a.eval_exclude and Path(a.eval_exclude).exists():
+        excl = {json.loads(l).get("instance_id") for l in open(a.eval_exclude)}
+        print(f"  eval excludes {len(excl)} traced ids (held-out eval, no leak)", flush=True)
+    eids = [i for i in eids if i in idx and i not in excl][:(4 if a.smoke else a.n_eval)]
     before = gym_passrate(tok, model, idx, eids, dev, max_new=64 if a.smoke else 256)
     print(f"  gym pass-rate BEFORE: {before*100:.1f}% (n={len(eids)})", flush=True)
 
