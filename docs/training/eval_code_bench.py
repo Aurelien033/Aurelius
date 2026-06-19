@@ -39,7 +39,7 @@ def run_program(src, timeout=12):
 
 def humaneval_items(n):
     from datasets import load_dataset
-    ds = load_dataset("openai_humaneval", split="test")
+    ds = load_dataset("openai/openai_humaneval", split="test")
     items = []
     for d in ds:
         items.append(dict(
@@ -50,7 +50,7 @@ def humaneval_items(n):
 
 def mbpp_items(n):
     from datasets import load_dataset
-    ds = load_dataset("mbpp", split="test")
+    ds = load_dataset("google-research-datasets/mbpp", split="test")
     items = []
     for d in ds:
         tests = "\n".join(d["test_list"])
