@@ -37,14 +37,14 @@ code("""# EDIT: teacher / #tasks / samples.  Of 300 tasks, the other 150 stay he
   --split eval_data/selector_split_v0.1.json --n 150 --samples 3 \\
   --max_new 2048 --gen_batch 8 --dtype bf16 --out /content/traces_r1.jsonl"""),
 
-md("""## 4. SFT — scaffold (v20) + quality (traces)
-Gentle LoRA, loss masked to responses. Eval is **held out** (`--eval_exclude` drops the traced tasks). Watch the **BEFORE → AFTER Δ**: Δ>0 = the SFT specialized the base."""),
-code("""# EDIT: --base (e.g. Qwen/Qwen3-8B for a stronger model), --max_rows, --epochs, --lr
+md("""## 4. SFT — on the verified traces (gentle)
+Gentle LoRA on the **on-task verified traces** (the v20 synthetic is alignment/interpretability prose — off-task for this JSON/code-repair eval, and in large dose it overfits the model to 0%, so it's left out here; use it only for broader-capability evals). Loss masked to responses; eval **held out**. **Watch the training loss settles ~0.5–1.5, NOT 0.000** (0.000 = memorization → drop `--epochs`). Watch **BEFORE → AFTER Δ**."""),
+code("""# EDIT: --base (e.g. Qwen/Qwen3-8B), --epochs, --lr.  Scale data via cell 3's --n + --samples.
 !python docs/training/sft_train.py \\
   --base WeiboAI/VibeThinker-3B \\
-  --data data/aurelius_reasoning_sft_v20/sft/train.jsonl,/content/traces_r1.jsonl --verified_only 0 \\
-  --max_rows 8000 --epochs 2 --lr 1e-4 \\
-  --eval_exclude /content/traces_r1.jsonl --n_eval 60 \\
+  --data /content/traces_r1.jsonl --verified_only 0 \\
+  --epochs 2 --lr 2e-5 \\
+  --eval_exclude /content/traces_r1.jsonl --n_eval 60 --eval_max_new 512 \\
   --dtype bf16 --out /content/vibethinker-sft"""),
 
 md("""## 5. DPO — sharpen (optional)
