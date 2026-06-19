@@ -60,6 +60,7 @@ def main():
     ap.add_argument("--n_eval", type=int, default=48)
     ap.add_argument("--eval_exclude", default=None, help="jsonl of traces; exclude their instance_ids from eval (no train/test leak)")
     ap.add_argument("--max_rows", type=int, default=0, help="cap #training rows after shuffle (0=all); v20 train is 105k")
+    ap.add_argument("--eval_max_new", type=int, default=256, help="gen budget for eval; raise if the SFT'd style is verbose")
     ap.add_argument("--full_ft", action="store_true", help="full fine-tune (big GPU); default = LoRA")
     ap.add_argument("--rank", type=int, default=32); ap.add_argument("--alpha", type=int, default=64)
     ap.add_argument("--lr", type=float, default=1e-4); ap.add_argument("--epochs", type=float, default=2)
@@ -113,7 +114,7 @@ def main():
         excl = {json.loads(l).get("instance_id") for l in open(a.eval_exclude)}
         print(f"  eval excludes {len(excl)} traced ids (held-out eval, no leak)", flush=True)
     eids = [i for i in eids if i in idx and i not in excl][:(4 if a.smoke else a.n_eval)]
-    before = gym_passrate(tok, model, idx, eids, dev, max_new=64 if a.smoke else 256)
+    before = gym_passrate(tok, model, idx, eids, dev, max_new=64 if a.smoke else a.eval_max_new)
     print(f"  gym pass-rate BEFORE: {before*100:.1f}% (n={len(eids)})", flush=True)
 
     # ---- train ----
@@ -135,7 +136,7 @@ def main():
         if step % 20 == 0 or step == steps - 1:
             print(f"  step {step:4d}/{steps}  loss {loss.item():.3f}", flush=True)
 
-    after = gym_passrate(tok, model, idx, eids, dev, max_new=64 if a.smoke else 256)
+    after = gym_passrate(tok, model, idx, eids, dev, max_new=64 if a.smoke else a.eval_max_new)
     Path(a.out).mkdir(parents=True, exist_ok=True)
     model.save_pretrained(a.out); tok.save_pretrained(a.out)
     json.dump({"base": a.base, "before": before, "after": after, "delta": after - before,
