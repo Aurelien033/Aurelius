@@ -42,7 +42,7 @@ def gym_passrate(tok, model, idx, ids, dev, max_new=256):
                  if getattr(tok, "chat_template", None) else idx[i]["prompt_context"]) for i in chunk]
         enc = tok(msgs, return_tensors="pt", padding=True, add_special_tokens=False).to(dev)
         with torch.no_grad():
-            out = model.generate(**enc, max_new_tokens=max_new, do_sample=False, pad_token_id=tok.eos_token_id)
+            out = model.generate(**enc, max_new_tokens=max_new, do_sample=False, pad_token_id=tok.eos_token_id, use_cache=True)
         L = enc["input_ids"].shape[1]
         for i, r in zip(chunk, out):
             comp = tok.decode(r[L:], skip_special_tokens=True)
@@ -96,6 +96,10 @@ def main():
         model = get_peft_model(model, LoraConfig(r=a.rank, lora_alpha=a.alpha, lora_dropout=0.05, bias="none",
             target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"], task_type="CAUSAL_LM"))
         model.print_trainable_parameters()
+    if dev == "cuda":                                          # gradient checkpointing: big memory cut (fits 8B)
+        model.gradient_checkpointing_enable()
+        if not a.full_ft: model.enable_input_require_grads()   # peft + ckpt needs input grads
+        model.config.use_cache = False                         # required for ckpt; eval re-enables via generate(use_cache=True)
     model.train()
 
     enc = [chat_encode(tok, p, r, a.max_len, sysp) for p, r, sysp in rows]
