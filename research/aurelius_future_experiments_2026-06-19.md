@@ -44,6 +44,7 @@ A repo sweep found **real, unit-test-passing** implementations of the core machi
 - **Method:** GRPO/RLOO from the SFT'd model. Per prompt: sample G=8 completions → verifier reward {1,0} → group-relative advantage → policy-grad. On the gym + MBPP (verifiable). KL-anchor to the SFT model.
 - **Prior:** HIGH. **Cost:** LOWER than first thought — `src/alignment/grpo_v3.py` + `rlvr.py` already exist and pass unit tests (69/69). Work = **integrate** (wire the existing GRPO loop to the gym/MBPP/HumanEval *execution* verifiers + a HF base like Qwen3-8B + the SFT'd policy) + one real validated run — *not* implement from scratch. ⚠ Unit-tested only, built for the from-scratch `AureliusTransformer`; the HF-base + real-verifier integration is the actual work, and where to apply the verify-before-trust discipline.
 - **Success:** beats SFT *and* base on the verifiable evals, and — the prize — transfers to HumanEval (RL-discovered solutions generalize better than imitated ones).
+- **Folded in from the 2026-06-19 triage:** (a) **certificate-gated rollouts** (Batch-3/4DEE "no certificate, no training") — a trace counts only with provenance + no-reward-hacking + dense-comparison checks; this is the **reward-hacking guard** RLVR needs, wired into the reward fn. (b) **CID-DPO objective** — shape the reward toward the *cheapest verifier-passing* answer (correctness-per-compute), not just pass/fail. (c) adopt the **`state→action→check→verdict→commit/repair/fallback` grammar** as the rollout/data schema.
 
 ### E-2. LayerDelta compression on the shipped model — *the arc's one positive, deployed*
 - **Why now:** the only clear positive (in-distribution structured substitution = dense quality at less compute). Turns Aurelius into a real **efficiency** story regardless of the accuracy outcome.
@@ -58,6 +59,7 @@ A repo sweep found **real, unit-test-passing** implementations of the core machi
 ### E-3. Reasoning-trace SFT (distill the *reasoning*, not just answers)
 - **Why:** v1/v2 SFT trained on verified CODE only; specialization didn't transfer (finding #3). Distilling R1's *reasoning process* (think+code), eval'd *with* thinking, may transfer to novel problems.
 - **Method:** store full R1 traces in `make_code_traces`; SFT thinking-aware; eval `--think 1` big budget. **Prior:** MODERATE. **Cost:** low (reuse pipeline).
+- **Batch-3 variants worth folding in:** **CFT-SFT** (counterfactual failure-trace) — mine fail-vs-pass deltas into explicit *repair* supervision (pairs naturally with RLVR's negative rollouts); **CID-DPO** (cheap-invariant DPO) — the principled upgrade of "real DPO pairs": prefer the cheapest correct answer.
 
 ### E-4. Best-of-N self-verification at inference (a deployment quality knob)
 - **Why:** the arc *saw* verifier-assisted multi-try beat single-pass (k2 best-of-top5 ≥ dense). At deploy: sample N, verify (or self-verify), return the passing/best one — quality with **no retraining**.
@@ -75,8 +77,13 @@ A repo sweep found **real, unit-test-passing** implementations of the core machi
 
 ### E-7. Process reward model / step-verifier (the N7/N9 specs)
 - Train a verifier that scores reasoning *steps*, not just final answers → enables process-RL and sharper best-of-N. **`src/alignment/cot_verifier.py` already implements this** (`ProcessRewardModel`, per-step + chain validity, passes tests) and `N9-PROCESS-VERIFY-SPEC.md` is the design. So again: integrate + get step-labeled data, not build. **Prior:** MODERATE. **Cost:** real (the step-labeled data is the bottleneck). The advanced form of the verification-native thesis.
+- **Training-data side (Batch-3 VCSS):** generate the step-labeled data as *verifier-causal micro-steps* (each step carries a check) instead of long-CoT mimicry — that's both the PRM training set and a cleaner SFT target.
 
 ---
 
+## Explicitly SKIPPED / closed (do not build) — from the 2026-06-19 triage
+- **Route-conditioned SFT family — RCSFT, JRM (joint route masks), TLA (token-level arbitration)** (SFT Batch-3 P1/P4/P5). These re-pose dynamic layer routing at a different granularity, but we **already ran the exhaustive k=2 pair matrix + the per-task selector at k=2 *and* k=4 — all powered nulls.** Re-falsifying costs 20–80 GPU-h for no new information. If routing is ever revived it's via **E-6 skip-native**, not route-conditioned SFT.
+- **The full 4D-Elasticity × Expansiveness framework** (VECS/NEVS/elastic-dims/Collapsometer/StabilityShield/MUD-LDP-CCAE-…). 15+-mechanism scope-dilution built on the falsified ACDT SKIP/AMPLIFY thesis; the series itself files it as a "future reservoir." Kept only its 2 grounded kernels (certificate-gated data → E-1; falsifier discipline → already standard). Promote a piece only when it earns its own falsifier + need + budget.
+
 ## The sequencing call
-**E-2 + E-5 now** (cheap, sure, protective: an efficiency win + a trustworthy eval battery), **E-1 (RLVR) as the next real bet** (the only lever that can beat the base — the headline future model). E-3/E-4 fold in cheaply. E-6/E-7 are deliberate, later. The through-line: stop trying to out-imitate strong bases with SFT; **compound the verifier** — into the reward (E-1), the decode budget (E-4), and the loss (E-7). That's the version of Aurelius the evidence actually supports.
+**E-2 + E-5 now** (cheap, sure, protective: an efficiency win + a trustworthy eval battery), **E-1 (RLVR) as the next real bet** (the only lever that can beat the base — the headline future model), now with certificate-gated rollouts + the CID-DPO objective folded into its reward design. E-3/E-4 fold in cheaply (CFT-SFT/CID-DPO/VCSS live here). E-6/E-7 are deliberate, later. The through-line: stop trying to out-imitate strong bases with SFT; **compound the verifier** — into the reward (E-1), the decode budget (E-4), and the loss (E-7). That's the version of Aurelius the evidence actually supports.
