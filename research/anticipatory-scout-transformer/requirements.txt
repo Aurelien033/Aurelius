@@ -1,0 +1,12 @@
+# Anticipatory Scout Transformer — validation package deps
+# Round A0 (CPU, no GPU): pure linear algebra only
+numpy>=1.24
+scipy>=1.10
+# Round A1 + Stage 2 (1 GPU recommended): learned prototypes
+torch>=2.1
+# Stage 0/1 signal study: a frozen pretrained causal LM
+transformers>=4.40
+datasets>=2.18
+# stats + figures
+matplotlib>=3.7
+tqdm>=4.66
