@@ -61,6 +61,7 @@ def main():
     ap.add_argument("--eval_exclude", default=None, help="jsonl of traces; exclude their instance_ids from eval (no train/test leak)")
     ap.add_argument("--max_rows", type=int, default=0, help="cap #training rows after shuffle (0=all); v20 train is 105k")
     ap.add_argument("--eval_max_new", type=int, default=256, help="gen budget for eval; raise if the SFT'd style is verbose")
+    ap.add_argument("--skip_eval", action="store_true", help="skip the gym before/after eval (for non-gym data; eval via eval_code_bench)")
     ap.add_argument("--full_ft", action="store_true", help="full fine-tune (big GPU); default = LoRA")
     ap.add_argument("--rank", type=int, default=32); ap.add_argument("--alpha", type=int, default=64)
     ap.add_argument("--lr", type=float, default=1e-4); ap.add_argument("--epochs", type=float, default=2)
@@ -106,20 +107,21 @@ def main():
     enc = [e for e in enc if len(e[0]) > len([x for x in e[1] if x == -100])]   # has >=1 response token
     print(f"SFT {a.base} on {dev}/{a.dtype}: {len(enc)} examples, {'LoRA r%d' % a.rank if not a.full_ft else 'FULL'}, lr {a.lr}, {a.epochs} ep", flush=True)
 
-    # ---- eval split (held out from SFT data) ----
-    eids = sorted(set(json.loads(Path(a.eval_split).read_text())["all"]))
-    idx = {}
-    for root, fam in [(R.RESEARCH / "gym-v0.1-FL", "F2_json"), (R.RESEARCH / "gym-v0.3", "F3_type")]:
-        for sp in ["dev", "test", "smoke", "train"]:
-            for f in (root / fam / sp).glob("*.json"):
-                d = json.loads(f.read_text()); idx[d["instance_id"]] = d
-    excl = set()
-    if a.eval_exclude and Path(a.eval_exclude).exists():
-        excl = {json.loads(l).get("instance_id") for l in open(a.eval_exclude)}
-        print(f"  eval excludes {len(excl)} traced ids (held-out eval, no leak)", flush=True)
-    eids = [i for i in eids if i in idx and i not in excl][:(4 if a.smoke else a.n_eval)]
-    before = gym_passrate(tok, model, idx, eids, dev, max_new=64 if a.smoke else a.eval_max_new)
-    print(f"  gym pass-rate BEFORE: {before*100:.1f}% (n={len(eids)})", flush=True)
+    # ---- eval split (held out from SFT data); skip for non-gym data (eval elsewhere, e.g. eval_code_bench) ----
+    idx, eids, before = {}, [], -1.0
+    if not a.skip_eval:
+        eids = sorted(set(json.loads(Path(a.eval_split).read_text())["all"]))
+        for root, fam in [(R.RESEARCH / "gym-v0.1-FL", "F2_json"), (R.RESEARCH / "gym-v0.3", "F3_type")]:
+            for sp in ["dev", "test", "smoke", "train"]:
+                for f in (root / fam / sp).glob("*.json"):
+                    d = json.loads(f.read_text()); idx[d["instance_id"]] = d
+        excl = set()
+        if a.eval_exclude and Path(a.eval_exclude).exists():
+            excl = {json.loads(l).get("instance_id") for l in open(a.eval_exclude)}
+            print(f"  eval excludes {len(excl)} traced ids (held-out eval, no leak)", flush=True)
+        eids = [i for i in eids if i in idx and i not in excl][:(4 if a.smoke else a.n_eval)]
+        before = gym_passrate(tok, model, idx, eids, dev, max_new=64 if a.smoke else a.eval_max_new)
+        print(f"  gym pass-rate BEFORE: {before*100:.1f}% (n={len(eids)})", flush=True)
 
     # ---- train ----
     opt = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=a.lr, weight_decay=0.0)
@@ -140,15 +142,19 @@ def main():
         if step % 20 == 0 or step == steps - 1:
             print(f"  step {step:4d}/{steps}  loss {loss.item():.3f}", flush=True)
 
-    after = gym_passrate(tok, model, idx, eids, dev, max_new=64 if a.smoke else a.eval_max_new)
+    after = gym_passrate(tok, model, idx, eids, dev, max_new=64 if a.smoke else a.eval_max_new) if not a.skip_eval else -1.0
     Path(a.out).mkdir(parents=True, exist_ok=True)
     model.save_pretrained(a.out); tok.save_pretrained(a.out)
     json.dump({"base": a.base, "before": before, "after": after, "delta": after - before,
                "n_eval": len(eids), "n_rows": len(enc), "data": a.data, "max_rows": a.max_rows},
               open(Path(a.out) / "result.json", "w"), indent=1)   # machine-readable for sweeps
-    print(f"\n  gym pass-rate AFTER: {after*100:.1f}%  (before {before*100:.1f}%, Δ {(after-before)*100:+.1f}pp)")
+    if not a.skip_eval:
+        print(f"\n  gym pass-rate AFTER: {after*100:.1f}%  (before {before*100:.1f}%, Δ {(after-before)*100:+.1f}pp)")
+    else:
+        print(f"\n  (gym eval skipped — eval this checkpoint with eval_code_bench.py on HumanEval/MBPP)")
     print(f"  saved -> {a.out}/  (LoRA adapters; merge for release)" if not a.full_ft else f"  saved -> {a.out}/")
-    print("  Δ>0 => the verified-trace SFT specialized the base toward the task. If Δ<=0, revisit data/lr/epochs.")
+    if not a.skip_eval:
+        print("  Δ>0 => the verified-trace SFT specialized the base toward the task. If Δ<=0, revisit data/lr/epochs.")
 
 
 if __name__ == "__main__":
