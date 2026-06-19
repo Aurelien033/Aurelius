@@ -28,6 +28,7 @@ def main():
     ap.add_argument("--temperature", type=float, default=0.6)
     ap.add_argument("--timeout", type=int, default=12)
     ap.add_argument("--out", default="data/mbpp_traces.jsonl")
+    ap.add_argument("--load_4bit", action="store_true", help="4-bit NF4 load -> fits a 32B teacher on one A100-40GB")
     ap.add_argument("--smoke", action="store_true")
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
@@ -46,7 +47,12 @@ def main():
     tok = AutoTokenizer.from_pretrained(a.teacher)
     if tok.pad_token is None: tok.pad_token = tok.eos_token
     tok.padding_side = "left"
-    model = AutoModelForCausalLM.from_pretrained(a.teacher, dtype=torch.bfloat16).to(dev).eval()
+    if a.load_4bit:                                                # strong 32B teacher (e.g. Qwen2.5-Coder-32B) on one A100
+        from transformers import BitsAndBytesConfig
+        qc = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.bfloat16)
+        model = AutoModelForCausalLM.from_pretrained(a.teacher, quantization_config=qc, device_map="auto").eval()
+    else:
+        model = AutoModelForCausalLM.from_pretrained(a.teacher, dtype=torch.bfloat16).to(dev).eval()
     print(f"teacher {a.teacher} on {dev}: {len(probs)} MBPP problems x {a.samples} samples (verified)", flush=True)
 
     def gen(asks):
