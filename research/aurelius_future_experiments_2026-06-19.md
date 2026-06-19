@@ -18,12 +18,31 @@
 
 ---
 
+## 0.5. Existing assets (device + GitHub sweep, 2026-06-19) — much is already built
+
+A repo sweep found **real, unit-test-passing** implementations of the core machinery these experiments need (the repo's history is sprawl-heavy, so these were verified: `pytest tests/alignment/...` = **69/69 pass**):
+
+| asset | file | relevance |
+|---|---|---|
+| **RLVR** (verifiable-reward RL, n_samples=8) | `src/alignment/rlvr.py` | **E-1** |
+| **GRPO v3** (DeepSeekMath, group-rel adv, PPO-clip+KL) | `src/alignment/grpo_v3.py`, `grpo_advanced.py` | **E-1** |
+| **CoT / process verifier** (per-step + chain validity, `ProcessRewardModel`) | `src/alignment/cot_verifier.py` | **E-7** |
+| Value head (GAE), reward models (ensemble/hierarchical/distill/multi-obj) | `src/model/value_head.py`, `src/alignment/reward_*.py` | E-1/E-7 |
+| Rejection sampling, synthetic math, preference collection | `src/data/rejection_sampling_data.py`, `synthetic_math.py`, `synthetic_preference.py` | E-1/E-3/E-5 |
+| Early-exit (dynamic depth) | `src/model/early_exit{,_v2}.py` | E-2 / routing |
+| Absolute-Zero self-play RL | `src/alignment/absolute_zero.py` | E-1 advanced |
+| Process-verify / judge-audit DESIGN specs | `~/Desktop/AI Plans/N9-PROCESS-VERIFY-SPEC.md`, `N7-JUDGE-AUDIT-SPEC.md` | E-7 |
+
+**⚠ Critical caveat (the verify-before-trust rule):** these pass *unit* tests on tiny tensors and were built against the from-scratch `AureliusTransformer`, **never run as a real RL job and never wired to a HF base (Qwen3-8B) or the real code verifiers.** So the algorithms exist and are sound; the *real* work is **integration + a real validated run**, not implementation. This lowers E-1's cost from "build" to "wire + validate" — but the validation is exactly where this repo's scaffolding has historically been hollow, so treat it as a real (de-risked) experiment, not a free win.
+
+---
+
 ## Tier 1 — the headline future levers
 
 ### E-1. RLVR (verifier-reward RL) — *the one lever that can BEAT the base*
 - **Why now:** SFT imitation is capped by the teacher (R1) and the base's coverage (finding #3). **RL with the verifier as reward lets the model exceed both** — generate, the verifier scores, optimize. This is the proven recipe for verifiable tasks (R1-Zero/GRPO), and Aurelius *already has the verifiers* (gym F2/F3, MBPP/HumanEval execution). This is the natural, highest-value continuation.
 - **Method:** GRPO/RLOO from the SFT'd model. Per prompt: sample G=8 completions → verifier reward {1,0} → group-relative advantage → policy-grad. On the gym + MBPP (verifiable). KL-anchor to the SFT model.
-- **Prior:** HIGH. **Cost:** moderate (G× sampling × steps; hours–day on A100). Build `grpo_train.py` (reuse the verifiers).
+- **Prior:** HIGH. **Cost:** LOWER than first thought — `src/alignment/grpo_v3.py` + `rlvr.py` already exist and pass unit tests (69/69). Work = **integrate** (wire the existing GRPO loop to the gym/MBPP/HumanEval *execution* verifiers + a HF base like Qwen3-8B + the SFT'd policy) + one real validated run — *not* implement from scratch. ⚠ Unit-tested only, built for the from-scratch `AureliusTransformer`; the HF-base + real-verifier integration is the actual work, and where to apply the verify-before-trust discipline.
 - **Success:** beats SFT *and* base on the verifiable evals, and — the prize — transfers to HumanEval (RL-discovered solutions generalize better than imitated ones).
 
 ### E-2. LayerDelta compression on the shipped model — *the arc's one positive, deployed*
@@ -55,7 +74,7 @@
 - The one remaining dynamic-routing revival path (OBL-063, launch-ready). **Prior: LOW** (3 nulls). Do once, deliberately, for closure or a low-odds revival — not urgent.
 
 ### E-7. Process reward model / step-verifier (the N7/N9 specs)
-- Train a verifier that scores reasoning *steps*, not just final answers → enables process-RL and sharper best-of-N. **Prior:** MODERATE. **Cost:** real (needs step-labeled data). The advanced form of the verification-native thesis.
+- Train a verifier that scores reasoning *steps*, not just final answers → enables process-RL and sharper best-of-N. **`src/alignment/cot_verifier.py` already implements this** (`ProcessRewardModel`, per-step + chain validity, passes tests) and `N9-PROCESS-VERIFY-SPEC.md` is the design. So again: integrate + get step-labeled data, not build. **Prior:** MODERATE. **Cost:** real (the step-labeled data is the bottleneck). The advanced form of the verification-native thesis.
 
 ---
 
