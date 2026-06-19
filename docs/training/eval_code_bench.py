@@ -90,7 +90,14 @@ def main():
     tok = AutoTokenizer.from_pretrained(a.model)
     if tok.pad_token is None: tok.pad_token = tok.eos_token
     tok.padding_side = "left"
-    model = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.bfloat16).to(dev).eval()
+    acfg = Path(a.model) / "adapter_config.json"
+    if acfg.exists():                                                 # a LoRA adapter dir -> load base + merge
+        from peft import PeftModel
+        base_id = json.loads(acfg.read_text())["base_model_name_or_path"]
+        base = AutoModelForCausalLM.from_pretrained(base_id, dtype=torch.bfloat16).to(dev)
+        model = PeftModel.from_pretrained(base, a.model).merge_and_unload().eval()
+    else:
+        model = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.bfloat16).to(dev).eval()
     print(f"{a.bench} pass@1: {a.model} on {dev}, {len(items)} problems", flush=True)
 
     npass = 0
