@@ -17,11 +17,24 @@ import torch
 
 
 def extract_code(text):
-    """Last ```python block (skips Qwen3 <think>); else strip a leading ``` fence; else raw text."""
+    """Drop any <think>…</think>, then take the last ```python block; else raw text."""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)   # strip reasoning if present
+    text = re.sub(r"^.*?</think>", "", text, flags=re.DOTALL)          # also handle an unclosed/leading think
     blocks = re.findall(r"```(?:python|py)?\s*\n(.*?)```", text, re.DOTALL)
     if blocks:
         return blocks[-1]
     return text.strip()
+
+
+def build_msg(tok, ask, think):
+    """Chat-format; disable thinking for code pass@1 (Qwen3 otherwise spends the budget on <think>)."""
+    if not getattr(tok, "chat_template", None):
+        return ask
+    kw = {} if think else {"enable_thinking": False}
+    try:
+        return tok.apply_chat_template([{"role": "user", "content": ask}], tokenize=False, add_generation_prompt=True, **kw)
+    except TypeError:                                                  # template doesn't accept enable_thinking
+        return tok.apply_chat_template([{"role": "user", "content": ask}], tokenize=False, add_generation_prompt=True)
 
 
 def run_program(src, timeout=12):
@@ -68,6 +81,7 @@ def main():
     ap.add_argument("--max_new", type=int, default=1024, help="thinking models need room")
     ap.add_argument("--gen_batch", type=int, default=8)
     ap.add_argument("--timeout", type=int, default=12)
+    ap.add_argument("--think", type=int, default=0, help="1=allow Qwen3 <think> (needs big --max_new); 0=direct code")
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 
@@ -82,8 +96,7 @@ def main():
     npass = 0
     for s in range(0, len(items), a.gen_batch):
         chunk = items[s:s + a.gen_batch]
-        msgs = [(tok.apply_chat_template([{"role": "user", "content": it["ask"]}], tokenize=False, add_generation_prompt=True)
-                 if getattr(tok, "chat_template", None) else it["ask"]) for it in chunk]
+        msgs = [build_msg(tok, it["ask"], a.think) for it in chunk]
         enc = tok(msgs, return_tensors="pt", padding=True, add_special_tokens=False).to(dev)
         with torch.no_grad():
             out = model.generate(**enc, max_new_tokens=a.max_new, do_sample=False, pad_token_id=tok.eos_token_id, use_cache=True)
