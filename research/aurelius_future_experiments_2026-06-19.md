@@ -81,6 +81,11 @@ A repo sweep found **real, unit-test-passing** implementations of the core machi
 
 ---
 
+### E-8. Adaptive-compute / AMPLIFY probe — scout-disagreement-gated recursion (NEW, 2026-06-19)
+- The `research/anticipatory-scout-transformer` packet: lightweight scouts run ahead, committee **disagreement** drives **per-token loop depth** (the AMPLIFY rung, not SKIP). High-quality, falsifiable (σ_max kill-tests, bootstrap-CI gates, adversarially reviewed). Smokes ran locally: A0 sound, guards correct, **Round E roofline already shows the FLOP→speedup/attention-coupling wall**. **Prior: GUARDED** — its Stage-0/1 crux ("cheap signal predicts where compute helps") is the same genus our SKIP nulls answered NO for; different signal+lever so not pre-falsified. **Cost: low to falsify** (Stage 0/1 = a few GPU-h on a tiny LM, decisive). **Rule:** Stage 0/1 must clear its CI-lower-bound gate on real data, then beat Round E's systems gate — else stop. Behind v2→RLVR. Full analysis: `anticipatory_scout_analysis_2026-06-19.md`.
+
+---
+
 ## Explicitly SKIPPED / closed (do not build) — from the 2026-06-19 triage
 - **Route-conditioned SFT family — RCSFT, JRM (joint route masks), TLA (token-level arbitration)** (SFT Batch-3 P1/P4/P5). These re-pose dynamic layer routing at a different granularity, but we **already ran the exhaustive k=2 pair matrix + the per-task selector at k=2 *and* k=4 — all powered nulls.** Re-falsifying costs 20–80 GPU-h for no new information. If routing is ever revived it's via **E-6 skip-native**, not route-conditioned SFT.
 - **The full 4D-Elasticity × Expansiveness framework** (VECS/NEVS/elastic-dims/Collapsometer/StabilityShield/MUD-LDP-CCAE-…). 15+-mechanism scope-dilution built on the falsified ACDT SKIP/AMPLIFY thesis; the series itself files it as a "future reservoir." Kept only its 2 grounded kernels (certificate-gated data → E-1; falsifier discipline → already standard). Promote a piece only when it earns its own falsifier + need + budget.
