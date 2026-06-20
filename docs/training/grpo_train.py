@@ -24,7 +24,7 @@ REPO = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "first_light"))
-from eval_code_bench import extract_code, run_program, build_msg
+from eval_code_bench import extract_code, run_program, run_io_tests, build_msg
 import first_light_runner_v4 as R
 
 
@@ -70,6 +70,32 @@ def load_mbpp_tasks(n):
     return tasks
 
 
+def load_apps_tasks(n, difficulties="interview,competition"):
+    """Harder verifiable tasks: APPS competitive-programming (stdin/stdout), graded difficulty. Disjoint from HumanEval."""
+    from datasets import load_dataset
+    import json
+    keep = set(difficulties.split(","))
+    ds = load_dataset("codeparrot/apps", split="test", trust_remote_code=True)
+    tasks = []
+    for d in ds:
+        if d.get("difficulty") not in keep: continue
+        io = d.get("input_output") or ""
+        if not io.strip(): continue
+        try: io = json.loads(io)
+        except Exception: continue
+        if "fn_name" in io: continue                                  # v1: stdin/stdout problems only
+        inputs, outputs = io.get("inputs", []), io.get("outputs", [])
+        if not inputs or not outputs: continue
+        ask = ("Solve this competitive-programming problem. Read input from stdin, write the answer to stdout. "
+               "Return ONLY a complete runnable Python program in one ```python code block.\n\n" + str(d["question"])[:3500])
+        def rf(comp, inputs=inputs, outputs=outputs):
+            code = extract_code(comp)
+            return float(bool(code.strip()) and run_io_tests(code, inputs, outputs, 8))
+        tasks.append((ask, rf))
+        if n and len(tasks) >= n: break
+    return tasks
+
+
 def seq_logprob(model, seqs, prompt_len, pad_id):
     """Sum log-prob of the COMPLETION tokens (positions >= prompt_len, non-pad) for each of the G sequences."""
     logits = model(input_ids=seqs).logits[:, :-1, :].float()       # predict tokens 1..T-1
@@ -84,7 +110,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="Qwen/Qwen3-8B")
     ap.add_argument("--adapter", default=None, help="SFT LoRA to start RL from (merged in; ref = the SFT model)")
-    ap.add_argument("--data", choices=["gym", "mbpp", "both"], default="gym")
+    ap.add_argument("--data", choices=["gym", "mbpp", "apps", "both", "all"], default="gym",
+                    help="apps = harder competitive-programming (stdin/stdout); all = gym+mbpp+apps")
+    ap.add_argument("--apps_difficulty", default="interview,competition", help="APPS difficulties (skip 'introductory' = easy)")
     ap.add_argument("--split", default="eval_data/selector_split_v0.1.json")
     ap.add_argument("--n_tasks", type=int, default=0)
     ap.add_argument("--group_size", type=int, default=8, help="G completions/prompt")
@@ -106,8 +134,9 @@ def main():
     import random; rng = random.Random(0); torch.manual_seed(0)
 
     tasks = []
-    if a.data in ("gym", "both"): tasks += load_gym_tasks(a.split, a.n_tasks)
-    if a.data in ("mbpp", "both"): tasks += load_mbpp_tasks(a.n_tasks)
+    if a.data in ("gym", "both", "all"): tasks += load_gym_tasks(a.split, a.n_tasks)
+    if a.data in ("mbpp", "both", "all"): tasks += load_mbpp_tasks(a.n_tasks)
+    if a.data in ("apps", "all"): tasks += load_apps_tasks(a.n_tasks, a.apps_difficulty)
     if not tasks: print("  no tasks"); return
 
     from transformers import AutoTokenizer, AutoModelForCausalLM

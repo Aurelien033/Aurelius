@@ -50,6 +50,30 @@ def run_program(src, timeout=12):
         os.unlink(path)
 
 
+def _norm_io(s):
+    """Whitespace-lenient stdout comparison (trailing spaces / blank trailing lines vary harmlessly)."""
+    if isinstance(s, list): s = "\n".join(map(str, s))
+    return "\n".join(line.rstrip() for line in str(s).strip().splitlines())
+
+
+def run_io_tests(code, inputs, outputs, timeout=8, max_cases=12):
+    """Competitive-programming reward: run `code` as a script per (stdin, expected stdout); pass iff ALL match."""
+    if not inputs or not outputs: return False
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+        f.write(code); path = f.name
+    try:
+        for inp, exp in list(zip(inputs, outputs))[:max_cases]:
+            try:
+                r = subprocess.run([sys.executable, path], input=str(inp), capture_output=True, text=True, timeout=timeout)
+            except subprocess.TimeoutExpired:
+                return False
+            if _norm_io(r.stdout) != _norm_io(exp):
+                return False
+        return True
+    finally:
+        os.unlink(path)
+
+
 def humaneval_items(n):
     from datasets import load_dataset
     ds = load_dataset("openai/openai_humaneval", split="test")
