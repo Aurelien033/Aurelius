@@ -127,7 +127,8 @@ def main():
     ap.add_argument("--beta", type=float, default=0.04, help="KL coeff")
     ap.add_argument("--max_new", type=int, default=512)
     ap.add_argument("--think", type=int, default=0, help="1=let a reasoning base (VibeThinker/R1/QwQ) think; needs bigger --max_new")
-    ap.add_argument("--temperature", type=float, default=1.0)
+    ap.add_argument("--temperature", type=float, default=1.0, help="rollout sampling temp (Qwen3 recommends ~0.6-0.7; higher = more group diversity)")
+    ap.add_argument("--top_k", type=int, default=20, help="Qwen3-recommended top_k — truncates the garbage tail for cleaner rollouts")
     ap.add_argument("--rank", type=int, default=16); ap.add_argument("--alpha", type=int, default=32)
     ap.add_argument("--min_chars", type=int, default=1, help="reward-hacking guard: 0 reward if completion shorter")
     ap.add_argument("--save_every", type=int, default=50, help="checkpoint every N steps (survives Colab disconnects)")
@@ -175,7 +176,7 @@ def main():
         policy.eval()
         with torch.no_grad():
             gen = policy.generate(**enc, num_return_sequences=a.group_size, do_sample=True,
-                                  temperature=a.temperature, top_p=0.95, max_new_tokens=a.max_new,
+                                  temperature=a.temperature, top_p=0.95, top_k=a.top_k, max_new_tokens=a.max_new,
                                   pad_token_id=pad_id, use_cache=True)                       # (G, plen+comp)
         comps = [tok.decode(gen[i][plen:], skip_special_tokens=True) for i in range(a.group_size)]
         rewards = torch.tensor([(reward_fn(c) if len(c) >= a.min_chars else 0.0) for c in comps],
