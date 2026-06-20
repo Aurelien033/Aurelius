@@ -38,6 +38,7 @@ def main():
     ap.add_argument("--dtype", choices=["bf16", "fp16"], default="bf16")
     ap.add_argument("--keep", choices=["verified", "all"], default="verified")
     ap.add_argument("--out", default="data/traces.jsonl")
+    ap.add_argument("--load_4bit", action="store_true", help="4-bit NF4 -> fits a strong 27-32B teacher on one A100")
     ap.add_argument("--smoke", action="store_true")
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
@@ -53,11 +54,13 @@ def main():
     if a.n: ids = ids[:a.n]
     if a.smoke: ids, a.max_new, a.gen_batch = ids[:3], 64, 3
 
-    from transformers import AutoTokenizer, AutoModelForCausalLM
-    tok = AutoTokenizer.from_pretrained(a.teacher)
+    from transformers import AutoTokenizer
+    from lm_load import load_causal_lm                            # robust: CausalLM or VLM (Qwen3.6-27B), +4bit
+    tok = AutoTokenizer.from_pretrained(a.teacher, trust_remote_code=True)
     if tok.pad_token is None: tok.pad_token = tok.eos_token
     tok.padding_side = "left"
-    model = AutoModelForCausalLM.from_pretrained(a.teacher, dtype=DT).to(dev).eval()
+    model, used = load_causal_lm(a.teacher, a.load_4bit, dev)
+    print(f"  loaded {a.teacher} via {used}", flush=True)
     print(f"teacher {a.teacher} on {dev}/{a.dtype}: {len(ids)} tasks x {a.samples} samples (verified rejection sampling)", flush=True)
 
     def gen(prompts):

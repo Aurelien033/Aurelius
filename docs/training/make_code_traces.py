@@ -43,16 +43,13 @@ def main():
     if a.n: probs = probs[:a.n]
     if a.smoke: probs, a.max_new, a.gen_batch = probs[:3], 256, 3
 
-    from transformers import AutoTokenizer, AutoModelForCausalLM
-    tok = AutoTokenizer.from_pretrained(a.teacher)
+    from transformers import AutoTokenizer
+    from lm_load import load_causal_lm                            # robust: CausalLM or VLM (Qwen3.6-27B), +4bit
+    tok = AutoTokenizer.from_pretrained(a.teacher, trust_remote_code=True)
     if tok.pad_token is None: tok.pad_token = tok.eos_token
     tok.padding_side = "left"
-    if a.load_4bit:                                                # strong 32B teacher (e.g. Qwen2.5-Coder-32B) on one A100
-        from transformers import BitsAndBytesConfig
-        qc = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.bfloat16)
-        model = AutoModelForCausalLM.from_pretrained(a.teacher, quantization_config=qc, device_map="auto").eval()
-    else:
-        model = AutoModelForCausalLM.from_pretrained(a.teacher, dtype=torch.bfloat16).to(dev).eval()
+    model, used = load_causal_lm(a.teacher, a.load_4bit, dev)
+    print(f"  loaded {a.teacher} via {used}", flush=True)
     print(f"teacher {a.teacher} on {dev}: {len(probs)} MBPP problems x {a.samples} samples (verified)", flush=True)
 
     def gen(asks):
