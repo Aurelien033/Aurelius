@@ -50,6 +50,20 @@ def run_program(src, timeout=12):
         os.unlink(path)
 
 
+def run_with_feedback(src, timeout=12):
+    """Like run_program but returns (passed, feedback): on failure, the stderr/stdout tail for repair prompting."""
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+        f.write(src); path = f.name
+    try:
+        r = subprocess.run([sys.executable, path], capture_output=True, text=True, timeout=timeout)
+        if r.returncode == 0: return True, ""
+        return False, (r.stderr or r.stdout or "non-zero exit").strip()[-800:]
+    except subprocess.TimeoutExpired:
+        return False, "timeout (likely an infinite loop)"
+    finally:
+        os.unlink(path)
+
+
 def _norm_io(s):
     """Whitespace-lenient stdout comparison (trailing spaces / blank trailing lines vary harmlessly)."""
     if isinstance(s, list): s = "\n".join(map(str, s))
