@@ -70,24 +70,22 @@ def load_mbpp_tasks(n):
     return tasks
 
 
-def load_apps_tasks(n, difficulties="interview,competition"):
-    """Harder verifiable tasks: APPS competitive-programming (stdin/stdout), graded difficulty. Disjoint from HumanEval."""
+def load_hard_tasks(n, max_rating=1500):
+    """Harder verifiable tasks: deepmind/code_contests (parquet, stdin/stdout), filtered to TRACTABLE difficulty so
+    the model can sometimes pass (sparse 0-reward gives no gradient). Streamed (train is 2.1GB). Disjoint from HumanEval."""
     from datasets import load_dataset
-    import json
-    keep = set(difficulties.split(","))
-    ds = load_dataset("codeparrot/apps", split="test", trust_remote_code=True)
+    ds = load_dataset("deepmind/code_contests", split="train", streaming=True)
     tasks = []
     for d in ds:
-        if d.get("difficulty") not in keep: continue
-        io = d.get("input_output") or ""
-        if not io.strip(): continue
-        try: io = json.loads(io)
-        except Exception: continue
-        if "fn_name" in io: continue                                  # v1: stdin/stdout problems only
-        inputs, outputs = io.get("inputs", []), io.get("outputs", [])
+        pt = d.get("public_tests") or {}
+        inputs, outputs = pt.get("input") or [], pt.get("output") or []
         if not inputs or not outputs: continue
+        rating = d.get("cf_rating") or 0
+        diff = d.get("difficulty") or 0                               # ClassLabel idx: 1=EASY 2=MEDIUM
+        if not ((0 < rating <= max_rating) or diff in (1, 2)):        # keep only tractable problems
+            continue
         ask = ("Solve this competitive-programming problem. Read input from stdin, write the answer to stdout. "
-               "Return ONLY a complete runnable Python program in one ```python code block.\n\n" + str(d["question"])[:3500])
+               "Return ONLY a complete runnable Python program in one ```python code block.\n\n" + str(d.get("description"))[:3500])
         def rf(comp, inputs=inputs, outputs=outputs):
             code = extract_code(comp)
             return float(bool(code.strip()) and run_io_tests(code, inputs, outputs, 8))
@@ -110,9 +108,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="Qwen/Qwen3-8B")
     ap.add_argument("--adapter", default=None, help="SFT LoRA to start RL from (merged in; ref = the SFT model)")
-    ap.add_argument("--data", choices=["gym", "mbpp", "apps", "both", "all"], default="gym",
-                    help="apps = harder competitive-programming (stdin/stdout); all = gym+mbpp+apps")
-    ap.add_argument("--apps_difficulty", default="interview,competition", help="APPS difficulties (skip 'introductory' = easy)")
+    ap.add_argument("--data", choices=["gym", "mbpp", "hard", "both", "all"], default="gym",
+                    help="hard = code_contests competitive-programming (stdin/stdout); all = gym+mbpp+hard")
+    ap.add_argument("--hard_max_rating", type=int, default=1500, help="code_contests cf_rating cap (lower = easier/more tractable)")
     ap.add_argument("--split", default="eval_data/selector_split_v0.1.json")
     ap.add_argument("--n_tasks", type=int, default=0)
     ap.add_argument("--group_size", type=int, default=8, help="G completions/prompt")
@@ -136,7 +134,7 @@ def main():
     tasks = []
     if a.data in ("gym", "both", "all"): tasks += load_gym_tasks(a.split, a.n_tasks)
     if a.data in ("mbpp", "both", "all"): tasks += load_mbpp_tasks(a.n_tasks)
-    if a.data in ("apps", "all"): tasks += load_apps_tasks(a.n_tasks, a.apps_difficulty)
+    if a.data in ("hard", "all"): tasks += load_hard_tasks(a.n_tasks, a.hard_max_rating)
     if not tasks: print("  no tasks"); return
 
     from transformers import AutoTokenizer, AutoModelForCausalLM
