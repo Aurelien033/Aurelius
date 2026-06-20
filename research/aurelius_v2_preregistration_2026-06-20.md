@@ -28,7 +28,23 @@ compare **pass@1(greedy)** vs **oracle@K(sampled)**. It forks the entire v2 stra
 - **Small gap** (model rarely samples them) → it's a true **capability ceiling** → the lever *is* the bigger base.
 **Do this first.** It's free (eval-only) and it tells you whether to spend $0 (selection) or $100 (14B capability).
 
-## 1. The base (the #1 ceiling lever)
+## 0.7. Strategic frame & cost-efficient sequencing (from `aurelius-opus-qwen-max-parity-answer-2026-06-20.md`)
+**The goal is a verifier-native SYSTEM, not just a better checkpoint.** Raw frontier parity from an 8–14B is not
+realistic (from-scratch = $0.14M–$32M, months–years; confirmed). What *is* realistic is **Tier-2 workflow / in-domain
+parity** — as useful as a frontier model on tasks where *correctness is checkable* — reached through search +
+verification + repair + a data flywheel around a strong base. So v2 ships a *system*, and the checkpoint is one part.
+
+**Sequence the levers cheap→expensive (spend $0 before $100s):**
+1. **Truth surface** (free) — benchmark battery + failure ledger + **pass@k map** (done/building). *We are here.*
+2. **Search + repair wrapper** (free, inference-time) — **best-of-N with the execution verifier**, one-step **repair mode**, generated-test reranker. Cashes in any selection gap *with no training*.
+3. **Verified data flywheel** (cheap) — store candidates/failures/repairs/tests + chosen-vs-near-miss pairs → a self-generated verified dataset.
+4. **Distill search into the model** (cheap GPU) — verified-winner SFT + CID-DPO (winner vs near-miss) → the model does *directly* what search found.
+5. **Smarter RLVR** (cheap–mid GPU) — learnability-band + positive-advantage + execution-grounded credit + repair reward (the §4.5 menu).
+6. **Bigger base — LAST** ($, RunPod) — Qwen3-14B/32B, *only if* steps 2–5 still plateau. Don't pay for capability until the cheap selection/flywheel levers are exhausted.
+
+This reorders §1–§5 below: the **bigger base moves to the end**, after the free system levers. Multi-domain (code+math+reasoning) applies at every step.
+
+## 1. The base (raised LAST, only if cheap levers plateau)
 - **Primary: Qwen3-14B** (Apache, thinking) — the proven pattern is "bigger base raises the ceiling," and 14B fits
   a single A100-80GB (or 2×40GB) for LoRA-RLVR on RunPod/Lambda.
 - **Stretch: Qwen3-32B / QwQ-32B** if budget allows (H100s) — the biggest jump, ~2× the cost.
