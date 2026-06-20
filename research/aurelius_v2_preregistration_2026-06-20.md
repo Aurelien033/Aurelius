@@ -15,6 +15,19 @@ battery** — code **and** math **and** reasoning — built from clean data + ve
 (HumanEval + MBPP-held-out + LiveCodeBench + GSM8K + MATH + a reasoning bench), reproduced across two seeds, with
 no domain regressing below base. Target: a *multi-point* gain (v1 was +1.3pp on one bench; v2 aims broader + bigger).
 
+**Statistical-honesty note (from `aurelius-rlvr-humaneval-benchmark-improvement-research-2026-06-20.md`):** +2
+problems on n=164 is *not* separable from base on a single unpaired test — **~150/164 is the threshold to clear 95%
+confidence** vs the 138 base. So the real HumanEval target is **~150/164 (91.5%)**, reached via signal-density +
+selection, *and* per-task paired analysis (which flips fewer problems are needed). Don't claim a win that's a 2-problem draw.
+
+## 0.5. STEP ZERO — the pass@k capability map (run before renting any GPU)
+The single most decisive cheap experiment (now built: `eval_code_bench.py --passk`): on the *failing* problems,
+compare **pass@1(greedy)** vs **oracle@K(sampled)**. It forks the entire v2 strategy:
+- **Big selection_gap** (model *can* sample correct answers, just doesn't pick them) → the cheap, inference-time
+  levers win: **best-of-N with the execution verifier, reranking, distill-from-winners** — possibly no bigger base needed.
+- **Small gap** (model rarely samples them) → it's a true **capability ceiling** → the lever *is* the bigger base.
+**Do this first.** It's free (eval-only) and it tells you whether to spend $0 (selection) or $100 (14B capability).
+
 ## 1. The base (the #1 ceiling lever)
 - **Primary: Qwen3-14B** (Apache, thinking) — the proven pattern is "bigger base raises the ceiling," and 14B fits
   a single A100-80GB (or 2×40GB) for LoRA-RLVR on RunPod/Lambda.
@@ -51,7 +64,18 @@ RLVR needs a ground-truth checker per domain. Reward = pass/fail (or graded), ad
 - **API (~$2–10): the strong teacher** (Stage 1 traces) — far cheaper/faster than local 4-bit.
 - Checkpoint everything (`--save_every`) — rented sessions + spot instances die.
 
+## 4.5. RLVR signal-density menu (folded from the 2026-06-20 improvement research — attack the plateau MECHANISM)
+The v1 plateau is **sparse terminal reward + equal-reward groups (no gradient) + base ceiling**. Beyond a bigger
+base, these directly densify the RL signal (try in Phase 2, cheapest first):
+- **Learnability-band adaptive sampler / difficulty thermostat** — keep feeding tasks at ~20–50% pass-rate (auto-tuned). Fixes the v1 too-easy/too-hard miss.
+- **Positive-advantage / winner-only GRPO** — test the "negative updates damage the model" hypothesis (only reinforce passes).
+- **Execution-grounded credit assignment** — reward where the code first diverges from passing, not just terminal.
+- **Generated/differential-test verifier expansion** — synthesize extra tests so the verifier is stricter (anti reward-hacking / trivial-pass).
+- **Multi-turn repair RL** — let the model see the failing test output and fix (turns a 0 into signal).
+- **pass@k→pass@1 distillation** — if step-zero shows a selection gap, distill verified winners back into greedy.
+
 ## 5. Build queue (free, on Colab/Kaggle — do BEFORE renting GPUs)
+0. **Pass@k capability map** (§0.5) — `eval_code_bench --passk` on the v1 RLVR model. **Run first** — it decides selection-vs-capability.
 1. **Math RLVR**: `load_math_tasks` (GSM8K/MATH) + math verifier (port `rlvr.py:MathReward`: extract `\boxed{}`/last
    number, compare; add sympy for MATH symbolic) → `grpo_train --data math`.
 2. **Reasoning RLVR**: a verifiable reasoning task loader + answer-match verifier (multiple-choice / short-answer).
