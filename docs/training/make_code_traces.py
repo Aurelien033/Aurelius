@@ -29,6 +29,9 @@ def main():
     ap.add_argument("--timeout", type=int, default=12)
     ap.add_argument("--out", default="data/mbpp_traces.jsonl")
     ap.add_argument("--load_4bit", action="store_true", help="4-bit NF4 load -> fits a 32B teacher on one A100-40GB")
+    ap.add_argument("--api_model", default="", help="generate via an OpenAI-compatible API (e.g. OpenRouter) instead of local weights, e.g. openai/gpt-oss-120b")
+    ap.add_argument("--api_base", default="https://openrouter.ai/api/v1", help="API base (OpenRouter default); key from $OPENROUTER_API_KEY or $OPENAI_API_KEY")
+    ap.add_argument("--api_workers", type=int, default=8, help="parallel API requests")
     ap.add_argument("--smoke", action="store_true")
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
@@ -43,23 +46,41 @@ def main():
     if a.n: probs = probs[:a.n]
     if a.smoke: probs, a.max_new, a.gen_batch = probs[:3], 256, 3
 
-    from transformers import AutoTokenizer
-    from lm_load import load_causal_lm                            # robust: CausalLM or VLM (Qwen3.6-27B), +4bit
-    tok = AutoTokenizer.from_pretrained(a.teacher, trust_remote_code=True)
-    if tok.pad_token is None: tok.pad_token = tok.eos_token
-    tok.padding_side = "left"
-    model, used = load_causal_lm(a.teacher, a.load_4bit, dev)
-    print(f"  loaded {a.teacher} via {used}", flush=True)
-    print(f"teacher {a.teacher} on {dev}: {len(probs)} MBPP problems x {a.samples} samples (verified)", flush=True)
-
-    def gen(asks):
-        enc = tok([build_msg(tok, x, think=1) for x in asks], return_tensors="pt", padding=True, add_special_tokens=False).to(dev)
-        kw = dict(max_new_tokens=a.max_new, pad_token_id=tok.eos_token_id, do_sample=a.temperature > 0)
-        if a.temperature > 0: kw.update(temperature=a.temperature, top_p=0.95)
-        with torch.no_grad():
-            out = model.generate(**enc, **kw)
-        L = enc["input_ids"].shape[1]
-        return [tok.decode(r[L:], skip_special_tokens=True) for r in out]
+    if a.api_model:                                              # API backend (OpenRouter / any OpenAI-compatible) — no local weights
+        import os, urllib.request, concurrent.futures
+        key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+        if not key: print("  set OPENROUTER_API_KEY (or OPENAI_API_KEY)"); return
+        url = a.api_base.rstrip("/") + "/chat/completions"
+        def _one(ask):
+            body = json.dumps({"model": a.api_model, "messages": [{"role": "user", "content": ask}],
+                               "temperature": a.temperature, "max_tokens": a.max_new}).encode()
+            req = urllib.request.Request(url, data=body, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+            try:
+                with urllib.request.urlopen(req, timeout=180) as r:
+                    return json.loads(r.read())["choices"][0]["message"]["content"]
+            except Exception:
+                return ""                                        # failed call -> empty -> won't verify -> re-sampled
+        def gen(asks):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(a.api_workers, max(1, len(asks)))) as ex:
+                return list(ex.map(_one, asks))
+        print(f"teacher (API) {a.api_model} via {a.api_base}: {len(probs)} MBPP x {a.samples} samples (verified)", flush=True)
+    else:
+        from transformers import AutoTokenizer
+        from lm_load import load_causal_lm                        # robust: CausalLM or VLM (Qwen3.6-27B), +4bit
+        tok = AutoTokenizer.from_pretrained(a.teacher, trust_remote_code=True)
+        if tok.pad_token is None: tok.pad_token = tok.eos_token
+        tok.padding_side = "left"
+        model, used = load_causal_lm(a.teacher, a.load_4bit, dev)
+        print(f"  loaded {a.teacher} via {used}", flush=True)
+        print(f"teacher {a.teacher} on {dev}: {len(probs)} MBPP problems x {a.samples} samples (verified)", flush=True)
+        def gen(asks):
+            enc = tok([build_msg(tok, x, think=1) for x in asks], return_tensors="pt", padding=True, add_special_tokens=False).to(dev)
+            kw = dict(max_new_tokens=a.max_new, pad_token_id=tok.eos_token_id, do_sample=a.temperature > 0)
+            if a.temperature > 0: kw.update(temperature=a.temperature, top_p=0.95)
+            with torch.no_grad():
+                out = model.generate(**enc, **kw)
+            L = enc["input_ids"].shape[1]
+            return [tok.decode(r[L:], skip_special_tokens=True) for r in out]
 
     recs = []
     for s in range(0, len(probs), a.gen_batch):
