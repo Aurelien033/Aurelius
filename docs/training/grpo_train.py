@@ -94,14 +94,20 @@ def load_hard_tasks(n, max_rating=1500):
     return tasks
 
 
-def seq_logprob(model, seqs, prompt_len, pad_id):
-    """Sum log-prob of the COMPLETION tokens (positions >= prompt_len, non-pad) for each of the G sequences."""
-    logits = model(input_ids=seqs).logits[:, :-1, :].float()       # predict tokens 1..T-1
+def seq_logprob(model, seqs, prompt_len, pad_id, chunk=128):
+    """Sum log-prob of the COMPLETION tokens. Memory-safe: gather targets in chunks over positions so we never
+    materialize the full (G, T, vocab) log_softmax (Qwen3 vocab=152k → that tensor OOMs on long sequences)."""
+    logits = model(input_ids=seqs).logits[:, :-1, :]               # (G, T-1, V); predict tokens 1..T-1
     tgt = seqs[:, 1:]
-    lp = F.log_softmax(logits, -1).gather(-1, tgt.unsqueeze(-1)).squeeze(-1)   # (G, T-1)
-    mask = torch.zeros_like(lp); mask[:, prompt_len - 1:] = 1.0    # completion region
-    mask = mask * (tgt != pad_id).float()                         # drop right-pad
-    return (lp * mask).sum(-1)                                    # (G,)
+    parts = []
+    for s in range(0, tgt.shape[1], chunk):
+        lg = logits[:, s:s + chunk, :].float()                     # (G, c, V); c small -> bounded memory
+        tg = tgt[:, s:s + chunk]
+        parts.append(lg.gather(-1, tg.unsqueeze(-1)).squeeze(-1) - torch.logsumexp(lg, -1))  # log p(tgt) = logit - LSE
+    lp = torch.cat(parts, dim=1)                                    # (G, T-1), grad-preserving
+    mask = torch.zeros_like(lp); mask[:, prompt_len - 1:] = 1.0     # completion region
+    mask = mask * (tgt != pad_id).float()                          # drop right-pad
+    return (lp * mask).sum(-1)                                      # (G,)
 
 
 def main():
