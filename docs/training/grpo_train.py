@@ -96,6 +96,7 @@ def main():
     ap.add_argument("--temperature", type=float, default=1.0)
     ap.add_argument("--rank", type=int, default=16); ap.add_argument("--alpha", type=int, default=32)
     ap.add_argument("--min_chars", type=int, default=1, help="reward-hacking guard: 0 reward if completion shorter")
+    ap.add_argument("--save_every", type=int, default=50, help="checkpoint every N steps (survives Colab disconnects)")
     ap.add_argument("--out", default="checkpoints/rlvr")
     ap.add_argument("--smoke", action="store_true")
     a = ap.parse_args()
@@ -129,6 +130,7 @@ def main():
           f"{a.steps} steps, lr {a.lr}, beta {a.beta} | reward=verifier pass-rate. WATCH mean_reward RISE.", flush=True)
 
     order = list(range(len(tasks))); reward_hist = []
+    Path(a.out).mkdir(parents=True, exist_ok=True)
     opt.zero_grad()
     for step in range(a.steps):
         prompt, reward_fn = tasks[order[step % len(tasks)]]
@@ -160,8 +162,10 @@ def main():
             recent = sum(reward_hist[-20:]) / len(reward_hist[-20:])
             print(f"  step {step:4d}/{a.steps}  mean_reward {rewards.mean().item():.3f}  (run-avg {recent:.3f})  "
                   f"kl {metrics['kl_loss']:.4f}  policy_loss {metrics['policy_loss']:+.4f}", flush=True)
+        if a.save_every and (step + 1) % a.save_every == 0:                  # survive Colab disconnects
+            policy.save_pretrained(a.out); tok.save_pretrained(a.out)
+            print(f"    [ckpt @ step {step+1} -> {a.out}]", flush=True)
 
-    Path(a.out).mkdir(parents=True, exist_ok=True)
     policy.save_pretrained(a.out); tok.save_pretrained(a.out)
     first = sum(reward_hist[:max(1, len(reward_hist)//5)]) / max(1, len(reward_hist)//5)
     last = sum(reward_hist[-max(1, len(reward_hist)//5):]) / max(1, len(reward_hist)//5)
