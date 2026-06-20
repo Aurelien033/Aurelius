@@ -17,7 +17,8 @@ Real (Colab A100, from the SFT'd policy):
   python docs/training/grpo_train.py --base Qwen/Qwen3-8B --adapter /content/aurelius-v1-8b \
      --data both --group_size 8 --steps 400 --max_new 512 --out /content/aurelius-rlvr
 """
-import argparse, json, sys, importlib.util
+import argparse, json, os, sys, importlib.util
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")   # reclaim fragmented VRAM (must precede torch)
 from pathlib import Path
 import torch, torch.nn.functional as F
 REPO = Path(__file__).resolve().parents[2]
@@ -179,6 +180,7 @@ def main():
         comps = [tok.decode(gen[i][plen:], skip_special_tokens=True) for i in range(a.group_size)]
         rewards = torch.tensor([(reward_fn(c) if len(c) >= a.min_chars else 0.0) for c in comps],
                                dtype=torch.float32, device=dev)
+        if dev == "cuda": torch.cuda.empty_cache()                    # free the generation KV cache before the grad forwards
         policy.train()
         logp = seq_logprob(policy, gen, plen, pad_id)                                        # grad
         with torch.no_grad():
