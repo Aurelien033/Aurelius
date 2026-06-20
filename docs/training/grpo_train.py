@@ -93,6 +93,7 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-6)
     ap.add_argument("--beta", type=float, default=0.04, help="KL coeff")
     ap.add_argument("--max_new", type=int, default=512)
+    ap.add_argument("--think", type=int, default=0, help="1=let a reasoning base (VibeThinker/R1/QwQ) think; needs bigger --max_new")
     ap.add_argument("--temperature", type=float, default=1.0)
     ap.add_argument("--rank", type=int, default=16); ap.add_argument("--alpha", type=int, default=32)
     ap.add_argument("--min_chars", type=int, default=1, help="reward-hacking guard: 0 reward if completion shorter")
@@ -135,7 +136,7 @@ def main():
     for step in range(a.steps):
         prompt, reward_fn = tasks[order[step % len(tasks)]]
         if step % len(tasks) == 0: rng.shuffle(order)
-        enc = tok(build_msg(tok, prompt, think=0), return_tensors="pt", add_special_tokens=False).to(dev)
+        enc = tok(build_msg(tok, prompt, think=a.think), return_tensors="pt", add_special_tokens=False).to(dev)
         plen = enc["input_ids"].shape[1]
         policy.eval()
         with torch.no_grad():
