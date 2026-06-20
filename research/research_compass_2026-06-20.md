@@ -43,6 +43,21 @@
 - **Hard code benchmarks:** LiveCodeBench `2403.07974`, code_contests/AlphaCode `2203.07814`, EvalPlus.
 - **The serving stack:** `~/Desktop/AI Plans/aurelius-inference-training-research-2026-06-18/` (91 sources, certified-substitution).
 
+## 🎯 Verified v2-RLVR papers (HF paper_search, 2026-06-20) — each maps to a failure WE observed
+*(The auto "continuous-run" arXiv scanner is buggy — scrambled title/abstract pairs — so it's NOT a source; these came from real search.)*
+| our finding / lever | paper | what it adds |
+|---|---|---|
+| **pass/fail reward is sparse** (we only reward terminal pass) | **VeRPO** `2601.03525` | verifiable *dense* execution rewards for code (partial-success + global) ⭐ |
+| **too-hard tasks → 0 reward → no gradient** (our code_contests miss) | **Scaf-GRPO** `2510.19807` | scaffolding/in-prompt hints overcome the "learning cliff" |
+| **negative updates may hurt** (winner-only hypothesis) | **DISPO** `2602.00983` | decouple importance-clipping for correct vs incorrect responses |
+| **equal-reward groups give zero gradient** (we hit this directly) | **DCPO** `2509.02333` (22▲) | dynamic clipping → more nonzero advantage; smooth adv standardization |
+| **scalar group advantage is coarse** | **LamPO** `2605.21235` | pairwise-decomposed advantages (Qwen3-tested) |
+| **broad multi-domain reward** (v2 code+math+reasoning) | **RGR-GRPO** `2511.12344` / **VPR** `2605.10325` | rubric / process dense rewards from oracles |
+| **reward hacking / trivial pass** | **Posterior-GRPO** `2508.05170` | reasoning-quality reward reduces hacking in code RL |
+| **plateau under more steps** | **Scaling-Up-RL** `2507.12507` | prolonged RL: controlled KL + periodic reference resets |
+| token-level credit | **TEMPO** `2509.18314` (Qwen3-1.7B/4B) ; aggregation bias: **Balanced Aggregation** `2605.04077` |
+**Top to implement in v2 (attack the exact plateau):** VeRPO (dense code reward) + Scaf-GRPO (hard-task scaffolding) + DISPO/DCPO (fix the zero-gradient equal-reward groups).
+
 ## The one filter for any new idea
 Before building: **(1) is it grounded in a result, (2) does a concrete need pull it in, (3) does it fit the budget?**
 And: **does it add a verifier, densify reward, or capture selection?** If not, it's probably a scope-trap.
