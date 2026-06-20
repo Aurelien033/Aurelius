@@ -106,6 +106,8 @@ def main():
     ap.add_argument("--gen_batch", type=int, default=8)
     ap.add_argument("--timeout", type=int, default=12)
     ap.add_argument("--think", type=int, default=0, help="1=allow Qwen3 <think> (needs big --max_new); 0=direct code")
+    ap.add_argument("--passk", type=int, default=0, help=">0: also sample K/problem -> oracle@K + selection_gap (SELECTION vs CAPABILITY diagnostic)")
+    ap.add_argument("--passk_temp", type=float, default=0.8)
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 
@@ -124,7 +126,7 @@ def main():
         model = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.bfloat16).to(dev).eval()
     print(f"{a.bench} pass@1: {a.model} on {dev}, {len(items)} problems", flush=True)
 
-    npass = 0
+    greedy = [False] * len(items)                                     # per-problem greedy pass (the failure ledger)
     for s in range(0, len(items), a.gen_batch):
         chunk = items[s:s + a.gen_batch]
         msgs = [build_msg(tok, it["ask"], a.think) for it in chunk]
@@ -132,12 +134,36 @@ def main():
         with torch.no_grad():
             out = model.generate(**enc, max_new_tokens=a.max_new, do_sample=False, pad_token_id=tok.eos_token_id, use_cache=True)
         L = enc["input_ids"].shape[1]
-        for it, r in zip(chunk, out):
+        for j, (it, r) in enumerate(zip(chunk, out)):
             code = extract_code(tok.decode(r[L:], skip_special_tokens=True))
-            npass += int(run_program(it["check"](code), a.timeout))
-        print(f"  [{min(s+a.gen_batch, len(items))}/{len(items)}] pass@1 so far: {npass}", flush=True)
-
+            greedy[s + j] = bool(run_program(it["check"](code), a.timeout))
+        print(f"  [{min(s+a.gen_batch, len(items))}/{len(items)}] pass@1 so far: {sum(greedy)}", flush=True)
+    npass = sum(greedy)
     print(f"\n=== {a.bench} pass@1 ({a.model}): {npass}/{len(items)} = {npass/len(items)*100:.1f}% ===", flush=True)
+
+    if a.passk:                                                       # CAPABILITY-vs-SELECTION diagnostic
+        oracle = list(greedy)                                         # oracle@K = greedy OR any of K samples passes
+        for i, it in enumerate(items):
+            if oracle[i]:                                             # already solved greedily -> skip sampling
+                continue
+            enc = tok(build_msg(tok, it["ask"], a.think), return_tensors="pt", add_special_tokens=False).to(dev)
+            with torch.no_grad():
+                out = model.generate(**enc, num_return_sequences=a.passk, do_sample=True, temperature=a.passk_temp,
+                                     top_p=0.95, max_new_tokens=a.max_new, pad_token_id=tok.eos_token_id, use_cache=True)
+            L = enc["input_ids"].shape[1]
+            for r in out:
+                code = extract_code(tok.decode(r[L:], skip_special_tokens=True))
+                if run_program(it["check"](code), a.timeout):
+                    oracle[i] = True; break
+            if (i + 1) % 20 == 0: print(f"  passk [{i+1}/{len(items)}] oracle so far: {sum(oracle)}", flush=True)
+        n_oracle = sum(oracle); gap = n_oracle - npass
+        recovered = [i for i in range(len(items)) if oracle[i] and not greedy[i]]
+        print(f"\n=== {a.bench} CAPABILITY MAP ({a.model}) ===")
+        print(f"  pass@1(greedy) {npass}/{len(items)} = {npass/len(items)*100:.1f}%")
+        print(f"  oracle@{a.passk}     {n_oracle}/{len(items)} = {n_oracle/len(items)*100:.1f}%  (T={a.passk_temp})")
+        print(f"  selection_gap  +{gap}  ({len(recovered)} greedy-fails recovered by sampling)")
+        print(f"  READ: big gap => SELECTION problem (best-of-N / reranker / distill from winners — cheap).")
+        print(f"        small gap => CAPABILITY ceiling (bigger base / richer RL curriculum — expensive).")
 
 
 if __name__ == "__main__":
