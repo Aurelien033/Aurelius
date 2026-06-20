@@ -25,7 +25,15 @@ REPO = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "first_light"))
-from eval_code_bench import extract_code, run_program, run_io_tests, build_msg
+from eval_code_bench import (extract_code, run_program, run_io_tests, run_asserts_fraction,
+                             run_io_fraction, build_msg)
+
+
+def verpo_reward(n_pass, n_total, w_partial=0.5):
+    """VeRPO dense reward = w_partial·(fraction of tests passed) + (1-w_partial)·(all-pass bonus), in [0,1].
+    Densifies the sparse pass/fail signal: partial solutions get partial credit -> nonzero group advantage."""
+    if n_total <= 0: return 0.0
+    return w_partial * (n_pass / n_total) + (1.0 - w_partial) * (1.0 if n_pass == n_total else 0.0)
 import first_light_runner_v4 as R
 
 
@@ -55,23 +63,26 @@ def load_gym_tasks(split_path, n):
     return tasks
 
 
-def load_mbpp_tasks(n):
+def load_mbpp_tasks(n, dense=True, w_partial=0.5):
     from datasets import load_dataset
     ds = load_dataset("google-research-datasets/mbpp", split="train+validation")
     tasks = []
     for d in ds:
         ask = (f"Write a Python function for this task. Return ONLY the function in one ```python code block.\n\n"
                f"Task: {d['text']}\nIt must satisfy:\n{d['test_list'][0]}")
-        setup, tests = (d.get("test_setup_code") or ""), "\n".join(d["test_list"])
-        def rf(comp, setup=setup, tests=tests):
+        setup, tl = (d.get("test_setup_code") or ""), list(d["test_list"])
+        def rf(comp, setup=setup, tl=tl, dense=dense, w=w_partial):
             code = extract_code(comp)
-            return float(bool(code.strip()) and run_program(setup + "\n" + code + "\n" + tests + "\n", 12))
+            if not code.strip(): return 0.0
+            if dense:
+                return verpo_reward(*run_asserts_fraction(setup, code, tl, 12), w)   # fraction of asserts passed
+            return float(run_program(setup + "\n" + code + "\n" + "\n".join(tl) + "\n", 12))
         tasks.append((ask, rf))
     if n: tasks = tasks[:n]
     return tasks
 
 
-def load_hard_tasks(n, max_rating=1500):
+def load_hard_tasks(n, max_rating=1500, dense=True, w_partial=0.5):
     """Harder verifiable tasks: deepmind/code_contests (parquet, stdin/stdout), filtered to TRACTABLE difficulty so
     the model can sometimes pass (sparse 0-reward gives no gradient). Streamed (train is 2.1GB). Disjoint from HumanEval."""
     from datasets import load_dataset
@@ -87,9 +98,12 @@ def load_hard_tasks(n, max_rating=1500):
             continue
         ask = ("Solve this competitive-programming problem. Read input from stdin, write the answer to stdout. "
                "Return ONLY a complete runnable Python program in one ```python code block.\n\n" + str(d.get("description"))[:3500])
-        def rf(comp, inputs=inputs, outputs=outputs):
+        def rf(comp, inputs=inputs, outputs=outputs, dense=dense, w=w_partial):
             code = extract_code(comp)
-            return float(bool(code.strip()) and run_io_tests(code, inputs, outputs, 8))
+            if not code.strip(): return 0.0
+            if dense:
+                return verpo_reward(*run_io_fraction(code, inputs, outputs, 8), w)   # fraction of I/O cases passed
+            return float(run_io_tests(code, inputs, outputs, 8))
         tasks.append((ask, rf))
         if n and len(tasks) >= n: break
     return tasks
@@ -118,6 +132,8 @@ def main():
     ap.add_argument("--data", choices=["gym", "mbpp", "hard", "both", "all"], default="gym",
                     help="hard = code_contests competitive-programming (stdin/stdout); all = gym+mbpp+hard")
     ap.add_argument("--hard_max_rating", type=int, default=1500, help="code_contests cf_rating cap (lower = easier/more tractable)")
+    ap.add_argument("--dense", type=int, default=1, help="VeRPO dense reward (fraction of tests passed + all-pass bonus) on MBPP/code_contests; 0=binary")
+    ap.add_argument("--dense_w_partial", type=float, default=0.5, help="VeRPO: weight on partial fraction vs the all-pass bonus")
     ap.add_argument("--split", default="eval_data/selector_split_v0.1.json")
     ap.add_argument("--n_tasks", type=int, default=0)
     ap.add_argument("--group_size", type=int, default=8, help="G completions/prompt")
@@ -141,8 +157,8 @@ def main():
 
     tasks = []
     if a.data in ("gym", "both", "all"): tasks += load_gym_tasks(a.split, a.n_tasks)
-    if a.data in ("mbpp", "both", "all"): tasks += load_mbpp_tasks(a.n_tasks)
-    if a.data in ("hard", "all"): tasks += load_hard_tasks(a.n_tasks, a.hard_max_rating)
+    if a.data in ("mbpp", "both", "all"): tasks += load_mbpp_tasks(a.n_tasks, a.dense, a.dense_w_partial)
+    if a.data in ("hard", "all"): tasks += load_hard_tasks(a.n_tasks, a.hard_max_rating, a.dense, a.dense_w_partial)
     if not tasks: print("  no tasks"); return
 
     from transformers import AutoTokenizer, AutoModelForCausalLM

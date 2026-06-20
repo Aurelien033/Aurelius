@@ -64,6 +64,14 @@ def run_with_feedback(src, timeout=12):
         os.unlink(path)
 
 
+def run_asserts_fraction(setup, code, test_list, timeout=12, max_tests=10):
+    """VeRPO dense signal for assert-style benches (MBPP): run each test separately -> (n_passed, n_total)."""
+    tests = list(test_list)[:max_tests]
+    if not tests: return 0, 0
+    npass = sum(int(run_program((setup or "") + "\n" + code + "\n" + t + "\n", timeout)) for t in tests)
+    return npass, len(tests)
+
+
 def _norm_io(s):
     """Whitespace-lenient stdout comparison (trailing spaces / blank trailing lines vary harmlessly)."""
     if isinstance(s, list): s = "\n".join(map(str, s))
@@ -84,6 +92,25 @@ def run_io_tests(code, inputs, outputs, timeout=8, max_cases=12):
             if _norm_io(r.stdout) != _norm_io(exp):
                 return False
         return True
+    finally:
+        os.unlink(path)
+
+
+def run_io_fraction(code, inputs, outputs, timeout=8, max_cases=10):
+    """VeRPO dense signal for stdin/stdout benches (code_contests): -> (n_passed, n_total)."""
+    cases = list(zip(inputs, outputs))[:max_cases]
+    if not cases: return 0, 0
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+        f.write(code); path = f.name
+    try:
+        npass = 0
+        for inp, exp in cases:
+            try:
+                r = subprocess.run([sys.executable, path], input=str(inp), capture_output=True, text=True, timeout=timeout)
+                npass += int(_norm_io(r.stdout) == _norm_io(exp))
+            except subprocess.TimeoutExpired:
+                pass
+        return npass, len(cases)
     finally:
         os.unlink(path)
 
