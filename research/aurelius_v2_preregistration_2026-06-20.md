@@ -37,7 +37,7 @@ verification + repair + a data flywheel around a strong base. So v2 ships a *sys
 **Sequence the levers cheap→expensive (spend $0 before $100s):**
 1. **Truth surface** (free) — benchmark battery + failure ledger + **pass@k map** (done/building). *We are here.*
 2. **Search + repair wrapper** (free, inference-time) — **best-of-N with the execution verifier**, one-step **repair mode**, generated-test reranker. Cashes in any selection gap *with no training*.
-3. **Verified data flywheel** (cheap) — store candidates/failures/repairs/tests + chosen-vs-near-miss pairs → a self-generated verified dataset.
+3. **Verified data flywheel** (cheap) — store candidates/failures/repairs/tests + chosen-vs-near-miss pairs → a self-generated verified dataset. *Verified backing:* **Self-Verified Distillation** `2605.26132` (Qwen3 self-generates + self-verifies its training data, no teacher) + the **`2601.00828`** caveat (self-correction has limits — weaker models self-correct better; measure compound-rate, stop when Δ<0.2pp/cycle).
 4. **Distill search into the model** (cheap GPU) — verified-winner SFT + CID-DPO (winner vs near-miss) → the model does *directly* what search found.
 5. **Smarter RLVR** (cheap–mid GPU) — learnability-band + positive-advantage + execution-grounded credit + repair reward (the §4.5 menu).
 6. **Bigger base — LAST** ($, RunPod) — Qwen3-14B/32B, *only if* steps 2–5 still plateau. Don't pay for capability until the cheap selection/flywheel levers are exhausted.
@@ -83,7 +83,7 @@ RLVR needs a ground-truth checker per domain. Reward = pass/fail (or graded), ad
 ## 4.5. RLVR signal-density menu (folded from the 2026-06-20 improvement research — attack the plateau MECHANISM)
 The v1 plateau is **sparse terminal reward + equal-reward groups (no gradient) + base ceiling**. Beyond a bigger
 base, these directly densify the RL signal (try in Phase 2, cheapest first):
-- **Learnability-band adaptive sampler / difficulty thermostat** — keep feeding tasks at ~20–50% pass-rate (auto-tuned). Fixes the v1 too-easy/too-hard miss.
+- **Learnability-band adaptive sampler / difficulty thermostat** — keep feeding tasks at ~20–50% pass-rate (auto-tuned). Fixes the v1 too-easy/too-hard miss. *Verified backing (direct arXiv, 2026-06-21):* **SC-SDPO** `2605.27765` (pass-rate-weighted self-distillation, weight `[p(1−p)]^½` = the sweet-spot; **+3.2/+4.3 on Qwen3-8B**) — the closest match to our base; **DIVA-GRPO** `2603.01106` (difficulty-adaptive variant advantage); also VADE `2511.18902`, D³S `2509.22115`, SAGE `2602.03143`.
 - **Positive-advantage / winner-only GRPO** — test the "negative updates damage the model" hypothesis (only reinforce passes).
 - **Execution-grounded credit assignment** — reward where the code first diverges from passing, not just terminal.
   Concrete shaped reward (improvement-suite, 2026-06-20): `pass_fail + 0.05·syntactically_valid + 0.05·correct_entrypoint
@@ -91,8 +91,8 @@ base, these directly densify the RL signal (try in Phase 2, cheapest first):
   shows local bugs dominate (>10% of remaining fails are base-fail/RLVR-win), and KILL if the shaped reward rises but
   strict pass@1 doesn't** (= reward hacking, shaping too loose).
 - **Generated/differential-test verifier expansion** — synthesize extra tests so the verifier is stricter (anti reward-hacking / trivial-pass).
-- **Multi-turn repair RL** — let the model see the failing test output and fix (turns a 0 into signal).
-- **pass@k→pass@1 distillation** — if step-zero shows a selection gap, distill verified winners back into greedy.
+- **Multi-turn repair RL** — let the model see the failing test output and fix (turns a 0 into signal). *Verified:* **SPOC** `2506.06923` (single-pass interleaved solve+verify self-correction; +8.8pp MATH500 / +10pp AMC23 on Llama-3.1-8B) — the in-pass variant for the math/reasoning domain.
+- **pass@k→pass@1 distillation** — if step-zero shows a selection gap, distill verified winners back into greedy. *Verified backing:* **Self-Verified Distillation** `2605.26132` (Qwen3, model is its own verified-data pipeline, NO external teacher — eliminates the teacher ceiling on math/science/code).
 
 ## 5. Build queue (free, on Colab/Kaggle — do BEFORE renting GPUs)
 0. **Pass@k capability map** (§0.5) — `eval_code_bench --passk` on the v1 RLVR model. **Run first** — it decides selection-vs-capability.
