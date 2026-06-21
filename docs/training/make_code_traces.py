@@ -51,15 +51,25 @@ def main():
         key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
         if not key: print("  set OPENROUTER_API_KEY (or OPENAI_API_KEY)"); return
         url = a.api_base.rstrip("/") + "/chat/completions"
+        _err = {"shown": False}
+        if key.endswith("your-key...") or len(key) < 20:
+            print(f"  ⚠ OPENROUTER_API_KEY looks like a placeholder ({key[:12]}...) — set your REAL key", flush=True)
         def _one(ask):
             body = json.dumps({"model": a.api_model, "messages": [{"role": "user", "content": ask}],
                                "temperature": a.temperature, "max_tokens": a.max_new}).encode()
             req = urllib.request.Request(url, data=body, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
             try:
                 with urllib.request.urlopen(req, timeout=180) as r:
-                    return json.loads(r.read())["choices"][0]["message"]["content"]
-            except Exception:
-                return ""                                        # failed call -> empty -> won't verify -> re-sampled
+                    body_json = json.loads(r.read())
+                if "choices" not in body_json:                   # API returned an error object, not a completion
+                    raise RuntimeError(str(body_json)[:200])
+                return body_json["choices"][0]["message"]["content"]
+            except Exception as e:
+                if not _err["shown"]:                            # surface the FIRST failure (auth / model id / rate limit)
+                    msg = getattr(e, "read", lambda: b"")()
+                    print(f"  ⚠ API ERROR (first): {type(e).__name__}: {e} {msg[:200]} — check key / model id / rate limits", flush=True)
+                    _err["shown"] = True
+                return ""
         def gen(asks):
             with concurrent.futures.ThreadPoolExecutor(max_workers=min(a.api_workers, max(1, len(asks)))) as ex:
                 return list(ex.map(_one, asks))
