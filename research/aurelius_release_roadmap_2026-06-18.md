@@ -103,7 +103,7 @@ The canonical lever sequence for the release track — **free → cheap → expe
 
 **Honest magnitude bounds (agreed across all 2026-06-21 analyses):** full T1–T3 post-training stack = **+3–7pp over the 8B base** across benchmarks; **+8–19pp only with a 14B base**. **You cannot get +20pp on an 8B by any post-training** — the base param count is a hard ceiling. This is *why* bigger-base is sequenced last but IS the ceiling-breaker.
 
-⚠ **Discipline:** the v5/`capability-beyond-base` docs cite many arXiv IDs from the **buggy `continuous-run` scanner** — UNVERIFIED, do not adopt by ID without a hub check (SPOC verified ✓; "SC-SDPO `2605.27765`" was a PHANTOM ✗). The 2B-trace manifest is **coverage, not ceiling** (template data ≠ capability lift; SFT can't beat base).
+⚠ **Discipline (corrected 2026-06-21 after full arXiv verification):** the `continuous-run` IDs are MOSTLY reliable — **15/18 checked are real + correctly labeled** (incl. SC-SDPO `2605.27765` = REAL learnability-band; my earlier "phantom" call was wrong). Only 3 are bad: RUBAS `2606.04051` (real but agent-safety, not code-rubric), AlphaQ `2606.04971` + TWLA `2606.13024` (wrong IDs → unrelated papers). Hub-check a specific ID before building, but the scanner isn't "mostly junk." The 2B-trace manifest is still **coverage, not ceiling** (template data ≠ capability lift; SFT can't beat base).
 
 ---
 
