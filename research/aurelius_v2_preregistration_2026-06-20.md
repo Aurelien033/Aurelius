@@ -106,6 +106,17 @@ base, these directly densify the RL signal (try in Phase 2, cheapest first):
 5. **Strong-teacher broad SFT data**: `make_traces` over code+math+reasoning via API teacher.
 All five smoke on a 1.5B for $0; then the real runs go to RunPod.
 
+**Existing assets (AUDITED 2026-06-21 — the build is mostly WIRING, not writing):** the v5 mechanism modules are
+already in the repo **and unit-tested** — `curriculum_rl.py`, `best_of_n_reranker.py`, `self_refine.py`,
+`cot_verifier.py` / `reasoning/step_verifier.py`, `contrastive_cot.py`, `data_flywheel.py`, `process_reward.py` /
+`process_reward_model.py`, `token_credit_assignment.py` / `token_level_rl.py`, `self_play.py`, `src/multiagent/`
+(**182 targeted tests PASS**, 2026-06-21). So §4.5's "smarter RLVR" levers are largely *wiring these to the
+verifier-native loop*, not building from scratch — the prereg build queue above under-counted existing assets.
+⚠ **But unit-tests-pass ≠ end-to-end-pipeline-works:** the integration (verifier→token-credit→RL update;
+curriculum→GRPO rollout w/ variance gate; PRM→RL; the flywheel's canonical pipeline) is the *actual* remaining
+work — per the v5-deep-research-update's own "Status:" lines. Smoke each wiring before relying on it. Caveat: heavy
+`build/lib`+`src`+`aurelius/` duplication — use the `src/` copies (canonical); `aurelius/alignment/process_reward_model.py` is a 1-line stub.
+
 ## 6. Falsifiers / honest gates (the discipline that made v1 trustworthy)
 - Each stage must **beat the prior stage's model on the held-out battery**, reproduced (2 seeds), no domain
   regressing below base. A stage that doesn't is dropped, not shipped.

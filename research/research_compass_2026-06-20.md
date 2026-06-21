@@ -34,6 +34,7 @@
   it has its *own* falsifier + need + budget.
 - **SFT from a teacher *weaker* than the base** — it drags the base *down* (v2 R1-7B: 84→76%). Teacher must be stronger.
 - **Re-running the gym+MBPP RLVR plateau** — 85.4% is the ceiling there; needs harder *learnable-band* tasks, not more steps.
+- **AMC / composer / token-efficient-recall (v3+ memory-agent docs, 2026-06-21)** — aspirational long-context/memory-agent architecture. **`CTAR` (per-token *per-layer* cross-tier routing) = the SAME dynamic per-token/per-layer routing genus that's been a powered null 3×.** Tag **v3+ aspirational**, keep OFF the v2 capability critical path (the compass's mechanism-zoo trap). Grounded sliver = local KV-cache budget math, already covered by the inference-cost roadmap. NOTE (positive, 2026-06-21): the *v5-deep-research-update* is the disciplined exception — its named v5 modules ARE in the repo + unit-tested (182 pass); that's wiring work, not a scope-trap.
 
 ## 📚 Worth reading (grounded, verification-native)
 - **GRPO / RLVR:** DeepSeekMath `2402.03300`, DeepSeek-R1 / R1-Zero `2501.12948`.
