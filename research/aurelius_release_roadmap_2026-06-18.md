@@ -79,6 +79,19 @@ replicated* mechanism worth owning. Then a from-scratch model that bakes in **th
 arch pieces + the clean data foundation** — with real compute (~$150k+/cluster; a from-scratch 4T-token pretrain is
 frontier-lab scale and only justified here).
 
+### Teacher roadmap (locked 2026-06-20) — for the verified-trace flywheel
+Cross-ref `~/Desktop/AI Plans/humaneval-90-experiment-packet.md`. Both teachers license-checked on the HF hub
+(2026-06-20): Apache-2.0 + ungated, so the clean-provenance gate holds.
+
+| Track | Teacher | Role | Notes |
+|---|---|---|---|
+| **now — base-swap / HumanEval-90** | **Qwen3-Coder-30B-A3B-Instruct** (Apache, `qwen3_moe`, 30.5B total / 3.3B active) | code-trace teacher | code specialist; ~61GB bf16 → **A100/H100 or API** (MoE saves FLOPs, NOT memory — won't fit a T4). Fallbacks Qwen2.5-Coder-32B / R1-Distill-32B only if it misses the >88% Phase-0 gate. |
+| **v3 — multimodal / CUA** | **Qwen3.6-27B** (Apache, VLM `image-text-to-text`, ~54GB bf16 / ~27GB FP8) | main teacher *later* | wrong tool for pure-code distillation; the right clean VLM once v3 takes on vision / screenshot-debug / CUA-grounded repair. **Gated behind v2 proving the >90% code path.** `lm_load.py` already routes it (Vision2Seq). |
+
+⚠ **Naming reconciliation:** the packet's "v2" (base-swap + RLVR, an 8B/14B *release* track) is **not** this file's "v2" (the from-scratch, research-gated model). The teacher roadmap above belongs to the release/base-swap track. Don't conflate the two "v2"s.
+
+⚠ **Ceiling honesty (from the packet):** SFT-distillation *matches* the base, it doesn't lift it — so 90% at 8B is a stretch; the real >90% lever is a bigger STUDENT (14B) or shipping the 30B, **not** compressing 30B→8B.
+
 ---
 
 ## 3. The "aspirational" docs, tagged by gate
