@@ -149,6 +149,7 @@ def main():
     ap.add_argument("--think", type=int, default=0, help="1=allow Qwen3 <think> (needs big --max_new); 0=direct code")
     ap.add_argument("--passk", type=int, default=0, help=">0: also sample K/problem -> oracle@K + selection_gap (SELECTION vs CAPABILITY diagnostic)")
     ap.add_argument("--passk_temp", type=float, default=0.8)
+    ap.add_argument("--load_4bit", action="store_true", help="4-bit NF4 base -> fits Qwen3-8B inference on a 16GB T4 (keeps LoRA attached, no merge)")
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 
@@ -157,15 +158,25 @@ def main():
     tok = AutoTokenizer.from_pretrained(a.model)
     if tok.pad_token is None: tok.pad_token = tok.eos_token
     tok.padding_side = "left"
+    bnb = None
+    if a.load_4bit:                                                   # T4 has no bf16 -> fp16 compute; device_map places weights (no .to(dev))
+        from transformers import BitsAndBytesConfig
+        cdt = torch.bfloat16 if (dev == "cuda" and torch.cuda.is_bf16_supported()) else torch.float16
+        bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                                 bnb_4bit_compute_dtype=cdt, bnb_4bit_use_double_quant=True)
+    def _load(mid):
+        if bnb is not None:
+            return AutoModelForCausalLM.from_pretrained(mid, quantization_config=bnb, device_map={"": 0})
+        return AutoModelForCausalLM.from_pretrained(mid, dtype=torch.bfloat16).to(dev)
     acfg = Path(a.model) / "adapter_config.json"
-    if acfg.exists():                                                 # a LoRA adapter dir -> load base + merge
+    if acfg.exists():                                                 # a LoRA adapter dir -> load base + adapter
         from peft import PeftModel
         base_id = json.loads(acfg.read_text())["base_model_name_or_path"]
-        base = AutoModelForCausalLM.from_pretrained(base_id, dtype=torch.bfloat16).to(dev)
-        model = PeftModel.from_pretrained(base, a.model).merge_and_unload().eval()
+        m = PeftModel.from_pretrained(_load(base_id), a.model)
+        model = (m if bnb is not None else m.merge_and_unload()).eval()   # can't merge into a 4-bit base -> keep adapter attached
     else:
-        model = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.bfloat16).to(dev).eval()
-    print(f"{a.bench} pass@1: {a.model} on {dev}, {len(items)} problems", flush=True)
+        model = _load(a.model).eval()
+    print(f"{a.bench} pass@1: {a.model} on {dev}{' (4bit)' if bnb else ''}, {len(items)} problems", flush=True)
 
     greedy = [False] * len(items)                                     # per-problem greedy pass (the failure ledger)
     for s in range(0, len(items), a.gen_batch):

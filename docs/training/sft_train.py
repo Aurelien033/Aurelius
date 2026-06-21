@@ -67,6 +67,7 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-4); ap.add_argument("--epochs", type=float, default=2)
     ap.add_argument("--bs", type=int, default=2); ap.add_argument("--max_len", type=int, default=2048)
     ap.add_argument("--dtype", choices=["bf16", "fp16"], default="bf16")
+    ap.add_argument("--load_4bit", action="store_true", help="QLoRA: 4-bit NF4 base -> fits an 8B for LoRA training on a 16GB T4")
     ap.add_argument("--out", default="checkpoints/sft")
     ap.add_argument("--smoke", action="store_true")
     a = ap.parse_args()
@@ -91,16 +92,29 @@ def main():
     tok = AutoTokenizer.from_pretrained(a.base)
     if tok.pad_token is None: tok.pad_token = tok.eos_token
     tok.padding_side = "left"   # generation eval needs left pad; training builds its own padded tensors
-    model = AutoModelForCausalLM.from_pretrained(a.base, dtype=DT).to(dev)
+    if a.load_4bit:                                            # QLoRA: 4-bit base fits an 8B for LoRA training on a 16GB T4
+        if a.full_ft: print("  --load_4bit is LoRA-only (a 4-bit base can't be full-fine-tuned)"); return
+        from transformers import BitsAndBytesConfig
+        from peft import prepare_model_for_kbit_training
+        if DT is torch.bfloat16 and dev == "cuda" and not torch.cuda.is_bf16_supported():
+            DT = torch.float16; print("  4-bit on a no-bf16 GPU (T4) -> fp16 compute", flush=True)
+        bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                                 bnb_4bit_compute_dtype=DT, bnb_4bit_use_double_quant=True)
+        model = AutoModelForCausalLM.from_pretrained(a.base, quantization_config=bnb, device_map={"": 0})
+        model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=(dev == "cuda"))  # ckpt + input-grads + use_cache off
+    else:
+        model = AutoModelForCausalLM.from_pretrained(a.base, dtype=DT).to(dev)
     if not a.full_ft:
         from peft import LoraConfig, get_peft_model
         model = get_peft_model(model, LoraConfig(r=a.rank, lora_alpha=a.alpha, lora_dropout=0.05, bias="none",
             target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"], task_type="CAUSAL_LM"))
         model.print_trainable_parameters()
-    if dev == "cuda":                                          # gradient checkpointing: big memory cut (fits 8B)
+    if dev == "cuda" and not a.load_4bit:                      # gradient checkpointing: big memory cut (fits 8B); 4-bit already did this via prepare_model_for_kbit_training
         model.gradient_checkpointing_enable()
         if not a.full_ft: model.enable_input_require_grads()   # peft + ckpt needs input grads
         model.config.use_cache = False                         # required for ckpt; eval re-enables via generate(use_cache=True)
+    elif a.load_4bit:
+        model.config.use_cache = False
     model.train()
 
     enc = [chat_encode(tok, p, r, a.max_len, sysp) for p, r, sysp in rows]
