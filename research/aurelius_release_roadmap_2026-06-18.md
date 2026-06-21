@@ -92,6 +92,19 @@ Cross-ref `~/Desktop/AI Plans/humaneval-90-experiment-packet.md`. Both teachers 
 
 ⚠ **Ceiling honesty (from the packet):** SFT-distillation *matches* the base, it doesn't lift it — so 90% at 8B is a stretch; the real >90% lever is a bigger STUDENT (14B) or shipping the 30B, **not** compressing 30B→8B.
 
+### v2 → release spine (adopted 2026-06-21 from the v5 synthesis; cross-ref `~/Desktop/AI Plans/aurelius-v5-synthesis-can-methods-improve-base-2026-06-21.md`)
+The canonical lever sequence for the release track — **free → cheap → expensive, each with a kill gate, bigger base LAST:**
+1. **Truth surface** (free) — pass@k capability map + **failure ledger** (categorize the fails) → selection-vs-capability fork.
+2. **Inference-time stack** (free, no retrain) — best-of-N + verifier, one-step repair, generated-test reranker. *Report single-shot pass@1 SEPARATELY from search/repair pass@1 — never conflate.*
+3. **Verified-data flywheel** (cheap) — winners→SFT, winner-vs-near-miss→CID-DPO, distill. **Measure compound-rate/cycle; stop when Δpass@1 < 0.2pp.**
+4. **Smarter RLVR** (cheap–mid) — learnability-band sampler (verified: VADE/D³S/SAGE/SRPO), positive-advantage/WAPO, execution-grounded credit, Scaf-GRPO. Each with its own falsifier.
+5. **Multi-domain** — wire math (`rlvr.py:MathReward`+sympy) + reasoning verifiers (the broad code+math+reasoning goal). SPOC `2506.06923` (single-pass solve+verify) is a verified math/reasoning lever here.
+6. **Bigger base — LAST** — 14B/32B only after 1–5 plateau.
+
+**Honest magnitude bounds (agreed across all 2026-06-21 analyses):** full T1–T3 post-training stack = **+3–7pp over the 8B base** across benchmarks; **+8–19pp only with a 14B base**. **You cannot get +20pp on an 8B by any post-training** — the base param count is a hard ceiling. This is *why* bigger-base is sequenced last but IS the ceiling-breaker.
+
+⚠ **Discipline:** the v5/`capability-beyond-base` docs cite many arXiv IDs from the **buggy `continuous-run` scanner** — UNVERIFIED, do not adopt by ID without a hub check (SPOC verified ✓; "SC-SDPO `2605.27765`" was a PHANTOM ✗). The 2B-trace manifest is **coverage, not ceiling** (template data ≠ capability lift; SFT can't beat base).
+
 ---
 
 ## 3. The "aspirational" docs, tagged by gate

@@ -58,6 +58,10 @@
 | token-level credit | **TEMPO** `2509.18314` (Qwen3-1.7B/4B) ; aggregation bias: **Balanced Aggregation** `2605.04077` |
 **Top to implement in v2 (attack the exact plateau):** VeRPO (dense code reward) + Scaf-GRPO (hard-task scaffolding) + DISPO/DCPO (fix the zero-gradient equal-reward groups).
 
+**RLVR *efficiency* (verified):** **two-rollout GRPO** `2510.00977` (32▲, "Your GRPO Is Secretly DPO") — G=2 matches G=8 at ~4× less rollout compute → test `--group_size 2`. Also SFPO `2510.04072`, SPPO `2604.08865`, iGRPO `2602.09000`. **Debunked:** the v3 doc's "BPPO 6× GRPO speedup" is a misattribution — real BPPO `2302.11312` is *offline-RL control* (D4RL/MuJoCo), unrelated to LLM GRPO.
+
+**Self-improvement + learnability (verified 2026-06-21, against the v5/capability-beyond-base brainstorms):** **SPOC** `2506.06923` REAL — single-pass interleaved solve+verify self-correction, +8.8pp MATH500 / +10pp AMC23 on Llama-3.1-8B → strong for the math/reasoning domain. Learnability-band / equal-reward-group fix is backed by **VADE** `2511.18902`, **D³S** `2509.22115`, **SAGE** `2602.03143` (31▲), **SRPO** `2604.02288` (32▲, route correct→GRPO/failed→SDPO, +3.4% Qwen3-8B). ⚠ The brainstorms' "**SC-SDPO `2605.27765`**" is a PHANTOM (unconfirmed — looks like ScPO `2411.04109` + SDPO conflated); the many `continuous-run`-sourced IDs are UNVERIFIED — hub-check before adopting.
+
 ## The one filter for any new idea
 Before building: **(1) is it grounded in a result, (2) does a concrete need pull it in, (3) does it fit the budget?**
 And: **does it add a verifier, densify reward, or capture selection?** If not, it's probably a scope-trap.

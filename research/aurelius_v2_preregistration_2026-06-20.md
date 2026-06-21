@@ -86,6 +86,10 @@ base, these directly densify the RL signal (try in Phase 2, cheapest first):
 - **Learnability-band adaptive sampler / difficulty thermostat** — keep feeding tasks at ~20–50% pass-rate (auto-tuned). Fixes the v1 too-easy/too-hard miss.
 - **Positive-advantage / winner-only GRPO** — test the "negative updates damage the model" hypothesis (only reinforce passes).
 - **Execution-grounded credit assignment** — reward where the code first diverges from passing, not just terminal.
+  Concrete shaped reward (improvement-suite, 2026-06-20): `pass_fail + 0.05·syntactically_valid + 0.05·correct_entrypoint
+  + 0.05·no_timeout + 0.05·passes_public_smoke − 0.10·format_violation`. **Gate: activate ONLY when the failure ledger
+  shows local bugs dominate (>10% of remaining fails are base-fail/RLVR-win), and KILL if the shaped reward rises but
+  strict pass@1 doesn't** (= reward hacking, shaping too loose).
 - **Generated/differential-test verifier expansion** — synthesize extra tests so the verifier is stricter (anti reward-hacking / trivial-pass).
 - **Multi-turn repair RL** — let the model see the failing test output and fix (turns a 0 into signal).
 - **pass@k→pass@1 distillation** — if step-zero shows a selection gap, distill verified winners back into greedy.
