@@ -63,8 +63,9 @@ def main():
                     body_json = json.loads(r.read())
                 if "choices" not in body_json:                   # API returned an error object, not a completion
                     raise RuntimeError(str(body_json)[:200])
-                msg = body_json["choices"][0]["message"]         # reasoning models: code may be in content OR reasoning
-                return (msg.get("content") or "") + "\n" + (msg.get("reasoning") or msg.get("reasoning_content") or "")
+                msg = body_json["choices"][0]["message"]         # reasoning models: prefer the final 'content'; fall back to reasoning only if empty
+                content = msg.get("content") or ""
+                return content if content.strip() else (msg.get("reasoning") or msg.get("reasoning_content") or "")
             except Exception as e:
                 if not _err["shown"]:                            # surface the FIRST failure (auth / model id / rate limit)
                     msg = getattr(e, "read", lambda: b"")()
