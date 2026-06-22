@@ -92,6 +92,8 @@ It becomes a **v1.x continued-pretrain layer only after a *confirmed knowledge g
 benchmark battery). Continued-pretrain is a **modest** lever; scraped/template data is **coverage, not capability ceiling**
 (SFT/CPT can't beat a strong base on capability). Hand the cleaned corpus + manifest back; the decision to use it is gated downstream.
 
+**Data-ordering note (verified 2026-06-22): if/when the cleaned corpus is used for continued-pretrain, order it via TREC** (`2509.25380`, "Predicting Training Re-evaluation Curves") — TRECs are predictable in advance from AdamW's EMA coefficients, and **placing the highest-quality data at the TREC minima** (where the model is most receptive) improves performance (validated 111M–3.9B, continual-pretrain). Pairs with the ZIP-FIT *selection* above: ZIP-FIT picks *which* data; TREC picks *when* to feed it.
+
 ---
 
 ## 5. One-line summary
