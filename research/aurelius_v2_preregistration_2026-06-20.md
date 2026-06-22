@@ -65,6 +65,9 @@ RLVR needs a ground-truth checker per domain. Reward = pass/fail (or graded), ad
 - **Stage 1 — strong-teacher SFT warm-start.** Distill a teacher *stronger than the base* (GLM-5.2 / Qwen2.5-Coder-32B
   / DeepSeek-R1 **via API** for speed) on **verified** code+math+reasoning traces → raise the floor. *(Path B done
   right — the stronger-teacher test v1 never finished.)* Gate: SFT ≥ base on the battery (no regression).
+  **Distillation recipe — DLCoT** `2503.16385` (verified, 2026-06-22): segment teacher traces (restate/approach/execute/verify/answer),
+  keep only correct-final traces, but **RETAIN the wrong→correct self-correction pairs (don't prune the error)** and weight correction
+  tokens 2× / verification 1.5× — teaches the teacher's *error-recovery strategy*, not just its answers (why R1-distilled models punch above the answers alone).
 - **Stage 2 — multi-domain RLVR** (`grpo_train.py`, on the SFT'd model). `--data` mixes code+math+reasoning, each
   task **difficulty-calibrated to the 14B's learnable band** (the v1 lesson: ~20–50% pass-rate = gradient). More
   steps than v1. Gate: beats SFT *and* base on the battery, reproduced.
@@ -83,16 +86,17 @@ RLVR needs a ground-truth checker per domain. Reward = pass/fail (or graded), ad
 ## 4.5. RLVR signal-density menu (folded from the 2026-06-20 improvement research — attack the plateau MECHANISM)
 The v1 plateau is **sparse terminal reward + equal-reward groups (no gradient) + base ceiling**. Beyond a bigger
 base, these directly densify the RL signal (try in Phase 2, cheapest first):
-- **Learnability-band adaptive sampler / difficulty thermostat** — keep feeding tasks at ~20–50% pass-rate (auto-tuned). Fixes the v1 too-easy/too-hard miss. *Verified backing (direct arXiv, 2026-06-21):* **SC-SDPO** `2605.27765` (pass-rate-weighted self-distillation, weight `[p(1−p)]^½` = the sweet-spot; **+3.2/+4.3 on Qwen3-8B**) — the closest match to our base; **DIVA-GRPO** `2603.01106` (difficulty-adaptive variant advantage); also VADE `2511.18902`, D³S `2509.22115`, SAGE `2602.03143`.
+- **Learnability-band adaptive sampler / difficulty thermostat** — keep feeding tasks at ~20–50% pass-rate (auto-tuned). Fixes the v1 too-easy/too-hard miss. *Verified backing (direct arXiv, 2026-06-21):* **SC-SDPO** `2605.27765` (pass-rate-weighted self-distillation, weight `[p(1−p)]^½` = the sweet-spot; **+3.2/+4.3 on Qwen3-8B**) — the closest match to our base; **DIVA-GRPO** `2603.01106` (difficulty-adaptive variant advantage); also VADE `2511.18902`, D³S `2509.22115`, SAGE `2602.03143`. **+GDRO-GRPO** `2601.19280` (verified: no-regret adaptive difficulty-grouping + rollout reallocation = automated curriculum, ~+10% pass@8) and **The Art of Efficient Reasoning** `2602.20945` (verified, Qwen3 0.6–30B: keep ≥20–30% positive reward density or exploration collapses).
 - **Positive-advantage / winner-only GRPO** — test the "negative updates damage the model" hypothesis (only reinforce passes).
 - **Execution-grounded credit assignment** — reward where the code first diverges from passing, not just terminal.
   Concrete shaped reward (improvement-suite, 2026-06-20): `pass_fail + 0.05·syntactically_valid + 0.05·correct_entrypoint
   + 0.05·no_timeout + 0.05·passes_public_smoke − 0.10·format_violation`. **Gate: activate ONLY when the failure ledger
   shows local bugs dominate (>10% of remaining fails are base-fail/RLVR-win), and KILL if the shaped reward rises but
   strict pass@1 doesn't** (= reward hacking, shaping too loose).
-- **Generated/differential-test verifier expansion** — synthesize extra tests so the verifier is stricter (anti reward-hacking / trivial-pass).
+- **Generated/differential-test verifier expansion** — synthesize extra tests so the verifier is stricter (anti reward-hacking / trivial-pass). *Verified hygiene (direct arXiv, 2026-06-22):* **PAR** `2502.18770` (bound all RLVR rewards to [0,1]; rapid-growth-then-converge schedule) + **Hack-Verifiable** `2605.20744` (embed detectable hack-loopholes in training tasks → measure exploitation, retrain if >5%; small models hack more).
 - **Multi-turn repair RL** — let the model see the failing test output and fix (turns a 0 into signal). *Verified:* **SPOC** `2506.06923` (single-pass interleaved solve+verify self-correction; +8.8pp MATH500 / +10pp AMC23 on Llama-3.1-8B) — the in-pass variant for the math/reasoning domain.
 - **pass@k→pass@1 distillation** — if step-zero shows a selection gap, distill verified winners back into greedy. *Verified backing:* **Self-Verified Distillation** `2605.26132` (Qwen3, model is its own verified-data pipeline, NO external teacher — eliminates the teacher ceiling on math/science/code).
+- **Domain-conditioned length reward (two-stage)** — *Verified:* **The Art of Efficient Reasoning** `2602.20945` (Qwen3-validated): per-domain length shaping `correctness·exp(−|tok−tok*|/τ)` with τ differing for math/code/prose (stops math-brevity leaking into prose) + two-stage RLVR (Stage-1 ~30% = length adaptation, Stage-2 ~70% = reasoning refinement). Low-complexity, directly fits Qwen3-8B.
 
 ## 5. Build queue (free, on Colab/Kaggle — do BEFORE renting GPUs)
 0. **Pass@k capability map** (§0.5) — `eval_code_bench --passk` on the v1 RLVR model. **Run first** — it decides selection-vs-capability.
