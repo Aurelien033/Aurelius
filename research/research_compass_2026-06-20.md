@@ -26,6 +26,15 @@
 6. **Bigger base = the raw-capability ceiling** — proven lever (VibeThinker 33→ Qwen3-8B 48→60). But **last**:
    exhaust 1–5 (cheap) before paying for 14B/32B.
 
+## 🚀 Paths to exceed +3–7pp (the "+20%" ambition — how to NOT stay capped)
+The **+3–7pp bound is specific to *post-training a FIXED 8B, single-pass pass@1*** — and it's a ceiling because **RLVR = ELICITATION, not ACQUISITION** (it sharpens/reweights pass@k mass into pass@1; it does NOT add capability the base lacks). So no post-training *algorithm* on a frozen 8B breaks it much — the capped thing is the base's reachable set, not the optimizer. **+20% IS reachable — by leaving that regime.** Three real levers, EV-ordered:
+1. **CAPACITY (proven).** 8B→10B (grow: SOLAR depth-upscale / sparse-upcycle, roadmap §3) or native Qwen3-14B = **+10–15pp from capacity**, *then* RLVR on top. The v7 mechanism-zoo doc itself conceded "+20% = 14B-equivalent" → so just use the bigger base. Most reliable route.
+2. **INFERENCE-TIME + FLYWHEEL (compounding, verification-native).** best-of-N + repair + verifier (+effective pp) → **distill the search back into pass@1** → repeat. This ADDS the search's discoveries to the model = the one genuinely-novel "make single-pass beat the base ceiling" lever; it COMPOUNDS over cycles. **Wednesday's pass@k diagnostic MEASURES this headroom** (= LIVE #1).
+3. **FROM-SCRATCH arch+data (the real R&D bet).** SuperBPE (+4% verified) + BLT + GatedDeltaNet + *clean curated data* + skip-native = a model BUILT better, not post-trained. Gated ($150k+/months, roadmap §3 grounded-arch pool), but where "genuinely beat the inherited base" lives.
+
+⚠ **"+20%" is benchmark-dependent:** HumanEval is at 84% (only 16pp to the ceiling → +20% near-impossible THERE). Aim the ambition at **LiveCodeBench (~60%) / MATH (~50%) / competition reasoning**, where there's real headroom.
+**Why this is here:** the mechanism-zoo stream (v5/v6/v7, M1741–M2006) chases +20% via *unvalidated post-training stacking on a frozen 8B* = the ONE regime that's capped (= same ambition, WRONG lever). High-EV research = **flywheel (cheap, compounding) → capacity (proven) → from-scratch (ambitious)** — not mechanism-coining.
+
 ## 🔴 DON'T re-chase (settled — we paid for these)
 - **Dynamic per-input layer routing** — 3 powered nulls (g_gain, k=2 & k=4 selectors). Dead on a frozen base.
 - **From-scratch pretraining / raw frontier (Opus/Qwen-Max) parity** — $0.14M–$32M, months–years. Infeasible; and
