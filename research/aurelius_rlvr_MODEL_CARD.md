@@ -1,19 +1,27 @@
 # Aurelius-Qwen3-8B-RLVR — Model Card
 
-**A clean, verification-native fine-tune of Qwen3-8B that measurably beats its base on held-out code generation,
-trained with reinforcement learning against execution verifiers — no teacher distillation.**
+**A clean, verification-native LoRA fine-tune of Qwen3-8B trained with RL against execution verifiers (no teacher
+distillation). NOTE (2026-06-25): on direct re-measurement it performs ≈ its base — see the correction below.**
+
+> **⚠ CORRECTION — 2026-06-25.** The "+1.3pp, beats base, reproduced" claim is **withdrawn**. Direct pass@k
+> measurement (base vs this adapter) shows **RLVR ≈ base, within noise**: HumanEval +2/164 (noise), **MBPP 125 = 125
+> (no gain)**, thinking-on 43/80 = 43/80. The +1.3pp was 2 problems on one bench; the "reproduction" was the same
+> recipe → same number; the queued MBPP robustness check disconfirms it. **Do not release as "beats base."** Likely
+> cause: `lr 1e-6` (~10–100× too low) + KL-anchor → policy barely moved. The lever is a **stronger base/teacher**,
+> not more RL on this 8B.
 
 ---
 
 ## Summary
-| | HumanEval pass@1 (held-out) |
-|---|---|
-| Qwen3-8B (base) | 84.1% (138/164) |
-| **Aurelius-Qwen3-8B-RLVR** | **85.4% (140/164)** |
-| Δ | **+1.3pp — reproduced across two independent runs** |
+| | HumanEval pass@1 | MBPP pass@1 (re-measured 2026-06-25) |
+|---|---|---|
+| Qwen3-8B (base) | 84.1% (138/164) | 62.5% (125/200) |
+| Aurelius-Qwen3-8B-RLVR | 85.4% (140/164) | 62.5% (125/200) |
+| Δ | +1.2pp (within noise, SE≈4.6) | **0.0pp** |
 
-Small but **reproducible**, and notable because it is the result of **RL against ground-truth verifiers**, which
-(unlike supervised distillation) is not capped by a teacher's quality.
+The HumanEval +2 is **not** a robust improvement: it does not replicate on MBPP (the second held-out-ish bench) and
+vanishes under thinking-on eval. RL against ground-truth verifiers is not teacher-capped *in principle*, but **this
+run's reward (0.70→0.77) did not transfer** — it stayed anchored to the base.
 
 ## What it is
 - **Base:** `Qwen/Qwen3-8B` (Apache-2.0).

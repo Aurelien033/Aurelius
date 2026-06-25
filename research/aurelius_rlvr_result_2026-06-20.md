@@ -1,8 +1,39 @@
 # Aurelius — RLVR Result Writeup
 ### 2026-06-20 · the verification-native win, honest-first
 
-> The headline after the full arc: **RLVR against verifiers is the first and only lever that beat a strong base
-> on held-out general code — reproducibly.** This is the result to release/publish.
+> **⚠ CORRECTION — 2026-06-25 (supersedes the original headline below).** A direct pass@k re-measurement
+> (base vs this adapter, `docs/training/eval_code_bench.py --passk`, Colab A100) shows **RLVR ≈ base — within
+> noise on every axis tested.** The original "+1.3pp, beat the base, reproducibly" headline is **withdrawn**.
+> Details immediately below; the 2026-06-20 analysis is retained beneath it for the record.
+
+---
+
+## ⚠ Correction (2026-06-25): RLVR ≈ base, not a win
+
+The 2026-06-20 headline overstated a noise-level result. Direct measurement:
+
+- **HumanEval (164):** base 138/164 (84.1%) vs RLVR 140/164 (85.4%) → **+2 problems = +1.2pp, within noise**
+  (SE ≈ 4.6). The earlier "reproduction" (140/164 at 150 *and* 400 steps) was the **same recipe producing the same
+  number** — not independent replication of an *effect*.
+- **MBPP (200) — exactly the robustness check this writeup queued as Next #2:** base **125/200 = RLVR 125/200**
+  (62.5%); oracle@16 140 vs 139. **No gain** — and MBPP was *in* the training mix, so this is on-distribution.
+- **Thinking-on (HumanEval n=80):** base 43/80 = RLVR 43/80. Identical (rules out the "eval suppressed CoT" excuse).
+
+**Honest status: this RLVR adapter is inert vs base.** Diagnosis: **`lr 1e-6` (~10–100× too low for LoRA GRPO)** +
+KL-anchor → the policy barely moved (the adapter is a near-no-op; it does change *some* HumanEval outputs, just
+net-neutral), and the narrow F2/F3 gym distribution does not transfer to general code.
+
+**What still stands:** the negatives (routing dead, SFT capped) and the strategic conclusion this doc already reached
+— **the lever is a stronger base/teacher, not more RL on this 8B.** Only the specific "RLVR beat the base" claim is
+withdrawn. Do **not** release this adapter as "beats base." Full data: memory topic file `aurelius-two-line-divergence`,
+2026-06-25 entries; reproduce with `flip_analysis.py` on two `--dump` files.
+
+---
+
+## Original writeup (2026-06-20) — retained for the record; headline withdrawn (see Correction above)
+
+> ~~RLVR against verifiers is the first and only lever that beat a strong base on held-out general code,
+> reproducibly — the result to release/publish.~~  *(withdrawn 2026-06-25 — within noise; MBPP + thinking-on disconfirm.)*
 
 ---
 
