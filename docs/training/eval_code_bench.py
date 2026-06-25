@@ -121,6 +121,7 @@ def humaneval_items(n):
     items = []
     for d in ds:
         items.append(dict(
+            tid=d["task_id"],                                         # stable id for cross-model flip alignment
             ask=f"Complete this Python function. Return ONLY the complete function in one ```python code block.\n\n{d['prompt']}",
             check=lambda code, d=d: code + "\n" + d["test"] + f"\ncheck({d['entry_point']})\n"))
     return items[:n] if n else items
@@ -133,6 +134,7 @@ def mbpp_items(n):
     for d in ds:
         tests = "\n".join(d["test_list"])
         items.append(dict(
+            tid=f"mbpp/{d['task_id']}",                               # stable id for cross-model flip alignment
             ask=f"Write a Python function for this task. Return ONLY the function in one ```python code block.\n\nTask: {d['text']}\nIt must satisfy:\n{d['test_list'][0]}",
             check=lambda code, tests=tests, d=d: d.get("test_setup_code", "") + "\n" + code + "\n" + tests + "\n"))
     return items[:n] if n else items
@@ -150,6 +152,7 @@ def main():
     ap.add_argument("--passk", type=int, default=0, help=">0: also sample K/problem -> oracle@K + selection_gap (SELECTION vs CAPABILITY diagnostic)")
     ap.add_argument("--passk_temp", type=float, default=0.8)
     ap.add_argument("--load_4bit", action="store_true", help="4-bit NF4 base -> fits Qwen3-8B inference on a 16GB T4 (keeps LoRA attached, no merge)")
+    ap.add_argument("--dump", default="", help="write per-problem pass/fail (tid, greedy, oracle) to this JSON -> feed two of them to flip_analysis.py")
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 
@@ -193,6 +196,7 @@ def main():
     npass = sum(greedy)
     print(f"\n=== {a.bench} pass@1 ({a.model}): {npass}/{len(items)} = {npass/len(items)*100:.1f}% ===", flush=True)
 
+    oracle = None
     if a.passk:                                                       # CAPABILITY-vs-SELECTION diagnostic
         oracle = list(greedy)                                         # oracle@K = greedy OR any of K samples passes
         for i, it in enumerate(items):
@@ -216,6 +220,15 @@ def main():
         print(f"  selection_gap  +{gap}  ({len(recovered)} greedy-fails recovered by sampling)")
         print(f"  READ: big gap => SELECTION problem (best-of-N / reranker / distill from winners — cheap).")
         print(f"        small gap => CAPABILITY ceiling (bigger base / richer RL curriculum — expensive).")
+
+    if a.dump:                                                        # per-problem dump -> flip_analysis.py
+        recs = [{"tid": it.get("tid", i), "greedy": bool(greedy[i]),
+                 "oracle": (bool(oracle[i]) if oracle is not None else None)}
+                for i, it in enumerate(items)]
+        Path(a.dump).write_text(json.dumps(
+            {"model": a.model, "bench": a.bench, "n": len(items), "think": a.think,
+             "passk": a.passk, "pass1": npass, "results": recs}, indent=1))
+        print(f"  dumped per-problem results -> {a.dump}  ({len(recs)} problems)", flush=True)
 
 
 if __name__ == "__main__":
