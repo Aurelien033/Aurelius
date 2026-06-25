@@ -10,7 +10,7 @@ code = lambda s: nbf.v4.new_code_cell(s)
 
 nb["cells"] = [
 md("""# Aurelius — full run (RLVR + stronger-teacher SFT)
-**Upload to Colab, set Runtime → A100, run Cell 0 first.** Then **Path A** (RLVR — the lever that can beat the base) and/or **Path B** (stronger-teacher SFT). Paths write to distinct `/content` names, so run either order. These are notebook cells — don't paste into a terminal."""),
+**Upload to Colab, set Runtime → A100, run Cell 0 first.** Then **Path A** (RLVR — ⚠ the v1 recipe measured ≈ base on 2026-06-25; re-run only with a changed recipe, see note) and/or **Path B** (stronger-teacher SFT). Paths write to distinct `/content` names, so run either order. These are notebook cells — don't paste into a terminal."""),
 
 md("""## Cell 0 — Setup (always run first)"""),
 code("""!git clone --depth 1 -b spike/first-light-readiness https://github.com/S3nna13/Aurelius.git
@@ -19,8 +19,8 @@ code("""!git clone --depth 1 -b spike/first-light-readiness https://github.com/S
 !pip -q uninstall -y torchao   # Colab's torchao 0.10 breaks peft's LoRA dispatch
 import torch; print("GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "NONE — set Runtime>A100")"""),
 
-md("""# Path A — RLVR (recommended: the only lever that can beat the base)
-The reward is ground-truth verifier pass-rate — no teacher ceiling. Run A1 first; if `mean_reward` rises, do A2→A3."""),
+md("""# Path A — RLVR (⚠ the v1 recipe measured ≈ base — fix the recipe before trusting a re-run)
+The reward is ground-truth verifier pass-rate — no teacher ceiling *in principle*. But the v1 run (lr 1e-6, KL-anchored) measured ≈ base (2026-06-25): the policy barely moved. If re-running, raise lr (~1e-5/5e-5) and broaden the task distribution. Run A1 first; if `mean_reward` rises, do A2→A3."""),
 
 md("""### A1 — smoke (~20 min): does `mean_reward` rise on the gym?"""),
 code("""!python docs/training/grpo_train.py --base Qwen/Qwen2.5-1.5B --data gym \\
@@ -54,7 +54,7 @@ md("""### B4 — eval v3 vs base (84.1% HumanEval)"""),
 code("""!python docs/training/eval_code_bench.py --model /content/aurelius-v3-8b --bench humaneval --think 0"""),
 
 md("""### Read it
-- **A3 > 84.1%** → RLVR beat the base (the arc's first real win). **B4 > 84.1%** → the stronger teacher lifted it.
+- **A3 robustly > 84.1% across HumanEval *and* MBPP** → RLVR beat the base. (⚠ the v1 run was +2/164 on HumanEval = noise, MBPP 125=125 — require a multi-bench margin, not 2 problems on one bench.) **B4 > 84.1%** → the stronger teacher lifted it.
 - Download a winner: `/content/aurelius-rlvr` or `/content/aurelius-v3-8b` (zip from the Files panel)."""),
 ]
 out = Path(__file__).resolve().parent / "aurelius_run_colab.ipynb"

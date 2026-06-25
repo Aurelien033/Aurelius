@@ -11,7 +11,7 @@
 
 1. **Dynamic layer routing is dead on a frozen base** — 3 powered nulls (E87 per-layer; exact k=2 pair matrix; per-task selector at k=2 *and* k=4). Non-additivity is the *diagnosis*, not an open door.
 2. **SFT specializes, doesn't generalize, and can't beat a strong base** (Qwen3-8B: +11.5pp on held-out repair, ≈flat on HumanEval).
-3. **The lever that can beat the base is RLVR** (reward = ground-truth correctness). The RL code already exists (`grpo_v3.py`/`rlvr.py`, 69/69 tests).
+3. **RLVR was the candidate lever to beat the base** (reward = ground-truth correctness) — but when run (2026-06-25) it measured **≈ base** (noise; MBPP flip 198/200 identical), so it is **UNPROVEN at 8B**. The RL code exists (`grpo_v3.py`/`rlvr.py`, 69/69 tests). See corrected `aurelius_rlvr_result_2026-06-20.md`.
 4. **Base moved to Qwen3-8B**; FROZEN-BASE-v1 (Qwen2.5-1.5B) is a *research* base, not the release base.
 
 Both docs are still largely written for the 1.5B routing world. That's the gap.

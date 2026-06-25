@@ -1,9 +1,15 @@
 # Aurelius v2 — Preregistration
 ### 2026-06-20 · a fully-improved BROAD model (code + reasoning + math), built by stacking what v1 proved
 
-> v1 result: Qwen3-8B + RLVR = 85.4% > 84.1% base (reproduced). v2 stacks the proven levers (bigger base +
-> warm-start SFT + RLVR) and widens to **code + reasoning + math** with multi-domain verifiers. Honest-first:
-> every stage has a baseline + a gate; we keep only what beats it.
+> **⚠ ERRATUM 2026-06-25 — the premise below is partially withdrawn.** "v1 result: RLVR = 85.4% > 84.1% base
+> (reproduced)" does **NOT** hold on re-measurement: **RLVR ≈ base** (HumanEval +2 = noise; **MBPP 125 = 125**;
+> flip table **198/200 identical**). So RLVR is **not** a "proven lever" — treat it as **UNPROVEN at this scale**.
+> The rest of v2's structure (broad battery, cheap→expensive ordering, bigger base LAST, every-stage-gated) STANDS
+> and is *reinforced* — those gates are exactly what catch a non-result like this. See corrected
+> `aurelius_rlvr_result_2026-06-20.md`.
+>
+> v2 stacks levers (bigger base + warm-start SFT + RLVR) and widens to **code + reasoning + math** with multi-domain
+> verifiers. Honest-first: every stage has a baseline + a gate; we keep only what beats it.
 
 ---
 
@@ -13,7 +19,7 @@ battery** — code **and** math **and** reasoning — built from clean data + ve
 
 **v2 succeeds iff:** the final model beats its *own base* by a clear margin on a **held-out battery**
 (HumanEval + MBPP-held-out + LiveCodeBench + GSM8K + MATH + a reasoning bench), reproduced across two seeds, with
-no domain regressing below base. Target: a *multi-point* gain (v1 was +1.3pp on one bench; v2 aims broader + bigger).
+no domain regressing below base. Target: a *multi-point* gain (v1's +1.3pp was **within noise — withdrawn 2026-06-25**; v2 aims for a robust multi-bench gain, not 2 problems on one bench).
 
 **Statistical-honesty note (from `aurelius-rlvr-humaneval-benchmark-improvement-research-2026-06-20.md`):** +2
 problems on n=164 is *not* separable from base on a single unpaired test — **~150/164 is the threshold to clear 95%
