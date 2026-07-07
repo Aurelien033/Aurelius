@@ -1,0 +1,138 @@
+# Aurelius V3 Claims Ledger — the honest record of what is measured, refuted, or noise.
+# Seeded 2026-07-07 from the settled research log. Every row: metric, baseline,
+# falsifier, rollback, value, n, status. Loaded/appended by src/eval/truth_surface.py.
+# status: confirmed | refuted | noise | proposed
+#
+# THE LEVER MAP (what the ledger says): capacity + verified selection/search are the
+# only confirmed capability levers; frozen-base routing, SFT-for-capability, RLVR@lr1e-6,
+# zero-shot verifier rerank, and tapered-FFN are refuted/noise.
+
+- claim_id: cap-8b-14b
+  statement: "Bigger base lifts held-out code: Qwen3-14B > Qwen3-8B."
+  metric: "HumanEval pass@1"
+  baseline: "Qwen3-8B base 84.1%"
+  falsifier: "14B <= 8B + noise on a less-saturated bench"
+  rollback: "stay on 8B base"
+  value: 88.4
+  baseline_value: 84.1
+  n: 164
+  status: confirmed
+  bench: humaneval
+  notes: "+4.3pp; the single proven capability lever. MBPP +? wider on the less-saturated bench."
+
+- claim_id: cap-14b-30b-math
+  statement: "30B-A3B >> 14B on reasoning (capacity gap lives on MATH, not saturated code)."
+  metric: "MATH-500 accuracy"
+  baseline: "Qwen3-14B 52.0%"
+  falsifier: "30B-A3B <= 14B + noise on MATH"
+  rollback: "14B base"
+  value: 85.0
+  baseline_value: 52.0
+  n: 100
+  status: confirmed
+  bench: math-500
+  notes: "+33pp — robust to scoring noise. Code gap only +1.5pp MBPP (both at MBPP ceiling)."
+
+- claim_id: bestofn-repair-code
+  statement: "best-of-N + repair harvests the selection gap for free at inference (code)."
+  metric: "MBPP pass@1 -> best-of-8+repair"
+  baseline: "M0 greedy 72.5%"
+  falsifier: "best-of-N <= greedy + noise at matched-quality"
+  rollback: "greedy serving"
+  value: 83.0
+  baseline_value: 72.5
+  n: 200
+  status: confirmed
+  bench: mbpp
+  notes: "+10.5pp free; verifier = caller tests. Shipped in v2 serving."
+
+- claim_id: majn-math
+  statement: "maj@N self-consistency = free math serving lift (verifier-free)."
+  metric: "MATH-L5 maj@8"
+  baseline: "greedy 65.7%"
+  falsifier: "maj@N <= greedy + noise"
+  rollback: "greedy"
+  value: 73.9
+  baseline_value: 65.7
+  n: 134
+  status: confirmed
+  bench: math-l5
+  notes: "+8.2pp; captures ~half the selection gap (oracle 81.3). Shipped v2."
+
+- claim_id: rlvr-beats-base
+  statement: "RLVR (lr 1e-6, gym+MBPP) beats the base on held-out HumanEval."
+  metric: "HumanEval pass@1"
+  baseline: "Qwen3-8B base 84.1%"
+  falsifier: "MBPP shows 0 gain / thinking-ON identical / within noise"
+  rollback: "use the base; retry RLVR with lr ~1e-5"
+  value: 85.4
+  baseline_value: 84.1
+  n: 164
+  status: refuted
+  bench: humaneval
+  notes: "WITHDRAWN 2026-06-25: +1.3pp = 2 problems, SE~4.6 = noise; MBPP 125=125 identical; flip 198/200 same. RLVR adapter ~= no-op (lr 1e-6 + KL). Erratum committed across repo."
+
+- claim_id: sft-lifts-strong-base
+  statement: "verified-trace SFT lifts a strong base's capability."
+  metric: "held-out HumanEval / MBPP"
+  baseline: "14B / 30B base"
+  falsifier: "SFT net within noise of base on full held-out set"
+  rollback: "base as product"
+  value: null
+  baseline_value: null
+  n: null
+  status: refuted
+  bench: multi
+  notes: "5 attempts null/negative: v1-3B flat, weak-teacher -7.9pp, winners-only flywheel -11pp, strong-teacher-8B -0.6, code-SFT-for-math 0.0. SFT = polish not lift on a strong base."
+
+- claim_id: zeroshot-verifier-rerank
+  statement: "zero-shot LLM-as-verifier rerank beats maj@N (math selection)."
+  metric: "MATH-L5 verifier@8"
+  baseline: "maj@8 73.9%"
+  falsifier: "verifier@N <= maj@N"
+  rollback: "ship maj@N"
+  value: 73.1
+  baseline_value: 73.9
+  n: 134
+  status: refuted
+  bench: math-l5
+  notes: "NULL: -0.8 vs maj (1 problem worse). Low-precision over-approval. Needs a LEARNED verifier."
+
+- claim_id: tapered-ffn
+  statement: "cosine-tapered FFN beats uniform at matched params (from-scratch)."
+  metric: "wikitext-103 val loss"
+  baseline: "uniform FFN 3.7624"
+  falsifier: "tapered within 1% of uniform (no signal at proxy scale)"
+  rollback: "uniform FFN"
+  value: 3.7722
+  baseline_value: 3.7624
+  n: 1
+  status: noise
+  bench: wikitext-103
+  notes: "NEUTRAL: +0.26% worse, within seed noise at 76M proxy. Parked; don't build v3 on it."
+
+- claim_id: vgbs-reasoning
+  statement: "VGBS (PRM=math-verifier) clears greedy +12pp at ~14.5x less compute than best-of-64."
+  metric: "MBPP-500 pass@1"
+  baseline: "greedy"
+  falsifier: "VGBS < greedy +12pp on MBPP-500"
+  rollback: "keep best-of-N"
+  value: null
+  baseline_value: null
+  n: null
+  status: proposed
+  bench: mbpp
+  notes: "BUILT src/eval/vgbs.py (15 tests); cost ratio 14.55x arithmetic-confirmed. NOT YET RUN."
+
+- claim_id: verifier-recursion
+  statement: "VerifierRecursionLoop folds the selection gap into greedy across cycles (compounds)."
+  metric: "held-out solve rate M1 vs M0"
+  baseline: "M0 greedy"
+  falsifier: "solve_rate falls (winners-only trap) or flat; precision collapses"
+  rollback: "ship best-of-N at inference (gap's proven home)"
+  value: null
+  baseline_value: null
+  n: null
+  status: proposed
+  bench: multi
+  notes: "BUILT src/training/verifier_recursion.py (9 tests, winners-only guard). Distinct from -11pp winners-only self-distill. NOT YET RUN."
