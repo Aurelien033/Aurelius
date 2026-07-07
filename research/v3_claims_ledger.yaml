@@ -98,6 +98,45 @@
   bench: math-l5
   notes: "NULL: -0.8 vs maj (1 problem worse). Low-precision over-approval. Needs a LEARNED verifier."
 
+- claim_id: learned-math-verifier-probe
+  statement: "a learned probe (confidence + hidden state) beats maj@N on math selection."
+  metric: "MATH-L5 verifier@8 (held-out)"
+  baseline: "maj@8 70.7%"
+  falsifier: "probe@8 <= maj@8 on held-out"
+  rollback: "ship maj@N (the free lever)"
+  value: 63.4
+  baseline_value: 70.7
+  n: 41
+  status: refuted
+  bench: math-l5
+  notes: "RAN 2026-07-07 (A100, aurelius_v3_math_verifier). NULL: probe 63.4% < maj 70.7% held-out; conf@8 ties maj. Candidate AUC 0.727 (discriminates) but doesn't beat maj as a SELECTOR. The ~7.4pp gap needs a STRONGER verifier (GenRM / PURE min-form PRM / RLVR-rerank) or much more data, not a light probe. QVal preflight: confidence orders weakly (0.640 pairwise) but confidence@8 69.4% < maj 73.9%."
+
+- claim_id: curvature-difficulty-signal
+  statement: "hidden-trajectory curvature (|dH|-family) orders correct>incorrect better than confidence."
+  metric: "MATH-L5 pairwise ordering power"
+  baseline: "confidence 0.640"
+  falsifier: "curvature ordering <= confidence + 5pp; probe ablation dAUC <= +0.02"
+  rollback: "drop curvature; use confidence/hidden only"
+  value: 0.607
+  baseline_value: 0.640
+  n: 134
+  status: refuted
+  bench: math-l5
+  notes: "RAN 2026-07-07. NULL (confirmed the arc prior): k_mean 0.607 / k_max 0.577 / k_aniso 0.522, none beats confidence 0.640; learned-probe ablation dAUC +0.001. |dH| anti-informative AGAIN (E87 family). Curvature-as-signal line CLOSED. Added as a free QVal-gated feature -> died for free = the point."
+
+- claim_id: msc-budget-probe
+  statement: "a cheap greedy-rollout budget predictor routes escalation better than always-cheap/always-escalate."
+  metric: "MATH-L5 solve% at routed cost (held-out)"
+  baseline: "greedy 68.3%"
+  falsifier: "delta <= 2 SE (n=41 -> ~15pp) OR 3-class acc <= majority baseline"
+  rollback: "always-cheap greedy"
+  value: 75.6
+  baseline_value: 68.3
+  n: 41
+  status: noise
+  bench: math-l5
+  notes: "RAN 2026-07-07. Auto-verdict said PASS but it is NOISE: +7.3pp = ~1 SE at n=41 (need ~2SE~15pp); 3-class acc 0.63 < majority baseline 0.68; always-escalate 63.4% < greedy 68.3% (selector is bad -> win is chance routing). Auto-gate too lax (known). Re-test on full MATH train + more samples before believing. conf-only == full probe (drop curvature per E2)."
+
 - claim_id: tapered-ffn
   statement: "cosine-tapered FFN beats uniform at matched params (from-scratch)."
   metric: "wikitext-103 val loss"
