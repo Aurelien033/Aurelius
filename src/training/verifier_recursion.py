@@ -201,6 +201,26 @@ def wire_real_loop(model_generate, domain: str, curriculum_trainer, *, test_runn
     return VerifierRecursionLoop(model_generate, verify, train_fn, k=k)
 
 
+def make_code_reward(run_tests, tests_for=None):
+    """Build the RLVR trainer's reward_fn for code (a VerifiableReward-shaped
+    ``(prompt, completion, ground_truth) -> float``).
+
+    ⚠ INTERFACE NOTE (caught by reading rlvr.py): this is DISTINCT from the loop's
+    2-arg selection verify_fn. RLVRTrainer generates its own completions and calls
+    ``reward_fn(prompt, completion, ground_truth)`` — 3 positional args — so a
+    MultiDomainVerifier.reward_fn_wrap callable (2-arg + kwargs) would raise here.
+    Use THIS to construct the CurriculumRLVRTrainer's reward_fn.
+
+    run_tests(completion, tests) -> (passed, total)  [inject; testable with a stub]
+    tests_for(ground_truth) -> tests                 [optional map; else ground_truth IS the tests]
+    """
+    def _reward(prompt: str, completion: str, ground_truth) -> float:
+        tests = tests_for(ground_truth) if tests_for else ground_truth
+        passed, total = run_tests(completion, tests)
+        return (passed / total) if total else 0.0
+    return _reward
+
+
 def wire_code_loop(model_generate, test_runner, curriculum_trainer, *, k: int = 8):
     """CODE-domain recursion loop — the honest home for this lever.
 
@@ -210,7 +230,10 @@ def wire_code_loop(model_generate, test_runner, curriculum_trainer, *, k: int = 
     2026-07-07; code is where the verifier can actually select.) select_threshold=1.0
     = all tests pass.
 
-    test_runner(prompt, completion, task_id) -> (passed, total, details).
+    test_runner(prompt, completion, task_id) -> (passed, total, details) drives the
+    loop's SELECTION. ⚠ The `curriculum_trainer` you pass must have been built with a
+    code reward_fn from `make_code_reward` (3-arg), NOT reward_fn_wrap (2-arg) — the
+    two interfaces differ (see make_code_reward).
     """
     from src.training.multi_domain_verifier import MultiDomainVerifier
     mdv = MultiDomainVerifier()

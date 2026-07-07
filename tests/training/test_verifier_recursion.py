@@ -105,6 +105,23 @@ def test_verdict_insufficient():
 
 
 # --- code-domain wiring (execution verifier -> high-precision selection) ---
+def test_make_code_reward_is_three_arg():
+    from src.training.verifier_recursion import make_code_reward
+    # run_tests stub: passes iff completion contains 'return 42'
+    def run_tests(completion, tests):
+        return (1, 1) if "return 42" in completion else (0, 1)
+    reward = make_code_reward(run_tests)
+    # RLVRTrainer calls it with THREE positional args (prompt, completion, ground_truth)
+    assert reward("p", "def f(): return 42", "gt") == 1.0
+    assert reward("p", "nope", "gt") == 0.0
+    # with a tests_for mapping (ground_truth -> tests)
+    reward2 = make_code_reward(lambda c, t: (len(t), len(t)) if "return 42" in c else (0, len(t)),
+                               tests_for=lambda gt: ["assert f()==42", "assert True"])
+    assert reward2("p", "def f(): return 42", "task1") == 1.0
+    # total==0 -> 0.0 (no crash)
+    assert make_code_reward(lambda c, t: (0, 0))("p", "x", "gt") == 0.0
+
+
 def test_code_loop_selection_is_high_precision():
     # simulate: an execution verifier only approves the truly-correct candidate,
     # so the selected set is 100% correct (unlike the math probe null).
