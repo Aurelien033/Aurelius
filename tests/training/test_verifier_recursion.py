@@ -102,3 +102,21 @@ def test_verdict_precision_collapse_blocks_compound():
 
 def test_verdict_insufficient():
     assert recursion_verdict([_cyc(0, 0.6)])["verdict"] == "insufficient"
+
+
+# --- code-domain wiring (execution verifier -> high-precision selection) ---
+def test_code_loop_selection_is_high_precision():
+    # simulate: an execution verifier only approves the truly-correct candidate,
+    # so the selected set is 100% correct (unlike the math probe null).
+    def gen(prompt, k):
+        return ["def f(): return 42"] + ["wrong"] * (k - 1)
+    def exec_verify(prompt, code):
+        return 1.0 if code == "def f(): return 42" else 0.0
+    def label(task, code):
+        return code == "def f(): return 42"
+    loop = VerifierRecursionLoop(gen, exec_verify, lambda s: {"mean_reward": 1.0},
+                                 k=6, select_threshold=1.0, label_fn=label)
+    res = loop.run_cycle(TASKS)
+    assert res.solve_rate == 1.0
+    assert res.verifier_precision == 1.0     # execution verifier -> perfect precision
+    # contrast the math run: probe precision was low; code selection is clean.

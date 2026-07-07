@@ -199,3 +199,30 @@ def wire_real_loop(model_generate, domain: str, curriculum_trainer, *, test_runn
         return {"mean_reward": sum(rewards) / len(rewards) if rewards else 0.0}
 
     return VerifierRecursionLoop(model_generate, verify, train_fn, k=k)
+
+
+def wire_code_loop(model_generate, test_runner, curriculum_trainer, *, k: int = 8):
+    """CODE-domain recursion loop — the honest home for this lever.
+
+    An execution verifier is ground truth, so the selected-correct set is genuinely
+    correct (high precision by construction), and the loop folds that oracle-capture
+    into greedy via RLVR. (The math learned-verifier path was a measured null
+    2026-07-07; code is where the verifier can actually select.) select_threshold=1.0
+    = all tests pass.
+
+    test_runner(prompt, completion, task_id) -> (passed, total, details).
+    """
+    from src.training.multi_domain_verifier import MultiDomainVerifier
+    mdv = MultiDomainVerifier()
+    verify = mdv.reward_fn_wrap("code", test_runner=test_runner)
+
+    def train_fn(selected: list[dict]) -> dict:
+        rewards = []
+        for ex in selected:
+            r = curriculum_trainer.train_step(
+                task_ids=[ex["task_id"]], prompt_ids=ex.get("prompt_ids"),
+                prompt_text=ex["prompt"], answer=ex.get("answer", ""))
+            rewards.append(float(r.get("mean_reward", 0.0)))
+        return {"mean_reward": sum(rewards) / len(rewards) if rewards else 0.0}
+
+    return VerifierRecursionLoop(model_generate, verify, train_fn, k=k, select_threshold=1.0)

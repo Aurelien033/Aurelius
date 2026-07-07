@@ -4,7 +4,8 @@ from __future__ import annotations
 import math
 
 from src.eval.vgbs import (
-    beam_cost, best_of_n, bon_cost, cost_ratio, verifier_guided_beam_search,
+    beam_cost, best_of_n, bon_cost, cost_ratio, verified_best_of_n,
+    verifier_guided_beam_search,
 )
 
 
@@ -72,3 +73,15 @@ def test_cost_accounting_matches_roadmap():
     assert bon_cost(64, 30) == 1920
     assert abs(cost_ratio(4, 30, 64, 0.1) - 1920 / 132) < 1e-9
     assert cost_ratio(4, 30, 64, 0.1) > 14 and cost_ratio(4, 30, 64, 0.1) < 15
+
+
+def test_verified_best_of_n_code_domain():
+    # execution verifier (terminal): pick the candidate that passes tests
+    cands = ["def f(): return 0", "def f(): return 42", "broken"]
+    def exec_verify(prompt, code):    # 1.0 iff it's the passing solution
+        return 1.0 if code == "def f(): return 42" else 0.0
+    best, score, scores = verified_best_of_n("p", cands, exec_verify)
+    assert best == "def f(): return 42" and score == 1.0
+    assert scores == [0.0, 1.0, 0.0]
+    # empty pool safe
+    assert verified_best_of_n("p", [], exec_verify) == ("", 0.0, [])

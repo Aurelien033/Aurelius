@@ -139,18 +139,44 @@ def cost_ratio(beam_width: int = 4, depth: int = 30, n: int = 64, prm_fac: float
     return bon_cost(n, depth) / beam_cost(beam_width, depth, prm_fac)
 
 
-# ---- real-wiring helper (guarded import; not needed for tests) ----
-def make_mdv_scorer(domain: str = "reasoning", **verify_kwargs) -> ScoreStep:
-    """Build a PRM step-scorer from the repo's MultiDomainVerifier.
+def verified_best_of_n(prompt: str, candidates: list[str],
+                       verify: Callable[[str, str], float]) -> tuple[str, float, list[float]]:
+    """The CODE-domain form of VGBS. An execution verifier is TERMINAL (0/1 on a
+    complete program) — you cannot score a partial code prefix by running it — so
+    step-level beam search degenerates to ranking whole candidates by the verifier
+    and taking the best. With a perfect execution verifier this captures the full
+    selection gap (== oracle) for free at inference. Returns (best, best_score, scores).
 
-    NOTE: MultiDomainVerifier scores COMPLETIONS; used as a PRM it scores the
-    partial prefix (best-effort process signal). A dedicated learned PRM head is
-    the upgrade path once the recursion loop trains one.
+    This is deliberately the same operation as VerifierRecursionLoop's cycle-0
+    selection: on code, the verifier IS ground truth, so best-of-N-verified is
+    where the gap lives, and the recursion loop's job is folding it into greedy.
+    """
+    scores = [verify(prompt, c) for c in candidates]
+    i = max(range(len(candidates)), key=lambda k: scores[k]) if candidates else 0
+    return (candidates[i] if candidates else ""), (scores[i] if scores else 0.0), scores
+
+
+# ---- real-wiring helpers (guarded import; not needed for tests) ----
+def make_mdv_scorer(domain: str = "code", **verify_kwargs) -> ScoreStep:
+    """Build a scorer from the repo's MultiDomainVerifier. Default domain=code
+    (execution-verified is the honest home for these levers; the math probe was
+    a measured null 2026-07-07).
+
+    For code, pass ``test_runner=...`` (a (prompt, completion, task_id)->
+    (passed, total, details) callable). For non-terminal domains used as a step
+    PRM, a learned PRM head is the upgrade path.
     """
     from src.training.multi_domain_verifier import MultiDomainVerifier
     mdv = MultiDomainVerifier()
 
-    def _score(prompt: str, prefix: str) -> float:
-        return mdv.verify(domain, prompt, prefix, **verify_kwargs)
+    def _score(prompt: str, completion: str) -> float:
+        return mdv.verify(domain, prompt, completion, **verify_kwargs)
 
     return _score
+
+
+def make_code_scorer(test_runner, **verify_kwargs) -> ScoreStep:
+    """Convenience: an execution-verified CODE scorer (== oracle selector).
+    ``test_runner(prompt, completion, task_id) -> (passed, total, details)``.
+    """
+    return make_mdv_scorer("code", test_runner=test_runner, **verify_kwargs)
