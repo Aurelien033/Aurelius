@@ -1,6 +1,6 @@
 # Aurelius — Frontier AI Research Platform
 
-> 1.395B decoder-only transformer built from scratch — pure PyTorch core, Rust data engine, Node.js BFF, React frontend.
+> 1.395B-parameter decoder-only transformer built from scratch — pure PyTorch core, Rust data engine, Node.js BFF, React frontend. Now advancing the V3 AGI-track research program (configs 1.3B → 32B, evidence-gated architecture research).
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch 2.11+](https://img.shields.io/badge/PyTorch-2.11+-ee4c2c.svg)](https://pytorch.org/)
@@ -41,11 +41,12 @@ The frontend never talks directly to Python. All API calls route through the BFF
 | FFN | SwiGLU, d_ff = 5,632 |
 | Normalization | Pre-norm RMSNorm |
 | Positional encoding | RoPE (θ = 500,000) + YaRN context extension |
-| Vocabulary | 8,192 tokens (BPE) |
+| Vocabulary | 50,257 tokens |
 | Embeddings | Tied input/output |
 | KV cache | GQA-compressed; 8 hot-swappable strategies (KIVI, DuoAttention, EVICT, QUEST, Rocket KV, SAGE, TEAL, INT8) |
 | MoE | SparseMoELayer — top-2 routing, 8 experts, shared expert, EP load balancing |
 | MTP | Multi-Token Prediction (n=2, shared params, staged training) |
+| Tapered FFN | Cosine-scheduled per-layer width (Bayat et al. 2026), avg budget preserved — implemented |
 | Optimizer | Muon (Newton-Schulz 8+2 steps + Nesterov + RMS rescaling) |
 | Checkpoint | safetensors (legacy .pt fallback with deprecation warning) |
 
@@ -340,16 +341,37 @@ docker compose up --profile cache    # with Redis
 
 ---
 
-## DAIES Scaling Plan
+## V3 Research Program (AGI-track)
 
-| Phase | Params | Active | Strategy | Status |
-|-------|--------|--------|----------|--------|
-| v1 | 1.395B | 1.395B | Muon + grad_ckpt, bs=4 | Training in progress |
-| v2 | 2.7B | 2.7B | Muon + grad_ckpt, bs=1 | Planned |
-| v3 | 3.0B | 3.0B | 8-bit optim + MLX | Planned |
-| v4 | ~5B MoE | ~2B | Sparse MoE + expert offload | Planned |
-| v5 | 7-14B | 7-14B | bf16 / 4-bit quant | Future |
-| v6 | 32B | ~8B MoE | Expert parallelism, distributed | Future |
+Aurelius is evolving from a single from-scratch model into an evidence-gated AGI-track research program. Guiding discipline: **no mechanism is promoted unless it improves held-out `pass@1` / `oracle@K` under an ACDT falsifier contract**, recorded in a TruthSurface measurement backbone + claims ledger.
+
+**Built and in-repo:**
+- **Composer agent** (`src/composer/`) — repo-level coding with context assembly, diff engine, edit verification, checkpoint rollback, and trace capture (Cursor-Composer-style).
+- **TruthSurface / claims-ledger** — V3 measurement backbone + promotion gate that seeds a verifiable-improvement ledger.
+- **Agentic eval harnesses** (`src/eval/`) — SWE-bench-lite scorer, LiveCodeBench scorer, math verifiers, and a causal-tracing interpretability module (`src/interpretability/causal_tracer.py`).
+- **Tapered FFN** (`src/model/tapered_transformer.py`) — cosine-scheduled per-layer width reallocation (Bayat et al. 2026).
+
+**Designed (author's original inventions, not yet implemented):**
+- **RSVA** — Recursive Self-Verifying Architecture: generation ↔ verification fixed-point loop (Banach-contraction convergence when the verifier beats random).
+- **HMC** — Holographic Mechanism Compression: mechanisms stored as interference patterns in shared parameters (replaces discrete LoRA/MoE gating).
+- **FEPG** — ungameable verifier to replace GRPO-style reward hacking.
+
+Goal: an independent, from-scratch model and foundry — not a fine-tune of a vendor base model.
+
+---
+
+## Scaling Plan
+
+> **Current training state:** the only checkpoint on disk is a 2-step smoke/integration test (`checkpoints/aurelius-1.3b/step-0000002`, ~512 tokens seen). No fully pretrained model exists yet — training is the compute-bound next step. The table below is a roadmap, not delivered results.
+
+| Phase | Params | Strategy | Status |
+|-------|--------|----------|--------|
+| v1 | 1.395B | Muon + grad_ckpt | Smoke checkpoint only — full training pending (`configs/config_1b.yaml`) |
+| v2 | 2.7B | Muon + grad_ckpt | Planned |
+| v3 | 3.0B | 8-bit optim + MLX | Planned (`configs/config_3b.yaml`) |
+| v4 | ~5B MoE | Sparse MoE + expert offload | Planned |
+| v5 | 7-14B | bf16 / 4-bit quant | Configs present (`configs/config_7b.yaml`, `configs/config_14b.yaml`) |
+| v6 | 32B | Expert parallelism, distributed | Config present (`configs/config_32b.yaml`) |
 
 Dense checkpoints seed MoE experts via `src/model/moe_upcycle.py`. GGUF Q4_K_M export targets 25-35 tok/s on Apple Silicon.
 
@@ -387,7 +409,7 @@ Aurelius/
 ├── configs/             # Training YAML configs
 ├── examples/            # Runnable scripts (scheduler, pipeline, SRE metrics)
 ├── scripts/             # Bootstrap, benchmark, GGUF export, data prep
-├── tests/               # 33,000+ tests across all surfaces
+├── tests/               # comprehensive automated test suite across all surfaces
 ├── data/                # Training shards (.npy uint16), tokenizer, corpus
 └── checkpoints/         # Saved checkpoints (safetensors)
 ```
