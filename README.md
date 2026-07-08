@@ -356,7 +356,7 @@ Aurelius is evolving from a single from-scratch model into an evidence-gated AGI
 - **HMC** — Holographic Mechanism Compression: mechanisms stored as interference patterns in shared parameters (replaces discrete LoRA/MoE gating).
 - **FEPG** — ungameable verifier to replace GRPO-style reward hacking.
 
-Goal: an independent, from-scratch model and foundry — not a fine-tune of a vendor base model.
+Goal: an independent, from-scratch model and foundry. The in-repo 1.3B backbone is trained from scratch; the Hugging Face releases (account `Zephyrs33`) are experimental Qwen3-based testbeds used to validate the alignment/eval tooling while the native backbone trains.
 
 ---
 
