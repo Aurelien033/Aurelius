@@ -175,3 +175,42 @@
   status: proposed
   bench: multi
   notes: "BUILT src/training/verifier_recursion.py (9 tests, winners-only guard). Distinct from -11pp winners-only self-distill. NOT YET RUN."
+
+- claim_id: rsva
+  statement: "RSVA recursive self-verification converges to a fixed point and beats single-pass AND best-of-k sampling on verifiable tasks."
+  metric: "RSVA-k pass@1 vs single-pass vs best-of-k"
+  baseline: "single-pass greedy + best-of-k independent sampling"
+  falsifier: "RSVA-k <= single-pass OR <= best-of-k (merely sampling with extra steps) -> kill, fall back to best-of-N"
+  rollback: "ship best-of-N at inference"
+  value: null
+  baseline_value: null
+  n: null
+  status: proposed
+  bench: verifiable (code/math)
+  notes: "BUILT src/training/rsva.py (RSVALoop + rsva_verdict falsifier gate). Torch-free; callable-injected. Banach fixed-point claim (T422/T381) UNTESTED until run. NOT YET RUN."
+
+- claim_id: hmc
+  statement: "HMC holographic superposition stores mechanisms in a shared parameter space and recovers them by projection (retrieval acc >= 80%)."
+  metric: "mechanism retrieval cosine sim"
+  baseline: "80% retrieval accuracy (Part 3 A.2 threshold)"
+  falsifier: "projection recovers f_i < 80% OR mechanism birth creates noise -> fall back to LoRA specialization"
+  rollback: "LoRA-based mechanism specialization"
+  value: null
+  baseline_value: null
+  n: null
+  status: proposed
+  bench: proxy (numpy W-space)
+  notes: "BUILT src/training/hmc.py (HMC store + birth + hmc_verdict gate). Numpy proxy for the shared W; real wiring = parameter hooks. NOT YET RUN."
+
+- claim_id: fepg
+  statement: "FEPG (min F=E-T*S) matches GRPO final accuracy on verifiable tasks with zero reward-hacking and no mode collapse."
+  metric: "MATH-500 / code-repair accuracy vs GRPO"
+  baseline: "GRPO final accuracy"
+  falsifier: "FEPG < GRPO - noise OR entropy term -> mode collapse -> demote to research-only"
+  rollback: "GRPO / online RL stack"
+  value: null
+  baseline_value: null
+  n: null
+  status: proposed
+  bench: verifiable (math/code)
+  notes: "BUILT src/training/fepg.py (FEPGTrainer + fepg_verdict gate). Torch-free; callable-injected entropy/error/step. Ungameability claim UNTESTED until run. NOT YET RUN."
