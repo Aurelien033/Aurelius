@@ -1,6 +1,6 @@
 # Aurelius — Frontier AI Research Platform
 
-> 1.395B-parameter decoder-only transformer built from scratch — pure PyTorch core, Rust data engine, Node.js BFF, React frontend. Now advancing the V3 AGI-track research program (configs 1.3B → 32B, evidence-gated architecture research).
+> Evidence-gated AGI-track LLM research. v1 = 1.395B from-scratch transformer backbone. v2 = Qwen3-Coder-30B-A3B + verifier-native inference (SHIPPED — measured optimum at Colab-class compute). v3 = capability measurement arc proving v2 IS the optimum. v4 (ACTIVE) = CUA-execution-verified RLVR + agentic wing + alignment EvalLab release gates. 6 experimental Qwen3-based checkpoints on HF/Zephyrs33 (private). Built: Composer, TruthSurface, eval harnesses. Designed: RSVA/HMC/FEPG. MIT.
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch 2.11+](https://img.shields.io/badge/PyTorch-2.11+-ee4c2c.svg)](https://pytorch.org/)
@@ -341,39 +341,44 @@ docker compose up --profile cache    # with Redis
 
 ---
 
-## V3 Research Program (AGI-track)
+## Research Program (v3 measured → v4 active)
 
-Aurelius is evolving from a single from-scratch model into an evidence-gated AGI-track research program. Guiding discipline: **no mechanism is promoted unless it improves held-out `pass@1` / `oracle@K` under an ACDT falsifier contract**, recorded in a TruthSurface measurement backbone + claims ledger.
+> See **[ROADMAP.md](ROADMAP.md)** for the full timeline, measured receipts, and forward plan.
+
+Aurelius is an evidence-gated AGI-track research program. Guiding discipline: **no mechanism is promoted unless it improves held-out `pass@1` / `oracle@K` under an ACDT falsifier contract**, recorded in a TruthSurface measurement backbone + claims ledger.
+
+**v3 (COMPLETE — 2026-07-11):** Capability measurement arc. All levers systematically measured at Colab-class compute. **Result: the v2 deliverable (Qwen3-Coder-30B-A3B + best-of-N/maj@N) was already the optimum.** Training-side closed flat 3 ways (SFT, RLVR-fold-in, OPD). Capacity exhausted. Inference-side verification = the one cashable lever.
+
+**v4 (ACTIVE):** CUA-execution-verified RLVR + agentic wing. Thesis: the verifier/RLVR thesis generalizes — OS-state diff IS a ground-truth verifier. Active workstreams: Alignment EvalLab release gates (built, 14 tests pass), QAT-before-GGUF, trained math verifier (GenRM gated), AAR autonomous auto-research loop, MSGA governed agency.
 
 **Built and in-repo:**
-- **Composer agent** (`src/composer/`) — repo-level coding with context assembly, diff engine, edit verification, checkpoint rollback, and trace capture (Cursor-Composer-style).
+- **Composer agent** (`src/composer/`) — repo-level coding with context assembly, diff engine, edit verification, checkpoint rollback, and trace capture.
 - **TruthSurface / claims-ledger** — V3 measurement backbone + promotion gate that seeds a verifiable-improvement ledger.
-- **Agentic eval harnesses** (`src/eval/`) — SWE-bench-lite scorer, LiveCodeBench scorer, math verifiers, and a causal-tracing interpretability module (`src/interpretability/causal_tracer.py`).
-- **Tapered FFN** (`src/model/tapered_transformer.py`) — cosine-scheduled per-layer width reallocation (Bayat et al. 2026).
+- **Agentic eval harnesses** (`src/eval/`) — SWE-bench-lite scorer, LiveCodeBench scorer, math verifiers, and a causal-tracing interpretability module.
+- **Alignment EvalLab** (`src/eval/alignment/`) — release gates with 24-scenario bank, forced-choice parsing (no LLM judge), identity-perturbation tests, why-density scoring, PASS/FAIL gates.
+- **Tapered FFN** (`src/model/tapered_transformer.py`) — cosine-scheduled per-layer width reallocation (Bayat et al. 2026). Parked (neutral-null at proxy scale).
 
-**Designed (author's original inventions, not yet implemented):**
-- **RSVA** — Recursive Self-Verifying Architecture: generation ↔ verification fixed-point loop (Banach-contraction convergence when the verifier beats random).
-- **HMC** — Holographic Mechanism Compression: mechanisms stored as interference patterns in shared parameters (replaces discrete LoRA/MoE gating).
-- **FEPG** — ungameable verifier to replace GRPO-style reward hacking.
+**Designed (original inventions, not yet implemented):**
+- **RSVA** — Recursive Self-Verifying Architecture: generation ↔ verification fixed-point loop.
+- **HMC** — Holographic Mechanism Compression: mechanisms stored as interference patterns in shared parameters.
+- **FEPG** — Ungameable verifier to replace GRPO-style reward hacking.
 
-Goal: an independent, from-scratch model and foundry. The in-repo 1.3B backbone is trained from scratch; the Hugging Face releases (account `Zephyrs33`) are experimental Qwen3-based testbeds used to validate the alignment/eval tooling while the native backbone trains.
+**Model artifacts:** The in-repo 1.3B backbone is at smoke checkpoint (2 steps). The Hugging Face releases (account `Zephyrs33`) are 6 private experimental Qwen3-based checkpoints — the v2 deploy base (Qwen3-Coder-30B-A3B) is the measured optimum. See ROADMAP.md for full capability numbers and receipts.
 
 ---
 
-## Scaling Plan
+## Scaling Plan & Roadmap
 
-> **Current training state:** the only checkpoint on disk is a 2-step smoke/integration test (`checkpoints/aurelius-1.3b/step-0000002`, ~512 tokens seen). No fully pretrained model exists yet — training is the compute-bound next step. The table below is a roadmap, not delivered results.
+The full project roadmap — from the v1 from-scratch backbone through the v3 measurement arc to the current v4 CUA+agentic program — is maintained in **[ROADMAP.md](ROADMAP.md)**. Every claim is evidence-gated with measured receipts, falsifier contracts, and computed READs.
 
-| Phase | Params | Strategy | Status |
-|-------|--------|----------|--------|
-| v1 | 1.395B | Muon + grad_ckpt | Smoke checkpoint only — full training pending (`configs/config_1b.yaml`) |
-| v2 | 2.7B | Muon + grad_ckpt | Planned |
-| v3 | 3.0B | 8-bit optim + MLX | Planned (`configs/config_3b.yaml`) |
-| v4 | ~5B MoE | Sparse MoE + expert offload | Planned |
-| v5 | 7-14B | bf16 / 4-bit quant | Configs present (`configs/config_7b.yaml`, `configs/config_14b.yaml`) |
-| v6 | 32B | Expert parallelism, distributed | Config present (`configs/config_32b.yaml`) |
+**Executive summary:**
+- **v1** — 1.395B from-scratch transformer (smoke checkpoint; code built, pretraining compute-gated)
+- **v2** — Qwen3-Coder-30B-A3B + best-of-N/maj@N + verifier-native inference (**SHIPPED — the measured optimum at this compute class**)
+- **v3** — Capability measurement arc: every lever measured, v2 proven optimal, training-side closed 3 ways flat
+- **v4** (ACTIVE) — CUA-execution-verified RLVR, agentic wing, alignment EvalLab release gates
+- **v5** (GATED) — From-scratch continued pretraining on 30B-A3B, gated behind v4 verification system
 
-Dense checkpoints seed MoE experts via `src/model/moe_upcycle.py`. GGUF Q4_K_M export targets 25-35 tok/s on Apple Silicon.
+GGUF Q4_K_M export targets 25-35 tok/s on Apple Silicon.
 
 ---
 
@@ -446,6 +451,7 @@ make ci             # lint + typecheck + security + all tests
 
 | Document | Description |
 |----------|-------------|
+| [ROADMAP.md](ROADMAP.md) | Complete project history, measured results, and forward plan (v0→v5) |
 | [SECURITY.md](SECURITY.md) | Security policy and vulnerability reporting |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Code style, testing, branch strategy |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
