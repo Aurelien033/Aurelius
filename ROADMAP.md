@@ -228,6 +228,18 @@ v5 (gated)         From-Scratch Continued Pretraining — gated behind v4
 | **B** | Frontier map (research landscape) | Runs first, informs Lane A |
 | **C** | $750 full-param 8B GRPO | Gated — only if fresh benchmarks justify |
 
+### RLVR Improvements Available (2026 literature)
+
+Three mechanisms ready to integrate for better RL training (see `docs/RLVR_IMPROVEMENTS.md`):
+
+| Mechanism | Paper | Benefit | Implementation |
+|-----------|-------|---------|----------------|
+| **BV-Blend** | 2606.28707 | Fixes zero-variance group stalling | EMA stats per cluster, blend into advantage (200 lines) |
+| **RSI-S** | 2606.31575 | +2-3pp on AIME/AMC, filters noisy tokens | Token-level filtering in GRPO forward (100 lines) |
+| **Layer-aware RL** | 2607.01232 | 4-5x VRAM reduction, 85% of full-param gains | Train middle layers only (150 lines) |
+
+Drop-in improvements ready for Lane C or any RLVR work.
+
 ---
 
 ## v5 — From-Scratch Continued Pretraining (GATED)
