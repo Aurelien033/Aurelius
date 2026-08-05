@@ -90,6 +90,27 @@ class NoMem(nn.Module):
         s = torch.tanh(self.mlp(x)).mean(dim=1).unsqueeze(1)
         return self.out(s.expand(x.shape[0], x.shape[1], self.d))
 
+class LDK(nn.Module):
+    """Linear-Delta Kitten (NEW ALGORITHM 2): accumulate-only state with
+    input-adaptive write, NO forget gate (the corrected F3b showed the
+    gate destroys distance capacity: gated 0.039@512 vs linear 0.141).
+      s_t = s_{t-1} + alpha(x_t) * tanh(W_u x_t),  alpha = sigmoid(W_a x)
+    State only grows; write magnitude adapts per input; distance capacity
+    is unbounded by construction (no forgetting term)."""
+    def __init__(self, d=D):
+        super().__init__()
+        self.d = d
+        self.embed = nn.Linear(VOCAB, d)
+        self.inp = nn.Linear(d, d)
+        self.alpha = nn.Linear(d, d)
+        self.out = nn.Linear(d, NV + NK)
+    def forward(self, x):
+        x = self.embed(x)
+        u = torch.tanh(self.inp(x))
+        a = torch.sigmoid(self.alpha(x))          # write strength in (0,1)
+        s = torch.cumsum(a * u, dim=1)            # accumulate-only (no gate)
+        return self.out(s)
+
 def run(model, Dgap, steps=2000, lr=1e-3, B=32):
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
     for i in range(steps):
@@ -109,7 +130,7 @@ print(f"MoK F3b | d={D} | 4 pairs | gap-isolated | {time.strftime('%H:%M:%S')}")
 results = {}
 for Dgap in [32, 64, 128, 256, 512]:
     row = {}
-    for name, cls in [("kitten", Kitten), ("linear", LinearKitten), ("nomem", NoMem)]:
+    for name, cls in [("kitten", Kitten), ("linear", LinearKitten), ("ldk", LDK), ("nomem", NoMem)]:
         m = cls()
         n = sum(p.numel() for p in m.parameters())
         acc = run(m, Dgap)
