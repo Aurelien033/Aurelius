@@ -1,0 +1,2072 @@
+                                         Improving Neural Network Training by
+                                         Decoupling the Magnitude and Direction of Weight Vectors
+
+                                         Alexander Hägele∗                                                                                    alexander.hagele@epfl.ch
+                                         Machine Learning and Optimization Lab, EPFL
+
+                                         Alejandro Hernández-Cano∗                                                                    alejandro.hernandezcano@epfl.ch
+                                         Machine Learning and Optimization Lab, EPFL
+
+                                         Atli Kosson†                                                                                               atli.kosson@epfl.ch
+                                         Machine Learning and Optimization Lab, EPFL
+
+
+
+
+arXiv:2606.25971v1 [cs.LG] 24 Jun 2026
+                                         Martin Jaggi†                                                                                            martin.jaggi@epfl.ch
+                                         Machine Learning and Optimization Lab, EPFL
+
+
+
+                                                                                                 Abstract
+
+                                                   Modern neural network training relies on optimizers such as Adam and Muon which act on
+                                                   each weight matrix as a single object. Yet every weight matrix carries two distinct quantities
+                                                   — a magnitude and a direction — and all optimizers stepping in the matrix as a whole couple
+                                                   their dynamics: the directional change from an update depends on the current magnitude,
+                                                   while the magnitude drifts as a byproduct of learning the direction, so neither is governed
+                                                   directly by the learning rate. Typical training therefore leans on surrounding recipes such
+                                                   as weight decay and warmup to keep learning stable at scale, though these regulate the
+                                                   coupling only indirectly; other recent methods instead constrain the weight to a fixed-norm
+                                                   sphere, but add no learnable magnitude, leaving scale control to normalization layers alone.
+                                                   We propose Magnitude–Direction (MD) Decoupling, an optimizer modification that factor-
+                                                   izes each weight into a fixed-norm direction on a hypersphere and learnable per-row and
+                                                   per-column magnitude gains, updated at separate learning rates, all while the model still
+                                                   sees a single fused weight tensor. The method is agnostic to the base optimizer and removes
+                                                   the need for weight decay and warmup. Across both Adam and Muon, MD Decoupling
+                                                   improves on well-tuned baselines, transfers the optimal LR across model width without re-
+                                                   tuning, and continues to help at scale on large Mixture-of-Experts (MoE) models. Treating
+                                                   magnitude and direction as separately controlled quantities thus yields more predictable
+                                                   training dynamics and a simple, broadly applicable improvement to modern optimizers.1
+
+
+                                         1     Introduction
+                                         Much recent progress in neural network training comes from rethinking what a good update to a weight
+                                         matrix should be. Beyond Adam (Kingma & Ba, 2015), matrix-aware optimizers such as Shampoo (Gupta
+                                         et al., 2018), SOAP (Vyas et al., 2024), and Muon (Jordan et al., 2024a) improve the update by accounting
+                                         for the geometry of the weight space (Bernstein & Newhouse, 2024; Pethick et al., 2025). At scale, making
+                                         training balanced and predictable further relies on an apparatus of intricate rules and recipes (Everett
+                                         et al., 2024; Wang & Aitchison, 2025; Dey et al., 2025; Mlodozeniec et al., 2025; Dial, 2026).
+                                         However, all matrix optimizers still share the same underlying mechanics of neural networks: a network
+                                         is a stack of many weight matrices, and every matrix W carries two distinct quantities, a magnitude
+                                         ∥W ∥ and a direction W
+                                                              c = W/∥W ∥, like a vector in polar coordinates. Most of learning is rotation of
+                                             ∗ Equal Contribution. Correspondence to alexander.hagele@epfl.ch.
+                                             † Equal Senior Contribution.
+                                             1A shorter and more accessible      version   of   this   paper   is   accessible   at   https://haeggee.github.io/posts/
+                                         magnitude-direction-decoupling.
+
+
+                                                                                                       1
+              LR Sweep (181M, 25BT w/ 50k iters)                                Scaling Laws w/ MoEs                                                       Width Transfer (MuonMD)
+                          AdamW                                  3.0
+       2.93               Adam on Sphere, no gains                                                           AdamW                           2.9
+                          AdamMD (ours)                          2.9                                         Muon
+       2.92               Muon
+                                                                                                             MuonMD (ours)
+                          Muon on Sphere, no gains                                                                                           2.8           d=512 (181M)
+       2.91               MuonMD (ours)                          2.8
+                                                                                                                                                           d=768 (308M)
+                                                                                                                                             2.7
+Loss   2.90                                               Loss   2.7                                                                  Loss                 d=1024 (457M)
+                                                                                                                  @ L=2.64 vs AdamW                        d=1536 (827M)
+       2.89                                                      2.6                                                                         2.6           d=2048 (1.29B)
+                                                                         1.2B-270M-A            2.01×
+                                                                 2.5     2.5B-420M-A                 1.55×
+       2.88                                                              4.1B-580M-A                                                         2.5
+                                                                         6.7B-810M-A
+       2.87                                                      2.4
+                   2 −1                 20           21                 5 · 10 18   10 19                     5 · 10 19     10 20                  2 1.5     22      2 2.5   23      2 3.5   24
+                 Matrix LR (centered per series)                       Compute (FLOPs, 6ND, non-embed N)                                                   Matrix LR (absolute) (× 10 −3 )
+
+Figure 1: Magnitude–Direction (MD) Decoupling improves on well-tuned Adam and Muon,
+keeps the improvement across compute on large MoEs, and makes the optimal learning rate
+transfer across model width. Three views of the method (full details in Section 4). (Left) Learning-rate
+sweep on a dense model: independently of the base optimizer, fixing the weights onto a sphere improves
+the optimal loss, and adding learnable magnitudes (our MD variant) gives a further boost. (Center) Scaling
+laws for sparse MoEs, where the improvement holds across a wide range of compute. (Right) LR transfer
+across model width: controlling the relative weight update directly through the sphere makes the optimal
+LR transfer without retuning.
+
+
+that direction (Wan et al., 2021). Stepping in W as a whole couples the two: the angular change scales
+inversely with the current magnitude, while the magnitude itself drifts upward as a byproduct of learning
+the direction, so the learning rate controls neither (Section 2). As a result, standard optimizers struggle to
+learn the magnitude of weight matrices and lean on weight decay to keep learning the direction over the long
+term (Kosson et al., 2024a); warmup (Goyal et al., 2017; Xiong et al., 2020) and fixes like QK-clip (Kimi
+Team, 2025) patch similar symptoms of runaway growth.
+
+Magnitude–Direction Decoupling. We therefore propose Magnitude–Direction (MD) Decoupling,
+an optimizer modification that factorizes each weight into a fixed-norm direction on a hypersphere and
+learnable per-row and per-column magnitude gains, updating the two at separate learning rates (Section 3).
+The factorization echoes classic Weight Normalization (Salimans & Kingma, 2016), but puts the direction
+on a fixed sphere with a normalized update and learns the gains at their own rate: the learning rate then sets
+the angular update directly, while the gains recover the fine-grained scale control that fixing the norm gives
+up. The split lives entirely inside the optimizer (Section 3): the model sees a single fused weight tensor, the
+method is agnostic to the base optimizer, and it effectively removes the need for weight decay and warmup.
+
+Context in the literature. Our work is not isolated. In fact, many works, both longstanding (You et al.,
+2017; Liu et al., 2018; 2021; Karras et al., 2024) and concurrent works, reach related ideas. One recent
+line fixes the weights to a sphere and drops weight decay (Loshchilov et al., 2025; Wen et al., 2026; Franke
+et al., 2025; Ren et al., 2026; Bernstein, 2025), but adds no learnable magnitude, leaving scale control to
+normalization-layer gains. Others learn explicit scales without a sphere constraint (Velikanov et al., 2026;
+Wang et al., 2026), or split each weight into a per-row magnitude and direction under Muon (Lion et al.,
+2026; Hübler et al., 2026). Developed largely in parallel, these threads often differ only in a few choices:
+which norm is fixed and along which axis, which optimizer is used, or whether a separate magnitude is added.
+A central motivation of our work is to unify them through controlled experiments and discussion in related
+work (Section 5 & Appendix I), asking which choices matter in practice for training large language models.
+
+Findings. We find that across both Adam and Muon, MD Decoupling improves on well-tuned baselines
+and transfers the optimal learning rate across width without retuning, in the spirit of µP (Yang et al., 2021)
+but obtained directly from the sphere (Kosson et al., 2026; Wen et al., 2026; Ren et al., 2026). It keeps its
+edge at scale on large Mixture-of-Experts models (Shazeer et al., 2017; Dai et al., 2024), reaching AdamW’s
+loss with ∼2× less compute (Figure 1). Our controlled ablations on dense models (Section 4) let us settle on
+a default recipe, and additionally cover the gain parametrization, the schedule, depth scaling, warmup-free
+and continual training, and a comparison to nGPT (Loshchilov et al., 2025). We discuss implications and
+research questions that require further understanding in Section 6.
+
+
+                                                                                            2
+          Scale-Invariant Loss Landscape                                  Direction Change                               Magnitude Grows Despite
+                                                                        Depends on Magnitude                               No Radial Gradient
+    π/2
+               3π/8        tio
+                      Direc
+                          π/4   n                                                                              2
+
+                                                                                                   Magnitude kWk
+                                            Loss (W)   Loss (W)
+                                 Ŵ
+
+                                π/8
+
+                                                                                                               1
+                                        0
+              1       2             3                             π/2   3π/8    π/4    π/8     0                   π/2            3π/8             π/4
+            Magnitude kWk
+                                                                           Direction Ŵ                                       Direction Ŵ
+
+Figure 2: In standard optimizers the weight magnitude silently distorts each update: the same
+step rotates the weights more at small magnitude and inflates the norm even when only the
+direction matters. Illustrated on a toy scale-invariant loss, where only the direction of the weights affects
+the loss. (Left) The loss landscape in polar coordinates, with the same normalized optimizer step taken from
+a small (red) and a large (orange) starting magnitude. (Center) The identical step changes the direction —
+and hence the loss — far more at small magnitude than at large magnitude. (Right) Even though the loss
+has no radial gradient, the step still increases the magnitude.
+
+
+2         Magnitude–Direction Interference
+
+We start by revisiting how the magnitude and direction of the weight interfere in a toy example in Figure 2.
+Here, the loss is scale-invariant: This means that only the direction of the weights affects the output, not
+the magnitude. This is a common case in deep learning, where matrices are often followed by normalization
+layers (Ba et al., 2016; Zhang & Sennrich, 2019). Yet, the magnitude shapes what a single optimizer step
+does, through two effects that the learning rate fails to control; We look at each effect in turn. Together
+they are why standard optimizers struggle to learn the magnitude of weight matrices and lean on weight
+decay to keep learning the direction over the long term (Kosson et al., 2024a). Throughout, unless otherwise
+noted, ∥·∥ is the Frobenius norm, and “direction” / “magnitude” may refer to the whole matrix or to its
+rows and columns depending on the variant.
+
+Direction change depends on magnitude. We can measure the directional change caused by an
+optimizer update ∆W through the angular update ∠(W, W + ∆W ) (Wan et al., 2021), which is closely
+approximated by the relative update ∥∆W ∥/∥W ∥. For a normalized optimizer like Adam or Muon the
+update size is set by the LR and is independent of the weight norm, so the directional change is roughly
+inversely proportional to the current magnitude ∥W ∥ (middle panel of Figure 2). The LR therefore does
+not directly set the rate of directional change, and that rate can vary across layers and over time in ways
+that hurt learning. Prior work on Rotational Equilibrium (Kosson et al., 2024a) showed how weight decay
+partially fixes this by modulating the relative updates over time and balancing them across layers.
+
+Magnitude grows despite no radial gradient. Direction changes also feed back into the magnitude.
+In practice, updates tend to be roughly perpendicular to the current weights — from properties of
+scale-invariance or from noise — and a perpendicular update always increases the magnitude (Heo et al.,
+2021). This happens even when nothing pulls the weights outward: a scale-invariant function has no radial
+gradient, yet the norm still creeps up (Figure 2, right). For a non-scale-invariant function the (negative)
+radial signal has to be strong enough to counteract it. In practice the magnitudes converge toward an
+equilibrium set by the LR and weight decay rather than any learned optimum (Kosson et al., 2024a), and
+this unnecessary growth can require tricks like Kimi’s QK-clip (Kimi Team, 2025) to tame.
+
+We describe the magnitude as a single scalar for simplicity, but the same interference applies per row or
+per column: an optimizer that cannot learn the per-matrix scale well will not do better at finer granularity.
+
+
+                                                                                3
+Algorithm 1 Magnitude–Direction decoupled optimizer step (scalar gain γ, fused weight W = γ ⊙ W
+                                                                                              c ).
+Require: fused weight W , gain γ, gradient G = ∂L/∂W , direction LR ηW , gain LR ηγ
+    c ← W/γ
+ 1: W                                                                  ▷ recover the on-sphere direction
+ 2: gγ ← reduce W                              ▷ gain gradient: sum over the axis the gain does not span
+                       
+                c⊙G
+ 3: G b ← γ ⊙ G
+      W
+                                                                            ▷ direction gradient ∂L/∂ W
+                                                                                                      c
+    c ← OptStep W                             ▷ any (normalized) matrix optimizer (Adam / Muon / . . . )
+                              
+ 4: W             c , G , ηW
+                        Wb
+    c←W
+ 5: W    c / ∥W
+              c∥                                                          ▷ project back onto the sphere
+ 6: γ ← AdamStep γ, gγ , ηγ                                                 ▷ step the gain (its own LR)
+                            
+
+ 7: W ← γ ⊙ Wc                                                        ▷ reassemble for the next forward
+
+3     Magnitude–Direction Decoupling
+The fix to the interference between weight norms and updates is to optimize the weights in a form that
+resembles polar coordinates — a direction and a magnitude — updating each separately so neither interferes
+with the other. Concretely, we factorize each weight into a direction W
+                                                                      c with a fixed norm (so it lies on a
+fixed hypersphere) and learnable magnitude gains:
+
+                            W = diag(γrow ) W
+                                            c diag(γcol ),     c on the sphere,
+                                                               W                                           (1)
+
+with γrow ∈ Rdout and γcol ∈ Rdin learnable gains (a single scalar or a one-sided gain are special cases). The
+two are learned at separately controlled rates; the update rules are in Section 3.1.
+Fine-grained scales. Our previous section argued how normalization layers make the loss invariant to
+a single overall scalar per matrix. However, this is not the case for finer-grained scales. The model still
+needs to control the scale of its activations, amplifying some features while damping others, and mixing
+activations that live at different scales. Per-row and per-column magnitudes change the function, and being
+able to learn them matters; in fact, this is why the learnable gains in RMSNorm layers help. But a standard
+transformer has far fewer such gains than its matrices have rows and columns, and normalization layers are
+not everywhere, so existing gains cannot provide the same fine-grained control. Our gains γrow , γcol make
+this control explicit and learned at a well-regulated speed. In theory, only γcol gains can be redundant, and
+only if a normalization layer with gains precedes the matrix.
+
+3.1   The Decoupled Optimizer Step
+Updating the direction. We keep the size of the update to W
+                                                          c proportional to its magnitude, then project
+c back onto the sphere so the magnitude stays constant. The relative weight update is then determined
+W
+by the LR at every step (for optimizers that produce normalize updates, as is done in practice). With
+no equilibrium to drift toward and no dependence on the initialization norm or training length, the LR
+schedule directly sets the relative update.
+Updating the magnitude. The magnitude of W is determined by the gains γ, which are updated like
+other learnable gains typically found in normalization layers. The gains can be either a scalar, a vector
+acting on each row or column, or two vectors scaling both the rows and columns. We note that these
+magnitude gains do not provide any additional representational capacity over the original matrix; they only
+affect the learning dynamics.
+Fused weights. In practice, we do not want to keep γ and W       c separate and reconstruct the weights in
+the forward and backward pass. This adds unnecessary round trips through memory. Instead, the model
+holds the fused weight tensor W and computes the gradient G = ∂L/∂W as usual. Then, at each step, the
+optimizer recovers the direction and the gain, splits the gradient between them, updates each, projects the
+direction back onto the sphere, and reassembles W .
+Algorithm 1 illustrates the optimizer step in the simplest case, a single scalar γ with W = γ ⊙ W  c . The
+general version with per-row and per-column gains is given in Algorithm 2 in Appendix A.
+Reparameterized gain. The gain can be updated in several ways — directly, kept strictly positive, or
+learned at a controlled pace — e.g. by storing a “raw” gain γ
+                                                            b and applying a positive map γ = φ(b
+                                                                                                γ ) such
+
+
+                                                      4
+as softplus. We ablate these choices in the results below (Section 4.1.3) and find only a minimal edge for
+softplus, which we adopt as the default; the optimal parametrization might be more complex.
+Important Properties. We explicitly restate the benefits of separating magnitude and direction.
+        • The core idea behind Magnitude-Direction Decoupling is independent of the optimizer: the weight
+          update can be treated as a black box, so it naturally fits different optimizers (AdEMAMix, Muon,
+          Shampoo, . . . ).
+        • We no longer need weight decay, since the weights are already on the sphere. This also avoids its
+          complicated interactions with the LR schedule, and the effective step size is now just the LR.
+        • We get LR transfer in width for any sufficiently long training run, because we control the relative
+          weight update directly.2
+        • Like Muon, we no longer need warmup, since the large early updates it exists to prevent never
+          appear. In fact, in our experiments, we see this strongly improves the final loss, since the early
+          stages of training are spent with higher effective learning.3
+
+4     Empirical Evaluation
+This section is organized in two parts. In Section 4.1 we use small dense models to ablate the components of
+the method — the normalization and gain axes, the embedding normalization, learning-rate transfer across
+width and depth, the learning-rate schedule, and warmup-free and continual training — and settle on a
+default recipe. In Section 4.2 we then verify that this recipe holds at scale, training large Mixture-of-Experts
+models and comparing against well-tuned baselines.
+
+4.1     Ablations on Dense Models
+Setup. For the dense ablations we use GPT-style language models from 181M to 1.29B parameters, each with
+head-dimension 128, GQA (Ainslie et al., 2023), QK-norm (Dehghani et al., 2023; Wortsman et al., 2024), and
+Sandwich Norm (Ding et al., 2021; Kim et al., 2025) with RMSNorm (Zhang & Sennrich, 2019). We apply a
+fixed scale α = L1 to the block-output after the RMSNorm (for proper depth scaling; more in Section 4.1.4).
+                                                                                                  √
+Matrix parameters are initialized with standard deviation √1d , and the embeddings are upscaled by d to give
+an RMS of 1 going into the model. We give the full architecture and hyperparameter details in Appendix B.
+Base comparison. Our ablation base is the 181M model (d = 512, L = 12) trained on 25B tokens of a
+FineWeb-Edu (Penedo et al., 2024) subset. This is deliberate strong overtraining (Chinchilla sense): at
+50k steps with a batch size of ∼0.5M tokens (4096 sequence length), At this scale, longer-term training
+dynamics become visible, is a closer match to real pretraining runs with potentially millions of steps.
+Sweep setups. We focus on AdamW and Muon as the most popular base optimizers. Across all
+experiments (incl. the Figure 1 sweeps), we fix the LR of every Adam-optimized parameter group shared
+across optimizers (e.g. embeddings, RMSNorm gains, etc) at values we verified to be in a good range (see
+Figure 12 in Appendix C); 10−3 for the output layer, 3 · 10−3 for embeddings) and sweep the matrix LR
+separately for each optimizer or setup change. This means every method is tuned with the same budget.
+The standard methods (AdamW and Muon) use weight decay 0.1; the MD variants    q     use none, since the
+weights are already on the sphere. For Muon in Figure 1 we use a scale factor of ddout
+                                                                                    in
+                                                                                       (which we found to
+be noticeably better than the RMS grafting when sweeping (see Figure 14). Unless noted otherwise, dense
+models use a linear LR decay to 10−8 for all groups. For the ablations below, we default to Muon as the
+matrix optimizer under MD decoupling.
+4.1.1     Normalization Axis
+There are two independent choices per matrix (Figure 3): along which axis we constrain the direction (each
+output row to unit norm, each input column, or the whole matrix in Frobenius norm), and along which axis
+   2 The exact transfer may be mildly optimizer-dependent; e.g., for Muon, it may rely on matching the update RMS to that
+
+of the weight norm sphere.
+   3 For extremely large models, we believe Adam might still need a short warmup to prevent early instability due to cold
+
+momentum states.
+
+
+                                                           5
+              Normalization                                      Gains                   c ∈ Rm×n
+              fixed-norm constraint along different axes         learnable multiplier on W
+
+
+                                   row                                                   row gain
+                                    ci,: ∥ = c1
+                                   ∥W                                                    γrow ∈ Rm
+                                                                                                     c
+                                                                                         diag(γrow ) W
+                                   flat                                        c
+                                     c ∥F = c F                                W
+                                   ∥W
+                 column                                                                  flat gain
+                 c:,j ∥ = c2
+                ∥W                                                                       W =γ⊙W    c
+                                                               column gain γcol ∈ Rn
+                                                                 W =W c diag(γcol )
+
+Figure 3: Magnitude–Direction Decoupling has two independent per-matrix choices: which
+axis the direction is normalized along, and which axis the learnable gain acts on. (Left) The
+axis along which a matrix can be constrained, and (Right) The axis along which the gains can act: row,
+column, both, or flat / Frobenius.
+
+the gain is free to act. We take these in turn below: the normalization axis, then the special case of the
+embeddings, and finally the magnitude gains.
+Normalization axis. A priori it is unclear which constraint should work best: EDM2 (Karras et al., 2024)
+keeps each row (output channel) at a fixed norm, nGPT (Loshchilov et al., 2025) alternates rows for QKV +
+up projections and columns for down projections, and AdamH/MuonH (Wen et al., 2026) use the Frobenius
+norm. In each case we hold the direction at its initialization norm, so the constraintpdoes not change the
+model at the start of training; with our √1d initialization this is a Frobenius target of max(dout , din ) for a
+matrix W
+       c ∈ Rdout ×din . We keep embeddings and the output (LM-head) rows at unit L2 norm throughout,
+independent of the sphere mode.
+Update step scale.qWe do not renormalize the update from the base optimizer. For Muon, we rescale
+its output by a fixed max ddout , ddout   , which makes the update RMS (assuming proper orthogonalization
+                                        
+                                     in
+                             in
+
+through Newton–Schulz) match the RMS of the weight norm under our √1d initialization. The factor is
+therefore set by the target weight norm and should be adapted whenever that norm changes — for instance
+under a scaled output-projection initialization, as in our MoE runs (Section B.2). We show sweeps for
+the available conventions in Figure 14, Appendix C. We also ablated removing the radial component of the
+direction’s gradient (projecting it onto the tangent space of the sphere), which made no measurable difference.
+Results. Across the three constraints, the final losses turn out to be nearly identical at their optimum
+(Figure 4). Note that we do not use gains for MD in this comparison. We therefore adopt the Frobenius
+constraint, since it is the most flexible: it only fixes the overall scale of the matrix and leaves the relative
+scale of its rows and columns open.
+Comparison to nGPT. Our fixed-norm motivation is closely related to nGPT (Loshchilov et al., 2025),
+which also trains on a sphere without weight decay but bundles this with several architectural changes (L2
+normalization, an interpolated residual, and a reduced base scale on its learnable vectors). Disentangling
+the optimizer and architecture in Appendix D (Figure 15), we find that as proposed nGPT beats our base
+architecture, but our magnitude–direction decoupling on top of nGPT’s architecture surpasses nGPT itself,
+with an even larger margin under Muon.
+
+4.1.2   Embeddings
+Per-row unit norm. The embeddings of the network are a special case. Each row is a single token’s
+vector that the model looks up independently, so the natural constraint is per-row — unit L2 norm on each
+embedding — rather than the per-matrix Frobenius sphere we use for the other weights. To understand
+the impact of normalization on embeddings, we ablate this part of the network separately in Figure 5:
+constraining every embedding vector to unit norm versus leaving its norm free to vary. The left panel sweeps
+the matrix LR for each mode, while the center and right panels track the loss and the relative embedding
+update over training. Keeping each embedding at unit norm performs at least on par with leaving it free
+while keeping the embedding update better-behaved, so we adopt it as our default and hold embeddings
+(and the LM-head rows) at unit L2 norm throughout, independent of the matrix sphere mode.
+
+
+                                                           6
+                                                     Hypersphere Axes (Muon, no gains)                                                     Hypersphere Axes (Muon, no gains)
+                                                                 Row
+                                         2.92                    Hidden Dim (Column for Down Proj.)                            3.3
+                                                                 Frobenius
+                                                                                                                               3.2
+                                         2.91
+                                  Loss                                                                                  Loss   3.1
+                                         2.90
+                                                                                                                               3.0            Row
+                                         2.89                                                                                                 Hidden Dim (Column for Down Proj.)
+                                                                                                                               2.9            Frobenius
+                                                 2 1.5       22        2 2.5      23          2 3.5      24                            0         5        10                    15        20    25
+                                                         Matrix LR (absolute) (× 10 −3 )                                                             Training Tokens (B)
+
+Figure 4: The choice of normalization axis barely affects the final loss, so we adopt the most
+flexible Frobenius constraint. Comparison of constraining each output row, each input column, or the
+whole matrix (Frobenius) to a fixed norm, on the 181M dense model (25B tokens), without gains. (Left) LR
+sweep of the final loss for each normalization mode. (Right) The corresponding loss curves over training.
+                 Embeddings On-Sphere vs Off-Sphere                                   3.5
+                                                                                                    Loss with Constrained Embeddings                                                    Relative Update Sizes of Embeddings
+       2.92                  Embeddings on sphere                                                                      Unconstrained Embeddings                                                          Unconstrained Embeddings
+                             Embeddings off sphere (free Adam)                        3.4                              Embeddings on Sphere                                                              Embeddings on Sphere
+
+
+
+                                                                                                                                                               of Embeddings
+       2.91
+                                                                                      3.3                                                                                      10 −2
+       2.90
+Loss                                                                           Loss
+                                                                                      3.2
+       2.89                                                                           3.1                                                                                      10 −3
+                                                                                              2.900                                                            ||∆W||
+       2.88                                                                           3.0     2.875                                                             ||W||
+
+                                                                                              2.850
+       2.87                                                                           2.9                                                                                      10 −4
+              2 1.5     22       2 2.5          23       2 3.5        24                    0 (0)        15k (7.86B)     30k (15.7B)        45k (23.6B)                                0 (0)   15k (7.86B)   30k (15.7B)   45k (23.6B)
+                      Matrix LR (absolute) (× 10 −3 )                                                         Consumed Tokens                                                                     Consumed Tokens
+
+Figure 5: Holding each embedding vector at unit norm performs slightly better than leaving
+them unconstrained, while keeping the embedding update better behaved. Ablation of the
+embedding normalization on the 181M dense model (25B tokens): constraining every embedding vector to
+unit norm versus letting its norm vary. (Left) LR sweep of the final loss for each mode. (Center) The loss
+over training for the various embedding modes. (Right) The relative embedding update over training.
+
+Relation to post-embedding RMSNorm. This unit-norm constraint is closely related to a now-common
+trick of placing an RMSNorm directly after the embedding layer, as used in the nanoGPT speedruns (Jordan
+et al., 2024b): normalizing each token’s embedding vector is exactly the per-row constraint we apply, only
+enforced in the optimizer on the embedding weights themselves rather than as a module in the forward pass
+(no extra forward/backward computation and no architectural change).
+
+4.1.3             Magnitude Gains
+Gain axis. For the gains, we compare four different settings: a single scalar, a per-row vector, a per-column
+vector, and a combined per-row-and-column gain. All of them are initialized at 1, so they do not influence
+the initial model. With our results in Figure 6 (left), we see a noticeable improvement of adding learned
+magnitudes on top of spherical training; the combined row-and-column gain performs noticeably best. It
+therefore becomes our default setting. The results are a direct evidence that fine-grained magnitudes matter
+to the model: a single overall scale per matrix is not enough, and the gains let it amplify some rows and
+columns while damping others. We track the dynamics of learned gains in Appendix H (Figure 18) and find
+that they indeed spread out over a wide range across rows and columns over the course of training.
+Higher-rank gains. Since the combined row-col gain is effectively an elementwise multiply by a rank-1
+matrix (the outer product γrow γcol ⊤
+                                      ), it is natural to ask whether going higher-rank does even better; we
+take first steps in this direction in Appendix G (Figure 17) and find no initial evidence that using rank-k
+matrices improves the results.
+Gain parameterization. Our results in Figure 6 (center and right) show that the parameterization
+matters little. We compare updating γ directly (with and without a 10−5 floor), the exponential map
+
+
+                                                                                                                  7
+                  Gains Axes (MuonMD, Frob. Norm)                            Gains Parametrization (181M, γrow + γcol )                                      Gradient Norm w/ Gains (181M)
+                          Muon on Sphere, no gains                    2.92                            Direct γ                                                                       Direct γ
+       2.92
+                          Scalar γ                                                                    softplus(γ)                              0.6                                   softplus(γ)
+       2.91               γrow                                        2.91                            exp(γ)                                                                         exp(γ)
+
+
+
+                                                                                                                               Gradient Norm
+                          γrow for Up/QKV, γcol for Down/Out                                          Direct γ with min 1e-5                   0.5                                   Direct γ (min 1e-5)
+       2.90               γrow + γcol                                 2.90
+Loss                                                           Loss                                                                            0.4
+       2.89                                                           2.89
+                                                                                                                                               0.3
+       2.88                                                           2.88
+                                                                                                                                               0.2
+       2.87                                                           2.87
+              2 1.5     22      2 2.5    23      2 3.5    24                 2 1.5     22     2 2.5     23      2 3.5     24                         0 (0)       15k (7.86B)   30k (15.7B)    45k (23.6B)
+                      Matrix LR (absolute) (× 10 −3 )                                Matrix LR (absolute) (× 10 −3 )                                                 Consumed Tokens
+
+Figure 6: Adding learnable magnitude gains on top of spherical training helps noticeably;
+a combined per-row-and-column gain works best. The gain parameterization makes little
+difference, with softplus giving a minimal edge, and all parameterizations training stably. On
+the 181M dense model (25B tokens). (Left) LR sweep over gain modes (scalar, per-row, per-column, or
+both rows and columns). (Center) LR sweep over gain parameterizations: updating the gain directly (with
+and without a 10−5 floor), the exponential map, and the smooth softplus map. (Right) The gradient norm
+over training; all four parameterizations train stably with nearly indistinguishable gradient-norm curves.
+
+γ = eγb, and the smooth softplus map
+
+                                                                             γ = φ(b
+                                                                                   γ ) = log 1 + eγb .                                                                                                 (2)
+                                                                                                    
+
+All four train stably and reach essentially the same loss: even updating γ directly — with no clamping and
+nothing to prevent a sign flip — trains fine, and the loss curves are nearly indistinguishable. The softplus
+map, which keeps γ > 0 by construction and keeps the gradient smooth even around zero, gives a small but
+consistent edge over the others at the optimal LR, so we adopt it as our default.4 We do not tune the gains’
+LR separately: each gain follows the learning rate of the matrix group it belongs to, and we find the loss
+to be very insensitive to it over more than an order of magnitude (Figure 12 in Appendix C).
+
+4.1.4             Learning-Rate Transfer
+Controlling the relative weight update directly through the spherical constraint comes with a crucial benefit:
+the optimal LR stays fixed as we scale the model in width, so it can be tuned once on a small model and
+reused on a much larger one. We are not the first to see this from a sphere / relative-update perspective: the
+same effect was shown with LionAR in earlier work (Kosson et al., 2026), and MuonH (Wen et al., 2026) and
+HyperP (Ren et al., 2026) report it for the Frobenius-sphere constraint with Muon. We verify that it carries
+over to Muon with magnitude–direction decoupling, and propose a simple recipe for depth-transfer as well.
+We sweep the matrix LR while scaling the model in width, depth, and both at once, and track the relative
+weight update and activation statistics underlying the transfer (Figure 7 and Figure 8).
+Results. The optimal matrix LR is essentially flat across width (Figure 7, left), following from the precise
+control of relative weight updates on the sphere (Figure 8, left and center). Transfer across depth relies on
+the fixed block-output scale α = L1 interplaying with the gains of the block-output RMSNorm. Other ways
+to downscale the residual work just as well (Appendix E, Figure 16); the main observation is that depth
+scaling needs no other tricks (Figure 7, center). Combined, the same transfer holds when scaling both width
+and depth jointly (Figure 7, right).
+Note that we transfer only the matrix LR; the embedding and output-layer LRs are held fixed across model
+sizes rather than scaled as they require a different axis (since trained with Adam). Additionally, the transfer
+explored is in width and depth at fixed batch size and training length. Transfer across batch size and token
+budget is a separate question, for which we show first experiments in the MoE Section (Section 4.2). For
+completeness, the AdamW and Muon baselines (changing only the matrix LR) are in Figure 13.
+   4 Our initial experiments did see instability for small gains close to zero, which is what led us to explore positive parame-
+
+terizations like softplus in the first place. We later traced this to a bug (a mismatch between how the gains were divided out
+and re-applied, attempting to prevent division by zero) rather than anything fundamental about updating γ directly. With
+the bug fixed, all parameterizations train stably; softplus still comes out slightly ahead, so we keep it as our default.
+
+
+                                                                                               8
+                                       Width Transfer (MuonMD)                                                               Depth Transfer w/ Res. Scaling                                              Width + Depth Transfer (MuonMD)
+                 2.9                                                                                                                            12L (181M)                                    2.9
+                                                                                                             2.90                               18L (205M)
+                 2.8                                                                                                                            24L (229M)
+                                       d=512 (181M)                                                                                                                                           2.8
+                                                                                                             2.85                               30L (252M)                                                                               181M (12L, d=512)
+                                       d=768 (308M)
+Loss
+                 2.7                   d=1024 (457M)                                Loss                                                                                     Loss             2.7                                        361M (18L, d=768)
+                                       d=1536 (827M)                                                         2.80                                                                                                                        646M (24L, d=1024)
+                 2.6                   d=2048 (1.29B)
+                                                                                                                                                                                              2.6
+                 2.5                                                                                         2.75
+
+                                                                                                                                                                                              2.5
+                           2 1.5         22          2 2.5   23      2 3.5     24                                    2 1.5      22      2 2.5        23       2 3.5     24                            2 1.5        22          2 2.5      23             2 3.5       24
+                                       Matrix LR (absolute) (× 10 −3 )                                                        Matrix LR (absolute) (× 10 −3 )                                                    Matrix LR (absolute) (× 10 −3 )
+
+Figure 7: With Magnitude–Direction Decoupling the optimal matrix learning rate stays
+essentially fixed as the model grows, so it can be tuned once on a small model and reused.
+Matrix-LR sweeps on dense models (from the 181M base) scaled across width (Left) , depth (Center) , and
+width and depth (Right) jointly. In each panel the optimal matrix LR stays roughly fixed across model sizes.
+                                                   ∆W across Widths                                                      ∆Y across Width (Q Matrix, layer 6)                                                    Activation RMS by Layer (181M)
+                                                                                                                                                                                               10 1
+                       10 −2                                                                                 10 −2                                                                                                                             Layer 1           Layer 7
+                                                                                                                                                                                                                                               Layer 2           Layer 8
+
+
+
+
+ (Q Matrix, layer 6)
+                                                                                    ∆Y (Q Matrix, layer 6)
+                                                                                                                                                                                                                                               Layer 3           Layer 9
+                                                                                                                                                                                                                                               Layer 4           Layer 10
+
+
+
+
+                                                                                                                                                                             Activation RMS
+                                                                                                                                                                                                                                               Layer 5           Layer 11
+                                                                                                                                                                                                                                               Layer 6           Layer 12
+
+
+                                          d=512 (181M)                                                                         d=512 (181M)                                                    10 0
+                       10 −3
+                                          d=768 (308M)                                                                         d=768 (308M)
+                                          d=1024 (457M)                                                      10 −3             d=1024 (457M)
+||∆W||
+ ||W||                                    d=1536 (827M)                                                                        d=1536 (827M)
+                                          d=2048 (1.29B)                                                                       d=2048 (1.29B)
+                                                                                                                                                                                              10 −1
+                                   0          5B       10B   15B   20B       25B                                        0       5B     10B         15B       20B      25B                               0 (0)           15k (7.86B)    30k (15.7B)          45k (23.6B)
+                                                   Consumed Tokens                                                                   Consumed Tokens                                                                          Steps (Tokens)
+
+Figure 8: The LR transfer of Figure 7 arises because the relative weight update and the
+resulting activation changes are held constant as the model scales. Training dynamics on the
+same dense models. (Left) The relative weight update is precisely controlled across width. (Center) This in
+turn keeps the relative change in the layer’s output stable. (Right) Across depth, the per-layer activation
+RMS stays well-behaved across the layers of a single model.
+
+4.1.5                              Learning-Rate Schedules on the Sphere
+Since the relative update follows the schedule directly on the sphere (no weight decay, no equilibrium to
+drift to), the shape of the LR matters more than in standard training. We compare the established recipe of
+a Warmup-Stable-Decay (WSD) schedule (Hu et al., 2024) with a 20% cooldown in a 1-sqrt shape (Hägele
+et al., 2024) against a simple linear schedule, and look at the weight-change dynamics in Figure 9.
+What we see is that the established recipe no longer matches a full annealing on the sphere; in fact it is
+far from it. In standard, unconstrained training the weight norm grows over the stable phase, inducing
+an implicit LR decay even at a constant nominal LR, so a WSD schedule decays more than its nominal
+shape suggests. On the sphere there is no such norm growth, and the relative update tracks the schedule
+exactly (Figure 9, right). The optimal on-sphere schedule remains an open question, but consistent, gradual
+annealing appears to be a key ingredient.
+
+4.1.6                              Warmup-Free and Continual Training
+Decoupling removes the need for warmup: the large, destabilizing updates of the first few steps never
+appear, since the relative update is regulated from step one. In fact, dropping warmup even improves the
+loss rather than merely matching it (Figure 10, left): with warmup the early steps are wasted at a reduced
+LR even though training is already stable, so removing it puts them to productive use. This gain is even
+larger than for standard Muon.
+The analogous question arises when training resumes from a checkpoint rather than from initialization (as in
+SFT or other post-training). To de-risk this, we run a re-warming experiment on a 150M model (Figure 10,
+center and right): both the loss and the gradient norm behave well when we resume and re-warm, even
+
+
+                                                                                                                                        9
+                                        Decay Schedules                                                                  Decay Schedules                                                                      ∆W across Decay Schedules
+                                                                                              3.4
+       2.93                                  Linear                                                                                                                                          0.014                                           Linear
+
+
+
+
+                                                                                                                                                                       (Q Matrix, layer 6)
+                                             WSD (1 − r 1/3 )                                 3.3                                                                                            0.012                                           WSD (1 − r 1/3 )
+       2.92
+                                             WSD (1 − r 1/4 )                                                                                                                                                                                WSD (1 − r 1/4 )
+                                             WSD (1-sqrt)                                     3.2                                                                                            0.010                                           WSD (1-sqrt)
+       2.91
+                                                                                                                                                                                             0.008
+Loss   2.90                                                                            Loss   3.1
+                                                                                                              Linear                                                                         0.006
+       2.89                                                                                   3.0             WSD (1 − r 1/3 )                                                               0.004
+                                                                                                                                                                     ||∆W||
+       2.88                                                                                                   WSD (1 − r 1/4 )                                        ||W||                  0.002
+                                                                                              2.9             WSD (1-sqrt)
+       2.87                                                                                                                                                                                  0.000
+              2 1.5           22          2 2.5        23         2 3.5           24                 0           5           10       15          20          25                                        0       5B           10B      15B        20B     25B
+                       Matrix LR (absolute) (× 10 −3 )                                                                 Training Tokens (B)                                                                            Consumed Tokens
+
+Figure 9: On the sphere, the relative weight update follows the learning-rate schedule directly,
+so the shape of the decay matters more than it does under weight decay. Comparison of a
+Warmup-Stable-Decay (WSD) schedule against a simple linear decay on the 181M dense model. (Left) LR
+sweep comparing WSD and linear decay. (Center) The corresponding loss curves. (Right) The relative
+weight update for the attention query projection, which follows the decay shape directly (the distortion at
+the very end is an artifact of the very low LRs during the final cooldown steps).
+              LR Warmup: Muon vs. MuonMD (ours)                                                       MuonMD (ours): Continual Training and Rewarming                                                MuonMD (ours): Continual Training and Rewarming
+                                                                                                                                                                                                         Source
+                                                               Muon                                                                                                                                      Target Baseline
+       2.94                                                    MuonMD (ours)                  3.8                                                                                                        Reuse Optstate
+                                                               AdamMD (ours)                                                                                                                             Reuse OptState w/ WU
+                                                                                              3.7                                                                                                        Fresh Start
+                                                               w/ warmup
+
+                                                                                                                                                                     Grad Norm
+       2.92                                                                                                                                                                                              Fresh Start w/ WU
+                                                               w/o warmup
+Loss                                                                                   Loss   3.6
+                                                                                                                                                                                      10 0
+       2.90                                                                                   3.5           Source
+                                                                                                            Target Baseline
+                                                                                                            Reuse Optstate
+       2.88                                                                                   3.4           Reuse OptState w/ WU
+                                                                                                            Fresh Start
+                                                                                                            Fresh Start w/ WU
+                                                                                              3.3
+               20     2 0.5        21    2 1.5    22   2 2.5     23       2 3.5   24                0 (0)            6k (3.15B)     12k (6.29B)        18k (9.44B)                              0 (0)           6k (3.15B)         12k (6.29B)     18k (9.44B)
+                                                                      −3
+                       Matrix LR (absolute) (× 10 )                                                                               Steps                                                                                       Steps
+
+Figure 10: Decoupling and fixing weight norms removes the need for warmup, and dropping it
+improves the loss, both from the beginning and when resuming training from a checkpoint.
+(Left) LR sweep with and without warmup on the 181M model, showing dropping warmup improves the
+loss. (Center) Loss curves for re-warming runs on a 150M model. (Right) The gradient norm over the same
+re-warming runs, confirming training stays stable.
+
+when we reuse the optimizer state and use no warmup. Staged and continual training therefore do not seem
+to be a problem. The impact of decoupling on properties such as sharpness is an interesting question for
+further study (Springer et al., 2025; Watts et al., 2026).
+
+4.2           Scaling to Large Mixture-of-Experts Models
+Setup. We now turn to Mixture-of-Experts (MoE) transformers to check that our improvements persist
+at scale. We use a DeepSeekMoE-style architecture (Dai et al., 2024): sizes range from 1.2B–6.7B total
+and 270M–810M active parameters, at a fixed 6% non-embedding sparsity with 64 experts (1 shared) and
+top-2 routing. Unlike the dense models above, these do not use RMSNorms after the attention and MLP
+blocks. We train on the Apertus 1.0 (Apertus et al., 2026) phase-5 data mixture (DCLM-edu, FineWeb-2
+HQ), a good mixture for verifying routing in multilingual settings. The full MoE configurations and
+hyperparameters are in Appendix B.
+The recipe has three steps: find the optimal LR on a small base model, transfer it to larger models with a
+scaling rule, and then scale up and compare.
+Step 1: find the optimal LR. We fix a base model at 270M-active / 1.2B-total and train for ∼15B tokens
+(28k steps), sweeping the matrix LR for each optimizer individually (Figure 11, left). Here the remaining
+LRs (embeddings, LM head, gains) are all held fixed at 10−3 with Adam, and the standard methods use a
+weight decay of 0.1, so each optimizer
+                                 q is tuned with the same budget on a shared base. For Muon we use
+a shape-scaling factor of max 1,    din ; the lower bound of 1 matters so the router is not given a much
+                                    dout
+
+
+
+
+                                                                                                                              10
+                    1.2B-270M-A: LR Sweep                                      Scaling Laws w/ MoEs                                                   Batch-Size Scaling @ 28k steps
+                                                                3.0                                                                     2.875
+                                         Muown                                                          AdamW                                                                AdamW
+       3.05                              NorMuon                                                        Muon                                                                 Muon
+                                                                2.9                                                                     2.850
+       3.00                              AdamW                                                          MuonMD (ours)                                                        MuonMD (ours)
+                                         Muon                   2.8                                                                     2.825
+       2.95                              MuonMD (ours)                                                                                  2.800
+Loss                                                     Loss   2.7
+                                                                                                             @ L=2.64 vs AdamW
+                                                                                                                                 Loss   2.775
+       2.90
+                                                                2.6                                                                     2.750
+                                                                        1.2B-270M-A        2.01×
+       2.85                                                             2.5B-420M-A             1.55×
+                                                                2.5     4.1B-580M-A
+                                                                                                                                        2.725
+       2.80                                                             6.7B-810M-A                                                     2.700           1.2B-270M-A
+                                                                2.4
+                       10   −3
+                                          10   −2                      5 · 10 18   10 19                 5 · 10 19     10 20                    128                    192               256
+                             Matrix LR                                Compute (FLOPs, 6ND, non-embed N)                                               Global Batch Size @ 4k Sequences
+
+Figure 11: The gains from decoupling persist at scale: on large MoEs, MuonMD beats well-tuned
+Muon and AdamW and reaches AdamW’s loss with roughly 2× less compute. DeepSeekMoE-style
+models (270M–810M active parameters). (Left) LR sweep of the base optimizers on the 270M-active base.
+(Center) Scaling law of loss vs. compute (non-embedding active-parameter FLOPs), where the improvement
+holds across a wide range of compute. (Right) Batch-size scaling as a function of the global batch size.
+
+downscaled LR. For MuonMD we additionally normalize the routers along the expert axis (rows), otherwise
+following the earlier recipe of scaling the update to match the weight norm.5
+Step 2: transfer it to larger models. With the optimal matrix LR fixed from the base sweep, we scale
+up without re-tuning. For the AdamW and Muon baselines we follow the Complete(d)P (Dey et al., 2025;
+Mlodozeniec et al., 2025) parametrization to set the LR and weight decay for all parameter groups across
+model width and training length. For MuonMD the recipe is simpler: because the sphere constraint already
+gives LR transfer across width (Section 4.1.4), we need no width multiplier at all and only have to account
+for the training length. There we scale LRs by 1/T 0.25 (T the token-count scaling factor), gentler than
+Complete(d)P’s 1/T 0.5 on the nominal √ LR, motivated by intuitions from rotational equilibrium (Kosson
+et al., 2024a), where the effective LR ηλ governs the dynamics. 6
+Step 3: scale up and compare. Putting it together, we scale to the large MoEs and compare against
+the baselines transferred from the tuned base (Figure 11), varying dataset size D from 7.5B–44B tokens.
+For the scaling law we plot loss against compute measured as non-embedding active-parameter FLOPs, i.e.
+6 Nact D with Nact the number of active non-embedding parameters. For the third experiment √ we reuse the
+270M-active / 1.2B-total base config and increase the batch size by k while scaling the LR by k (Malladi
+et al., 2022).
+Results. The gains from decoupling persist at scale and in the MoE setting, where MuonMD improves
+on tuned Muon and AdamW (Figure 11, left). When scaling models and training lengths, MuonMD stays
+ahead across the full range of compute we tested, reaching AdamW’s loss with roughly 2× less compute
+(Figure 11, center). This advantage holds across global batch sizes (Figure 11, right).
+Limitations. Our protocol is principled, but certainly imperfect.
+
+              • The Adam-group LRs were not separately tuned, and the initial values might be suboptimal (which
+                would spill into other configurations).
+              • We did not verify that Complete(d)P holds exactly in our setting or how it changes with Muon,
+                and we did not apply the depth scaling rules. Still, it represented the most rigorous approach
+                accounting for the different axes of scaling without spending large compute on tuning.
+              • We initially kept a short warmup for Muon, assuming it helps the Adam-optimized parameters not
+                held on a sphere, but this no longer seems to be the case (Figure 10).
+              • When varying the training tokens across models, we did not change the batch size or iteration
+                count, which might change the compute-optimal scaling.
+       5 As for plain Muon, the router gets no upscaling under MuonMD, but a scale factor of 1, leaving its LR unscaled.
+   6 The right exponent for scaling the LR with training length is still unsettled; other works report values around 0.3 (e.g.
+
+HyperP (Ren et al., 2026)). A principled choice for the sphere setting, where the LR directly sets the relative update, remains
+open. We briefly verified that 0.25 works better than 0.5 for MD training, but have not studied it exhaustively yet.
+
+
+                                                                                       11
+     • Our current set of experiments focus on pretraining loss and the training dynamics, not on down-
+       stream evaluations, though loss generally correlates well with downstream task performance (Gadre
+       et al., 2025).
+
+5   Related Work
+The ideas behind magnitude–direction decoupling have surfaced, in different forms, across a rapidly growing
+body of recent and concurrent work, with many of these threads developed independently and in parallel.
+We try to connect them here, and have aimed to ablate the choices directly in our experiments (Section 4);
+we discuss the most directly related work below and give a fuller account in Appendix I.
+Most recent and directly related. AdamH/MuonH (Wen et al., 2026) constrain the hidden weights
+of LLMs to a fixed Frobenius sphere and drop weight decay, like our direction update. HyperP (Ren
+et al., 2026) builds on top of this and investigates how to achieve LR transfer across width, depth, training
+tokens, and MoE granularity. However, both keep the norms fixed but add no learnable magnitude gains
+(relying on normalization layer gains). In constrast, learnable Multipliers (Velikanov et al., 2026) and
+Scale Vectors (Wang et al., 2026) both learn explicit scales, similar to us; the former adding scalar/per-
+row/per-column multipliers to each matrix, the latter studying the scale vectors in normalization layers
+and proposing a magnitude–direction reparameterization. Neither holds the weights at a fixed sphere norm.
+Concurrently and very close to our work, Muown (Lion et al., 2026) splits each weight into a per-row
+magnitude and a directional factor — motivated by Muon’s tendency to let the spectral norm drift upward
+— updating the magnitude with Adam and the direction with Muon, a separation much like ours but per
+row. Originally, it let the norm grow at each step, which gives an implicit LR decay for growing weights; the
+direct follow-up (Hübler et al., 2026) independently arrives at the same idea as our work, i.e., projecting each
+weight onto a row sphere to explicitly control the angular update, and supports it with Riemannian gradient
+theory. Unlike both, which are tied to Muon, our motivation is optimizer-agnostic, and we additionally
+ablate relevant empirical choices, such as the normalization axis and more expressive gains.
+Broader context. A long line of work constrains weights (and sometimes updates) to a sphere or matrix
+manifold during pretraining — on the per-vector or Frobenius sphere (Loshchilov et al., 2025; Franke et al.,
+2025; Fu et al., 2025; Gu & Xie, 2026) or on the spectral norm (Xie et al., 2026; Bernstein, 2025; Newhouse
+et al., 2025; Xu et al., 2026) — differing mainly in which norm is fixed and whether a magnitude is added
+back. In our final recipe, we fix the softer Frobenius norm and add learnable gains inside the optimizer.
+A related thread controls the update size relative to the weight without an explicit split, building on the
+“effective learning rate” of scale-invariant weights under normalization (van Laarhoven, 2017; Wan et al.,
+2021; Kodryan et al., 2022; Kosson et al., 2024a; Liu et al., 2021; You et al., 2017; Karras et al., 2024), and
+a parallel one transfers hyperparameters across scale via µP and its successors (Yang et al., 2021; Shigida
+et al., 2026; Mlodozeniec et al., 2025; Dey et al., 2025). The most direct classic ancestor of our gains is
+Weight Normalization (Salimans & Kingma, 2016), which reparameterizes w = (g/∥v∥) v as a learnable
+magnitude times a direction, though without a fixed-norm constraint or a separate LR for the direction;
+this and other reparameterization and normalization schemes (Liu et al., 2018; Qiao et al., 2019; Miyato
+et al., 2018) target conditioning or stability rather than the magnitude–direction interference we address.
+
+6   Discussion
+Magnitude–direction decoupling is a simple change that pays off across optimizers and scales. While the
+additional logic required in the optimizer step adds a few more operations, we find that the overhead
+introduced relative to the total training time remains modest as the model size scales up in practical
+distributed settings (Appendix F). Connecting to existing work on spherical training, our ablations clarify
+what matters: fixing the direction to a sphere buys most of the gain (while the exact normalization axis is
+secondary), and adding learnable per-row and per-column gains brings crucial improvements.
+More broadly, MD training invites us to rethink how we parametrize and constrain networks from their
+training dynamics. It also opens questions on the optimal on-sphere schedule, what the learned magnitudes
+do (Appendix H), and understanding the impact on loss-landscape sharpness, downstream behaviour (in
+particular RL), or low-precision training.
+
+
+                                                      12
+Acknowledgments
+This work used compute from the Swiss AI Initiative on the Alps cluster under the Apertus initiative. We
+thank Fabian Schaipp, Mikhail Gorbunov, and Skander Moalla for helpful discussions.
+
+References
+Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebrón, and Sumit
+  Sanghai. GQA: Training generalized multi-query transformer models from multi-head checkpoints.
+  In Conference on Empirical Methods in Natural Language Processing (EMNLP), 2023.         URL
+  https://arxiv.org/abs/2305.13245. 5, 20
+
+Maksym Andriushchenko, Francesco D’Angelo, Aditya Varre, and Nicolas Flammarion. Why do we
+ need weight decay in modern deep learning? In Advances in Neural Information Processing Systems
+ (NeurIPS), 2024. URL https://arxiv.org/abs/2310.04415. 29
+
+Project Apertus, Alejandro Hernández-Cano, Alexander Hägele, Allen Hao Huang, Angelika Romanou,
+  Antoni-Joan Solergibert i Llaquet, Barna Pásztor, Bettina Messmer, Dhia Garbaya, Eduard Frank Ďurech,
+  Ido Hakimi, Juan García Giraldo, Mete Ismayilzada, Negar Foroutan, Skander Moalla, Tiancheng Chen,
+  Vinko Sabolčec, Yixuan Xu, Michael Aerni, Badr AlKhamissi, Ines Altemir Marinas, Mohammad Hossein
+  Amani, Matin Ansaripour, Ilia Badanin, Harold Benoit, Emanuela Boros, Nicholas Browning, Fabian
+  Bösch, Maximilian Böther, Niklas Canova, Camille Challier, Clement Charmillot, Jonathan Coles, Jan
+  Deriu, Arnout Devos, Lukas Drescher, Daniil Dzenhaliou, Maud Ehrmann, Dongyang Fan, Simin Fan,
+  Silin Gao, Miguel Gila, María Grandury, Diba Hashemi, Alexander Hoyle, Jiaming Jiang, Mark Klein,
+  Andrei Kucharavy, Anastasiia Kucherenko, Frederike Lübeck, Roman Machacek, Theofilos Manitaras,
+  Andreas Marfurt, Kyle Matoba, Simon Matrenok, Henrique Mendonça, Fawzi Mohamed, Syrielle Mon-
+  tariol, Luca Mouchel, Sven Najem-Meyer, Jingwei Ni, Gennaro Oliva, Matteo Pagliardini, Elia Palme,
+  Andrei Panferov, Léo Paoletti, Marco Passerini, Ivan Pavlov, Auguste Poiroux, Kaustubh Ponkshe,
+  Nathan Ranchin, Javi Rando, Mathieu Sauser, Jakhongir Saydaliev, Muhammad Ali Sayfiddinov, Marian
+  Schneider, Stefano Schuppli, Marco Scialanga, Andrei Semenov, Kumar Shridhar, Raghav Singhal,
+  Anna Sotnikova, Alexander Sternfeld, Ayush Kumar Tarun, Paul Teiletche, Jannis Vamvas, Xiaozhe
+  Yao, Hao Zhao, Alexander Ilic, Ana Klimovic, Andreas Krause, Caglar Gulcehre, David Rosenthal,
+  Elliott Ash, Florian Tramèr, Joost VandeVondele, Livio Veraldi, Martin Rajman, Thomas C. Schulthess,
+  Torsten Hoefler, Antoine Bosselut, Martin Jaggi, and Imanol Schlag. Apertus: Democratizing Open
+  and Compliant LLMs for Global Language Environments. In Proceedings of the Annual Meeting of the
+  Association for Computational Linguistics (ACL), 2026. https://arxiv.org/abs/2509.14233. 10, 22
+
+Sanjeev Arora, Zhiyuan Li, and Kaifeng Lyu. Theoretical analysis of auto rate-tuning by batch
+  normalization.  In International Conference on Learning Representations (ICLR), 2019.  URL
+  https://arxiv.org/abs/1812.03981. 29
+
+Jimmy Lei Ba, Jamie Ryan Kiros, and Geoffrey E. Hinton. Layer normalization.                 arXiv preprint
+  arXiv:1607.06450, 2016. URL https://arxiv.org/abs/1607.06450. 3
+
+Shane Bergsma, Nolan Dey, Gurpreet Gosal, Gavia Gray, Daria Soboleva, and Joel Hestness. Power lines:
+  Scaling laws for weight decay and batch size in LLM pre-training. arXiv preprint arXiv:2505.13738,
+  2025a. URL https://arxiv.org/abs/2505.13738. 29
+
+Shane Bergsma, Bin Claire Zhang, Nolan Dey, Shaheer Muhammad, Gurpreet Gosal, and Joel Hestness.
+  Scaling with collapse: Efficient and predictable training of LLM families. arXiv preprint arXiv:2509.25087,
+  2025b. URL https://arxiv.org/abs/2509.25087. 29
+
+Jeremy Bernstein.    Modular manifolds.     Thinking Machines Lab: Connectionism, 2025.                  doi:
+  10.64434/tml.20250926. https://thinkingmachines.ai/blog/modular-manifolds/. 2, 12, 29
+
+Jeremy Bernstein and Laker Newhouse. Old optimizer, new norm: An anthology.                  arXiv preprint
+  arXiv:2409.20325, 2024. URL https://arxiv.org/abs/2409.20325. 1
+
+
+                                                     13
+Damai Dai, Chengqi Deng, Chenggang Zhao, R. X. Xu, Huazuo Gao, Deli Chen, Jiashi Li, Wangding Zeng,
+ Xingkai Yu, Y. Wu, et al. Deepseekmoe: Towards ultimate expert specialization in mixture-of-experts
+ language models. In Proceedings of the 62nd Annual Meeting of the Association for Computational
+ Linguistics (ACL), pp. 1280–1297, 2024. URL https://arxiv.org/abs/2401.06066. 2, 10, 21
+
+DeepSeek-AI.   Deepseek-v3 technical report.         arXiv preprint arXiv:2412.19437,    2024.     URL
+  https://arxiv.org/abs/2412.19437. 21
+
+Mostafa Dehghani, Josip Djolonga, Basil Mustafa, Piotr Padlewski, Jonathan Heek, Justin Gilmer, Andreas
+ Steiner, Mathilde Caron, Robert Geirhos, Ibrahim Alabdulmohsin, et al. Scaling vision transformers
+ to 22 billion parameters. In International Conference on Machine Learning (ICML), 2023. URL
+ https://arxiv.org/abs/2302.05442. 5, 20
+
+Justin Deschenaux and Caglar Gulcehre. Language modeling with hyperspherical flows. arXiv preprint
+  arXiv:2605.11125, 2026. URL https://arxiv.org/abs/2605.11125. 28
+
+Nolan Dey, Bin Claire Zhang, Lorenzo Noci, Mufan Li, Blake Bordelon, Shane Bergsma, Cengiz
+  Pehlevan, Boris Hanin, and Joel Hestness. Don’t be lazy: CompleteP enables compute-efficient
+  deep transformers. In Advances in Neural Information Processing Systems (NeurIPS), 2025. URL
+  https://arxiv.org/abs/2505.01618. 1, 11, 12, 22, 29
+
+Larry Dial.    Improving our llm pretraining efficiency.           https://www.openathena.ai/blog/
+  pretraining-speedup/, jun 2026. Open Athena Blog. 1
+
+Ming Ding, Zhuoyi Yang, Wenyi Hong, Wendi Zheng, Chang Zhou, Da Yin, Junyang Lin, Xu Zou, Zhou Shao,
+ Hongxia Yang, and Jie Tang. Cogview: Mastering text-to-image generation via transformers. In Advances
+ in Neural Information Processing Systems (NeurIPS), 2021. URL https://arxiv.org/abs/2105.13290.
+ 5, 20
+
+Aleksandr Dremov, Alexander Hägele, Atli Kosson, and Martin Jaggi. Training dynamics of the cooldown
+  stage in warmup-stable-decay learning rate scheduler. Transactions on Machine Learning Research, 2025.
+  ISSN 2835-8856. URL https://openreview.net/forum?id=ZnSYEcZod3. 21
+
+Katie Everett, Lechao Xiao, Mitchell Wortsman, Alexander A. Alemi, Roman Novak, Peter J. Liu, Izzeddin
+ Gur, Jascha Sohl-Dickstein, Leslie Pack Kaelbling, Jaehoon Lee, and Jeffrey Pennington. Scaling
+ exponents across parameterizations and optimizers. In International Conference on Machine Learning
+ (ICML), 2024. URL https://arxiv.org/abs/2407.05872. 1, 29
+
+Maxim Fishman, Brian Chmiel, Ron Banner, Daniel Soudry, and Boris Ginsburg. Normalized architectures
+ are natively 4-bit. arXiv preprint arXiv:2605.06067, 2026. URL https://arxiv.org/abs/2605.06067. 28
+
+Jörg K.H. Franke, Urs Spiegelhalter, Marianna Nezhurina, Jenia Jitsev, Frank Hutter, and Michael Hefen-
+  brock. Learning in compact spaces with approximately normalized transformer. In Advances in Neural
+  Information Processing Systems (NeurIPS), 2025. URL https://arxiv.org/abs/2505.22014. 2, 12, 28
+
+Yonggan Fu, Xin Dong, Shizhe Diao, Matthijs Van keirsbilck, Hanrong Ye, Wonmin Byeon, Yashaswi
+  Karnati, Lucas Liebenwein, Hannah Zhang, Nikolaus Binder, Maksim Khadkevich, Alexander Keller, Jan
+  Kautz, Yingyan Celine Lin, and Pavlo Molchanov. Nemotron-flash: Towards latency-optimal hybrid small
+  language models. arXiv preprint arXiv:2511.18890, 2025. URL https://arxiv.org/abs/2511.18890.
+  12, 28
+
+Samir Yitzhak Gadre, Georgios Smyrnis, Vaishaal Shankar, Suchin Gururangan, Mitchell Wortsman, Rulin
+  Shao, Jean Mercat, Alex Fang, Jeffrey Li, Sedrick Keh, Rui Xin, Marianna Nezhurina, Igor Vasiljevic,
+  Jenia Jitsev, Luca Soldaini, Alexandros G. Dimakis, Gabriel Ilharco, Pang Wei Koh, Shuran Song,
+  Thomas Kollar, Yair Carmon, Achal Dave, Reinhard Heckel, Niklas Muennighoff, and Ludwig Schmidt.
+  Language models scale reliably with over-training and on downstream tasks. In International Conference
+  on Learning Representations (ICLR), 2025. URL https://arxiv.org/abs/2403.08540. 12
+
+
+                                                  14
+Akhilesh Gotmare, Nitish Shirish Keskar, Caiming Xiong, and Richard Socher. A closer look at deep
+ learning heuristics: Learning rate restarts, warmup and distillation. In International Conference on
+ Learning Representations (ICLR), 2019. URL https://arxiv.org/abs/1810.13243. 29
+
+Priya Goyal, Piotr Dollár, Ross Girshick, Pieter Noordhuis, Lukasz Wesolowski, Aapo Kyrola, Andrew
+  Tulloch, Yangqing Jia, and Kaiming He. Accurate, large minibatch SGD: Training ImageNet in 1 hour.
+  arXiv preprint arXiv:1706.02677, 2017. URL https://arxiv.org/abs/1706.02677. 2, 29
+
+Yufei Gu and Zeke Xie. Mano: Restriking manifold optimization for llm training.          arXiv preprint
+  arXiv:2601.23000, 2026. URL https://arxiv.org/abs/2601.23000. 12, 28
+
+Vineet Gupta, Tomer Koren, and Yoram Singer.        Shampoo:   Preconditioned stochastic ten-
+  sor optimization.  In International Conference on Machine Learning (ICML), 2018.       URL
+  https://arxiv.org/abs/1802.09568. 1
+
+Alexander Hägele, Elie Bakouch, Atli Kosson, Loubna Ben Allal, Leandro Von Werra, and Martin Jaggi.
+  Scaling laws and compute-optimal training beyond fixed training durations. In Advances in Neural
+  Information Processing Systems (NeurIPS), 2024. URL https://arxiv.org/abs/2405.18392. 9, 21
+
+Byeongho Heo, Sanghyuk Chun, Seong Joon Oh, Dongyoon Han, Sangdoo Yun, Gyuwan Kim, Youngjung
+  Uh, and Jung-Woo Ha. Adamp: Slowing down the slowdown for momentum optimizers on scale-
+  invariant weights. In International Conference on Learning Representations (ICLR), 2021. URL
+  https://arxiv.org/abs/2006.08217. 3, 29
+
+Elad Hoffer, Ron Banner, Itay Golan, and Daniel Soudry. Norm matters: Efficient and accurate normaliza-
+  tion schemes in deep networks. In Advances in Neural Information Processing Systems (NeurIPS), 2018.
+  URL https://arxiv.org/abs/1803.01814. 29
+
+Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai, Eliza Rutherford,
+  Diego de Las Casas, Lisa Anne Hendricks, Johannes Welbl, Aidan Clark, et al. Training compute-optimal
+  large language models. In Advances in Neural Information Processing Systems (NeurIPS), 2022. URL
+  https://arxiv.org/abs/2203.15556. 21
+
+Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and
+  Weizhu Chen. LoRA: Low-rank adaptation of large language models. In International Conference on
+  Learning Representations (ICLR), 2022. URL https://arxiv.org/abs/2106.09685. 27
+
+Shengding Hu, Yuge Tu, Xu Han, Chaoqun He, Ganqu Cui, Xiang Long, et al. MiniCPM: Unveiling the
+  potential of small language models with scalable training strategies. arXiv preprint arXiv:2404.06395,
+  2024. URL https://arxiv.org/abs/2404.06395. 9, 21
+
+Florian Hübler, Kai Lion, Antonio Orvieto, and Niao He. Muown implicitly performs angular step-size
+  decay. arXiv preprint arXiv:2606.23637, 2026. URL https://arxiv.org/abs/2606.23637. 2, 12
+
+Keller Jordan, Yuchen Jin, Vlado Boza, Jiacheng You, Franz Cesista, Laker Newhouse, and Jeremy
+ Bernstein. Muon: An optimizer for hidden layers in neural networks. https://kellerjordan.github.
+ io/posts/muon/, 2024a. URL https://kellerjordan.github.io/posts/muon/. 1
+
+Keller Jordan et al. modded-nanogpt: Speedrunning the nanogpt baseline. https://github.com/
+ KellerJordan/modded-nanogpt, 2024b. URL https://github.com/KellerJordan/modded-nanogpt. 7
+
+Tero Karras, Miika Aittala, Jaakko Lehtinen, Janne Hellsten, Timo Aila, and Samuli Laine. Analyzing and
+  improving the training dynamics of diffusion models. In IEEE/CVF Conference on Computer Vision and
+  Pattern Recognition (CVPR), 2024. URL https://arxiv.org/abs/2312.02696. 2, 6, 12, 29
+
+Jeonghoon Kim, Byeongchan Lee, Cheonbok Park, Yeontaek Oh, Beomjun Kim, Taehwan Yoo, Seongjin
+  Shin, Dongyoon Han, Jinwoo Shin, and Kang Min Yoo. Peri-ln: Revisiting normalization layer in
+  the transformer architecture. In International Conference on Machine Learning (ICML), 2025. URL
+  https://arxiv.org/abs/2502.02732. 5, 20
+
+
+                                                  15
+Kimi Team. Kimi k2: Open agentic intelligence.           arXiv preprint arXiv:2507.20534, 2025.      URL
+  https://arxiv.org/abs/2507.20534. 2, 3
+
+Diederik P. Kingma and Jimmy Ba. Adam: A method for stochastic optimization. In International
+  Conference on Learning Representations (ICLR), 2015. URL https://arxiv.org/abs/1412.6980. 1
+
+Maxim Kodryan, Ekaterina Lobacheva, Maksim Nakhodnov, and Dmitry Vetrov. Training scale-invariant
+ neural networks on the sphere can happen in three regimes. In Advances in Neural Information Processing
+ Systems (NeurIPS), 2022. URL https://arxiv.org/abs/2209.03695. 12, 29
+
+Alexander Kolesnikov, Lucas Beyer, Xiaohua Zhai, Joan Puigcerver, Jessica Yung, Sylvain Gelly, and Neil
+  Houlsby. Big transfer (bit): General visual representation learning. In European Conference on Computer
+  Vision (ECCV), 2020. URL https://arxiv.org/abs/1912.11370. 29
+
+Atli Kosson. On Balanced Representation Learning in Neural Networks. PhD thesis, École Polytechnique
+  Fédérale de Lausanne (EPFL), 2026. URL https://infoscience.epfl.ch/entities/publication/
+  2766967a-1920-4f95-bacf-60ecf7a40eaf. 29
+
+Atli Kosson, Bettina Messmer, and Martin Jaggi. Rotational equilibrium: How weight decay balances
+  learning across neural networks. In International Conference on Machine Learning (ICML), 2024a. URL
+  https://arxiv.org/abs/2305.17212. 2, 3, 11, 12, 29
+
+Atli Kosson, Bettina Messmer, and Martin Jaggi. Analyzing & reducing the need for learning rate
+  warmup in gpt training. In Advances in Neural Information Processing Systems (NeurIPS), 2024b. URL
+  https://arxiv.org/abs/2410.23922. 29
+
+Atli Kosson, Jeremy Welborn, Yang Liu, Martin Jaggi, and Xi Chen. Weight decay may matter more
+  than mup for learning rate transfer in practice. In International Conference on Learning Representations
+  (ICLR), 2026. URL https://arxiv.org/abs/2510.19093. 2, 8
+
+Hojoon Lee, Youngdo Lee, Takuma Seno, Donghu Kim, Peter Stone, and Jaegul Choo. Hyperspherical
+ normalization for scalable deep reinforcement learning. In International Conference on Machine Learning
+ (ICML), 2025. URL https://arxiv.org/abs/2502.15280. 29
+
+Zhiyuan Li and Sanjeev Arora. An exponential learning rate schedule for deep learning. In International
+  Conference on Learning Representations (ICLR), 2020. URL https://arxiv.org/abs/1910.07454. 29
+
+Kai Lion, Florian Hübler, Bingcong Li, Antonio Orvieto, and Niao He. Muown: Row-norm control for muon
+ optimization. arXiv preprint arXiv:2605.10797, 2026. URL https://arxiv.org/abs/2605.10797. 2, 12
+
+Jingyuan Liu, Jianlin Su, Xingcheng Yao, Zhejun Jiang, Guokun Lai, Yulun Du, Yidao Qin, Weixin Xu,
+  Enzhe Lu, Junjie Yan, et al. Muon is scalable for llm training. arXiv preprint arXiv:2502.16982, 2025.
+  URL https://arxiv.org/abs/2502.16982. 23
+
+Liyuan Liu, Haoming Jiang, Pengcheng He, Weizhu Chen, Xiaodong Liu, Jianfeng Gao, and Jiawei Han.
+  On the variance of the adaptive learning rate and beyond. In International Conference on Learning
+  Representations (ICLR), 2020. URL https://arxiv.org/abs/1908.03265. 29
+
+Weiyang Liu, Zhen Liu, Zhiding Yu, Bo Dai, Rongmei Lin, Yisen Wang, James M. Rehg, and Le Song.
+ Decoupled networks. In IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2018.
+ URL https://arxiv.org/abs/1804.08071. 2, 12, 29
+
+Yang Liu, Jeremy Bernstein, Markus Meister, and Yisong Yue. Learning by turning: Neural archi-
+  tecture aware optimisation. In International Conference on Machine Learning (ICML), 2021. URL
+  https://arxiv.org/abs/2102.07227. 2, 12, 29
+
+Ilya Loshchilov, Cheng-Ping Hsieh, Simeng Sun, and Boris Ginsburg. ngpt: Normalized transformer with
+   representation learning on the hypersphere. In International Conference on Learning Representations
+   (ICLR), 2025. URL https://arxiv.org/abs/2410.01131. 2, 6, 12, 24, 26, 28
+
+
+                                                   16
+Clare Lyle, Zeyu Zheng, Khimya Khetarpal, James Martens, Hado van Hasselt, Razvan Pascanu, and
+  Will Dabney. Normalization and effective learning rates in reinforcement learning. Advances in Neural
+  Information Processing Systems (NeurIPS), 2024. URL https://proceedings.neurips.cc/paper_
+  files/paper/2024/hash/c04d37be05ba74419d2d5705972a9d64-Abstract-Conference.html. 29
+
+Sadhika Malladi, Kaifeng Lyu, Abhishek Panigrahi, and Sanjeev Arora. On the SDEs and scaling rules
+  for adaptive gradient algorithms. In Advances in Neural Information Processing Systems (NeurIPS),
+  volume 35, pp. 7697–7711, 2022. URL https://arxiv.org/abs/2205.10287. 11, 22
+
+Bettina Messmer, Vinko Sabolčec, and Martin Jaggi. Enhancing multilingual LLM pretraining with
+  model-based data selection. In Jonathan Gerber, Mark Cieliebak, Don Tuggener, and Manuela
+  Hürlimann (eds.), Proceedings of the 10th edition of the Swiss Text Analytics Conference, pp.
+  31–56, Winterthur, Switzerland, May 2025. Association for Computational Linguistics.     URL
+  https://aclanthology.org/2025.swisstext-1.4/. 22
+
+Takeru Miyato, Toshiki Kataoka, Masanori Koyama, and Yuichi Yoshida. Spectral normalization for
+  generative adversarial networks. In International Conference on Learning Representations (ICLR), 2018.
+  URL https://arxiv.org/abs/1802.05957. 12, 29
+
+Takeru Miyato, Sindy Löwe, Andreas Geiger, and Max Welling.          Artificial kuramoto oscilla-
+  tory neurons.  In International Conference on Learning Representations (ICLR), 2025.     URL
+  https://arxiv.org/abs/2410.13821. 29
+
+Bruno Mlodozeniec, Pierre Ablin, Louis Béthune, Dan Busbridge, Michal Klein, Jason Ramapuram, and
+  Marco Cuturi. Completed hyperparameter transfer across modules, width, depth, batch and duration.
+  arXiv preprint arXiv:2512.22382, 2025. URL https://arxiv.org/abs/2512.22382. 1, 11, 12, 22, 29
+
+Laker Newhouse, R. Preston Hess, Franz Cesista, Andrii Zahorodnii, Jeremy Bernstein, and Phillip Isola.
+  Training transformers with enforced lipschitz constants. arXiv preprint arXiv:2507.13338, 2025. URL
+  https://arxiv.org/abs/2507.13338. 12, 29
+
+Louis Owen, Abhay Kumar, Nilabhra Roy Chowdhury, and Fabian Güra.                 Variance con-
+  trol via weight rescaling in llm pre-training. arXiv preprint arXiv:2503.17500, 2025.    URL
+  https://arxiv.org/abs/2503.17500. 29
+
+Guilherme Penedo, Hynek Kydlíček, Anton Lozhkov, Margaret Mitchell, Colin Raffel, Leandro Von Werra,
+ and Thomas Wolf. The FineWeb datasets: Decanting the web for the finest text data at scale. In Advances
+ in Neural Information Processing Systems (NeurIPS), 2024. URL https://arxiv.org/abs/2406.17557.
+ 5, 20
+
+Thomas Pethick, Wanyun Xie, Kimon Antonakopoulos, Zhenyu Zhu, Antonio Silveti-Falls, and Volkan
+  Cevher. Training deep learning models with norm-constrained lmos. In International Conference on
+  Machine Learning, pp. 49069–49104. PMLR, 2025. 1
+
+Siyuan Qiao, Huiyu Wang, Chenxi Liu, Wei Shen, and Alan Yuille. Micro-batch training with batch-
+  channel normalization and weight standardization. arXiv preprint arXiv:1903.10520, 2019. URL
+  https://arxiv.org/abs/1903.10520. 12, 29
+
+Samyam Rajbhandari, Jeff Rasley, Olatunji Ruwase, and Yuxiong He. Zero: Memory optimizations toward
+  training trillion parameter models, 2020. URL https://arxiv.org/abs/1910.02054. 26
+
+Liliang Ren, Yang Liu, Yelong Shen, and Weizhu Chen.           Rethinking language model scaling
+  under transferable hypersphere optimization.    arXiv preprint arXiv:2603.28743, 2026.   URL
+  https://arxiv.org/abs/2603.28743. 2, 8, 11, 12, 29
+
+Tim Salimans and Diederik P. Kingma. Weight normalization: A simple reparameterization to accelerate
+  training of deep neural networks. Advances in Neural Information Processing Systems (NeurIPS), 2016.
+  URL https://arxiv.org/abs/1602.07868. 2, 12, 29
+
+
+                                                  17
+Fabian Schaipp, Alexander Hägele, Adrien Taylor, Umut Simsekli, and Francis Bach. The surprising
+  agreement between convex optimization theory and learning-rate scheduling for large model training. In
+  International Conference on Machine Learning, pp. 53267–53294. PMLR, 2025. 21
+
+Noam Shazeer. Glu variants improve transformer.          arXiv preprint arXiv:2002.05202, 2020.       URL
+  https://arxiv.org/abs/2002.05202. 20
+
+Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le, Geoffrey Hinton, and Jeff
+  Dean. Outrageously large neural networks: The sparsely-gated mixture-of-experts layer. In International
+  Conference on Learning Representations (ICLR), 2017. URL https://arxiv.org/abs/1701.06538. 2
+
+Boris Shigida, Boris Hanin, and Andrey Gromov. Learning rate transfer in normalized transformers. arXiv
+  preprint arXiv:2604.27077, 2026. URL https://arxiv.org/abs/2604.27077. 12, 25, 29
+
+Mohammad Shoeybi, Mostofa Patwary, Raul Puri, Patrick LeGresley, Jared Casper, and Bryan Catanzaro.
+ Megatron-LM: Training multi-billion parameter language models using model parallelism. arXiv preprint
+ arXiv:1909.08053, 2019. URL https://arxiv.org/abs/1909.08053. 20
+
+Jacob Mitchell Springer, Sachin Goyal, Kaiyue Wen, Tanishq Kumar, Xiang Yue, Sadhika Malladi, Graham
+  Neubig, and Aditi Raghunathan. Overtrained language models are harder to fine-tune. arXiv preprint
+  arXiv:2503.19206, 2025. 10
+
+Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen, and Yunfeng Liu. Roformer: En-
+  hanced transformer with rotary position embedding. arXiv preprint arXiv:2104.09864, 2021. URL
+  https://arxiv.org/abs/2104.09864. 20
+
+Twan van Laarhoven.      L2 regularization versus batch and weight normalization.          arXiv preprint
+  arXiv:1706.05350, 2017. URL https://arxiv.org/abs/1706.05350. 12, 29
+
+Maksim Velikanov, Ilyas Chahed, Jingwei Zuo, Dhia Eddine Rhaiem, Younes Belkada, and Hakim Hacid.
+ Learnable multipliers: Freeing the scale of language model matrix layers. arXiv preprint arXiv:2601.04890,
+ 2026. URL https://arxiv.org/abs/2601.04890. 2, 12
+
+Nikhil Vyas, Depen Morwani, Rosie Zhao, Mujin Kwun, Itai Shapira, David Brandfonbrener, Lucas
+  Janson, and Sham Kakade. SOAP: Improving and stabilizing shampoo using adam. arXiv preprint
+  arXiv:2409.11321, 2024. URL https://arxiv.org/abs/2409.11321. 1
+
+Ruosi Wan, Zhanxing Zhu, Xiangyu Zhang, and Jian Sun. Spherical motion dynamics: Learning dynamics
+  of normalized neural network using SGD and weight decay. In Advances in Neural Information Processing
+  Systems (NeurIPS), 2021. URL https://arxiv.org/abs/2006.08419. 2, 3, 12, 29
+
+Lean Wang, Huazuo Gao, Chenggang Zhao, Xu Sun, and Damai Dai.          Auxiliary-loss-free load
+  balancing strategy for mixture-of-experts. arXiv preprint arXiv:2408.15664, 2024.        URL
+  https://arxiv.org/abs/2408.15664. 21
+
+Mingze Wang, Shuchen Zhu, Yuxin Fang, Binghui Li, Kai Shen, and Shu Zhong. Negligible in size,
+ significant in effect: On scale vectors in large language models. arXiv preprint arXiv:2605.26895, 2026.
+ URL https://arxiv.org/abs/2605.26895. 2, 12
+
+Xi Wang and Laurence Aitchison.      How to set AdamW’s weight decay as you scale model
+  and dataset size.  In International Conference on Machine Learning (ICML), 2025. URL
+  https://arxiv.org/abs/2405.13698. 1, 29
+
+Ishaan Watts, Catherine Li, Sachin Goyal, Jacob Mitchell Springer, and Aditi Raghunathan. Sharpness-
+  aware pretraining mitigates catastrophic forgetting. arXiv preprint arXiv:2605.02105, 2026. 10
+
+Kaiyue Wen, Xingyu Dang, Kaifeng Lyu, Tengyu Ma, and Percy Liang. Fantastic pretraining optimizers
+ and where to find them 2.1: Hyperball optimization. https://tinyurl.com/muonh, 2026. URL
+ https://tinyurl.com/muonh. 2, 6, 8, 12
+
+
+                                                    18
+Mitchell Wortsman, Peter J. Liu, Lechao Xiao, Katie Everett, Alex Alemi, Ben Adlam, John D. Co-Reyes,
+ Izzeddin Gur, Abhishek Kumar, Roman Novak, Jeffrey Pennington, Jascha Sohl-Dickstein, Kelvin
+ Xu, Jaehoon Lee, Justin Gilmer, and Simon Kornblith. Small-scale proxies for large-scale transformer
+ training instabilities. In International Conference on Learning Representations (ICLR), 2024. URL
+ https://arxiv.org/abs/2309.14322. 5, 20
+Tian Xie, Haoming Luo, Haoyu Tang, Yiwen Hu, Jason Klein Liu, Qingnan Ren, Yang Wang, Wayne Xin
+  Zhao, Rui Yan, Bing Su, Chong Luo, and Baining Guo. Controlled llm training on spectral sphere. arXiv
+  preprint arXiv:2601.08393, 2026. URL https://arxiv.org/abs/2601.08393. 12, 29
+Ruibin Xiong, Yunchang Yang, Di He, Kai Zheng, Shuxin Zheng, Chen Xing, Huishuai Zhang, Yanyan Lan,
+  Liwei Wang, and Tie-Yan Liu. On layer normalization in the transformer architecture. In International
+  Conference on Machine Learning (ICML), 2020. URL https://arxiv.org/abs/2002.04745. 2, 29
+
+Ruihan Xu, Jiajin Li, and Yiping Lu. On the width scaling of neural optimizers under matrix operator
+  norms i: Row/column normalization and hyperparameter transfer. arXiv preprint arXiv:2603.09952,
+  2026. URL https://arxiv.org/abs/2603.09952. 12, 29
+Greg Yang, Edward J. Hu, Igor Babuschkin, Szymon Sidor, Xiaodong Liu, David Farhi, Nick Ryder,
+  Jakub Pachocki, Weizhu Chen, and Jianfeng Gao. Tensor programs v: Tuning large neural networks via
+  zero-shot hyperparameter transfer. In Advances in Neural Information Processing Systems (NeurIPS),
+  2021. URL https://arxiv.org/abs/2203.03466. 2, 12, 29
+Greg Yang, Dingli Yu, Chen Zhu, and Soufiane Hayou. Tensor programs VI: Feature learning in infinite-
+  depth neural networks. In International Conference on Learning Representations (ICLR), 2024. URL
+  https://arxiv.org/abs/2310.02244. 29
+
+Yang You, Igor Gitman, and Boris Ginsburg. Large batch training of convolutional networks. arXiv preprint
+  arXiv:1708.03888, 2017. URL https://arxiv.org/abs/1708.03888. 2, 12, 29
+Yang You, Jing Li, Sashank Reddi, Jonathan Hseu, Sanjiv Kumar, Srinadh Bhojanapalli, Xiaodan Song,
+  James Demmel, Kurt Keutzer, and Cho-Jui Hsieh. Large batch optimization for deep learning: Training
+  bert in 76 minutes. In International Conference on Learning Representations (ICLR), 2020. URL
+  https://arxiv.org/abs/1904.00962. 29
+Xiaohua Zhai, Alexander Kolesnikov, Neil Houlsby, and Lucas Beyer. Scaling vision transformers.
+  In IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 2022.         URL
+  https://arxiv.org/abs/2106.04560. 29
+
+Biao Zhang and Rico Sennrich. Root mean square layer normalization. In Advances in Neural Information
+  Processing Systems (NeurIPS), 2019. URL https://arxiv.org/abs/1910.07467. 3, 5, 20
+
+
+
+
+                                                   19
+A     Full Optimizer Step with Row-and-Column Gains
+Algorithm 1 in the main text gives the optimizer step for a single scalar gain. Algorithm 2 spells out
+the general case we use as our default: separate per-row and per-column gains γrow , γcol with the softplus
+reparameterization of Section 3.1. The scalar version is recovered by tying both gains to a single shared
+scalar, and the per-row-only or per-column-only variants by fixing the other gain to 1.
+
+Algorithm 2 Magnitude–Direction decoupled optimizer step with per-row and per-column gains. The
+fused weight is W = diag(γrow ) W
+                                c diag(γcol ) with positive gains γrow = φ(γd
+                                                                            row ), γcol = φ(d
+                                                                                            γcol ) obtained
+from raw gains through a smooth map φ (e.g. softplus). Here rowsum/colsum reduce a matrix over its
+columns/rows, ⊙ is the elementwise product, and φ′ is applied elementwise.
+Require: fused weight W , raw gains γd                  row ∈ R
+                                                                   dout
+                                                                           col ∈ R
+                                                                        , γd      din
+                                                                                       , gradient G = ∂L/∂W , direction LR ηW ,
+    gain LR ηγ , gain map φ
+ 1: γrow ← φ(γd row ), γcol ← φ(d       γcol )                                                          ▷ materialize the positive gains
+    c ← diag(γrow )−1 W diag(γcol )−1
+ 2: W                                                                                                 ▷ recover the on-sphere direction
+ 3: gγrow ← rowsum (W     c ⊙ G) diag(γcol )                                                 ▷ row-gain gradient: sum over columns
+                                                        
+
+ 4: gγcol ← colsum diag(γrow ) (W                                                            ▷ column-gain gradient: sum over rows
+                                                       
+                                        c ⊙ G)
+ 5: g
+     γ
+           ← gγrow ⊙  φ ′
+                          ( γ
+                            drow ),    g γc
+                                                ←     gγcol ⊙  φ ′
+                                                                   (d
+                                                                    γcol )                           ▷ backprop through the gain map
+      drow                                 col
+
+ 6: G b ← diag(γrow ) G diag(γcol )                                                                        ▷ direction gradient ∂L/∂ Wc
+       W
+    c ← OptStep W                                                   ▷ any (normalized) matrix optimizer (Adam / Muon / . . . )
+                                         
+ 7: W                 c , G , ηW
+                               W
+                               b
+ 8: W ← W / ∥W ∥                                                                                     ▷ project back onto the sphere
+    c      c     c
+      row ← AdamStep γd                              ,              AdamStep                            ▷ step the raw gains (own LR)
+                                                   
+ 9: γd                        row , gγ      ,  η γ       γdcol ←                γ
+                                                                                dcol , g γc
+                                                                                              , η γ
+                                     d row                                                col
+
+10: W ← diag(φ(γd   row )) W diag(φ(d
+                             c                γcol ))                                                ▷ reassemble for the next forward
+
+
+B     Experimental Setup Details
+This section gives the full architecture and training details for both the dense ablations (Section 4.1) and
+the large MoE experiments (Section 4.2). All code is a fork of Megatron-LM (Shoeybi et al., 2019); the
+magnitude–direction decoupling, the per-axis gains, and the Muon/orthogonalized updates are implemented
+inside the optimizer so the model always sees a single fused weight tensor (Algorithm 2).7 All runs are in
+bf16. Training was carried out on the Alps cluster at the Swiss National Supercomputing Centre (CSCS),
+on GH200 nodes (4 GPUs/node), in pure data-parallel with the distributed optimizer. The largest MoEs
+optionally shard experts with expert-parallelism set to 4.
+
+B.1    Dense Models
+Architecture. The dense models are GPT-style transformers with RoPE (Su et al., 2021) (base θ = 5×105 ),
+SwiGLU MLPs (Shazeer, 2020), RMSNorm (Zhang & Sennrich, 2019) (ϵ = 10−5 ), GQA (Ainslie et al., 2023)
+with the number of key/value groups set to half the number of attention heads, a fixed head-dimension of
+128, and QK-RMSNorm (Dehghani et al., 2023; Wortsman et al., 2024). We use Sandwich Norm (Ding
+et al., 2021; Kim et al., 2025) (an extra RMSNorm on each block output) together with a fixed block-output
+scale α = L1 . Embeddings and the output head are untied. Matrix parameters are initialized with standard
+                                                     √
+deviation √1d , and the embeddings are upscaled by d so the residual stream has unit RMS at the input.
+The full grid is given in Table 1: a base model (d = 512, L = 12, 181M parameters), a width sweep at fixed
+depth, a depth sweep at fixed width, and a joint width-and-depth sweep. The tokenizer is the Apertus
+v1 tokenizer (∼131k vocabulary), which together with the untied input/output embeddings dominates the
+parameter count at the smaller sizes.
+Data and batching. Dense models are trained on a FineWeb-Edu (Penedo et al., 2024) subset at sequence
+length 4096, with a global batch size of 128 sequences (∼0.52M tokens). The base model is trained for 50k
+   7 Our code is available for the dense models at https://github.com/haeggee/Megatron-LM/tree/gainz and for the MoE
+
+experiments at https://github.com/haeggee/Megatron-LM/tree/feat/scaling-sweeps. Note that in this research codebase,
+the optimizer is called master, which was the development name for our ablations.
+
+
+                                                                  20
+Table 1:     Dense model configurations.           All models use head-dimension 128, GQA with
+KV groups = heads/2, SwiGLU, RMSNorm, QK-norm, Sandwich Norm, untied embeddings, and se-
+quence length 4096. The 181M base (d = 512, L = 12) is shared across all three sweeps. “Params” is the
+total count including the untied input/output embeddings.
+
+                      Sweep              Params    d          L    Heads   KV groups   dff
+                      Base               181M     512         12     4         2       2048
+                                         307M      768        12     6         3       3072
+                                         457M     1024        12     8         4       4096
+                      Width (L=12)
+                                         827M     1536        12    12         6       6144
+                                         1.29B    2048        12    16         8       8192
+                                         205M     512         18     4         2       2048
+                      Depth (d=512)      229M     512         24     4         2       2048
+                                         252M     512         30     4         2       2048
+                                         361M      768        18     6         3       3072
+                      Width+Depth
+                                         646M     1024        24     8         4       4096
+
+
+steps (∼25B tokens) — deliberate strong overtraining (Chinchilla sense (Hoffmann et al., 2022)) to expose
+longer-horizon dynamics. The continual / re-warming experiment (Figure 10) uses a 150M model (d = 512,
+L = 8, head-dimension 64).
+Optimizer and learning rates. The matrix-parameter optimizer is AdamW or Muon, optionally under
+MD decoupling. The Adam-managed groups (embeddings, LM head, norm gains, magnitude gains)
+use (β1 , β2 ) = (0.9, 0.99) and ϵ = 10−8 ; Muon uses heavy-ball momentum 0.95 with Nesterov and 5
+Newton–Schulz iterations. We fix the embedding LR at 3×10−3 and the output-layer LR at 10−3 , let the
+magnitude gains follow the matrix LR, and sweep only the matrix LR per method, so every method is
+tuned with the same budget. The standard AdamW/Muon baselines use decoupled weight decay 0.1; the
+MD variants use none (the weights are already norm-constrained). Gradients are clipped to global norm
+1.0. The schedule is a linear decay to min-LR = 10−8 . The AdamW baseline uses 1000 steps of warmup
+throughout; Muon and the MD variants are run warmup-free in the headline comparison (the warmup
+ablation is in Figure 10). The schedule ablation (Figure 9) compares this against a WSD schedule (Hu
+et al., 2024; Hägele et al., 2024; Schaipp et al., 2025; Dremov et al., 2025) with a 20% cooldown in the
+negative-square-root (“1-sqrt”)qshape. For Muon’s scale factor we sweep the qconventions in Figure 14: the
+plain-Muon headline runs use      dout
+                                  din  (tied for best with shape scaling max(1, ddout
+                                                                                    in
+                                                                                       ), and noticeably better
+                                                                    q
+than the RMS-matching factor), while MuonMD uses the factor max din , dout ; the latter we here coin
+                                                                           dout din
+                                                                                     
+
+“shape up” for simplicity. Its inspiration is matching the RMS of the weight norm under our initialization.
+
+B.2   Mixture-of-Experts Models
+Architecture. The MoE models follow a DeepSeekMoE-style design (Dai et al., 2024): 64 routed experts
+with top-2 routing plus 1 always-on shared expert at half a routed expert’s width, with the first layer(s) dense
+and the remainder MoE (∼5% dense layers). They share the dense models’ backbone     √     conventions (RoPE
+θ = 5×105 , SwiGLU, RMSNorm, GQA, QK-norm, untied embeddings, √1d init, d embedding upscaling)
+but use an attention head-dimension of 64 and — unlike the dense models — no post-attention/post-MLP
+(Sandwich) norm, because this experiment was run in a separate Megatron fork. The four rungs (Table 2)
+span 1.2B–6.7B total and 270M–1.5B active parameters at a fixed ∼6% non-embedding sparsity, an
+iso-sparsity proxy for much larger production MoEs. The tokenizer is the same Apertus v1 tokenizer as the
+dense models (vocabulary padded to a multiple of 128).
+Routing. We use DeepSeek-V3-style routing (DeepSeek-AI, 2024): sigmoid gating, an auxiliary-loss-free
+per-expert bias (Wang et al., 2024) (selection bias updated at rate 10−3 , not the gate weights), a small
+complementary sequence-wise auxiliary load-balancing loss (coefficient 10−3 ), top-k renormalization scaled
+by 2.5, and the router logits computed in fp32. This routing policy is held invariant across the whole
+ladder; only the expert geometry (Table 2) changes per size.
+
+
+                                                         21
+Table 2: MoE model configurations. DeepSeekMoE-style: 64 routed experts, top-2 routing, +1 shared
+expert at half a routed expert’s width, ∼6% non-embedding sparsity. Head-dimension 64, sequence length
+4096, global batch 128. L is given as (dense + MoE) layers; dmoe
+                                                             ff  is the per-routed-expert FFN width (the
+shared expert is half of it).
+
+                Active / Total   L (dense+MoE)      d     Heads   KV groups    dmoe
+                                                                                ff  (shared)
+                0.27B / 1.2B         1 + 13        768     12          4         512 (256)
+                0.41B / 2.5B         1 + 19       1024     16          4         576 (288)
+                0.58B / 4.1B         1 + 21       1280     20          4         704 (352)
+                0.81B / 6.7B         1 + 23       1536     24          8         896 (448)
+
+
+Data and batching. MoE models are trained on the Apertus 1.0 (Apertus et al., 2026) phase-5 data
+mixture (DCLM-edu and FineWeb-2 high-quality multilingual (Messmer et al., 2025)), a good mixture for
+verifying routing in the multilingual setting, at sequence length 4096 with a global batch of 128 sequences.
+The base sweep trains at 270M-active / 1.2B-total for ∼15B tokens (3,584,000 samples, ∼28k steps);
+the scaling-law runs sweep the token budget over {7.5, 15, 23, 44}B, with budgets placed along a ∼55
+tokens/active-parameter diagonal.
+Optimizer, learning rates, and transfer. As in the dense setup we fix the embedding, output, and gain
+LRs and tune the matrix LR. The base sweep at 270M (15B tokens) fixes the embedding / output / gains LR
+at 10−3 , and the optima are matrix LR 2.4×10−3 (AdamW), 5×10−3 (Muon), and 10−2 (MuonMD). AdamW
+and Muon use (β1 , β2 ) = (0.9, 0.95), decoupled weight decay 0.1, and a warmup of 1000 steps; MuonMD
+uses weight q decay 0 and no warmup. Muon uses momentum 0.95 with Nesterov and the shape-scaling
+factor max(1,   din ) (the lower bound of 1 keeps the router from being given a downscaled LR); MuonMD
+                dout
+                                  q
+instead uses the shape-up factor max ddout    , ddout   to match the weight-norm RMS, additionally normalizes
+                                                   in
+                                                      
+                                           in
+the router rows along the expert axis, and uses the softplus gain parameterization with row-and-column
+gains and per-row embedding normalization. For MuonMD       √ the attention and MLP output (residual-write)
+projections additionally use the scaled initialization σ/ 2L (with σ = √1d , the standard GPT-2 residual
+scaling); since the sphere fixes each matrix at its initialization norm, this lowers the sphere-norm target
+of those projections (by √12L ) and adjusts their shape-up factor accordingly. All runs use a linear decay
+                                                                                          √
+to min-LR = 10−5 (absolute floor per group), init std √1d , and embedding multiplier d. The AdamW
+baseline clips gradients to global norm 1.0; the Muon and MuonMD runs use no gradient clipping.
+To transfer the tuned base LRs to larger models without re-tuning, we follow Complete(d)P (Dey et al.,
+2025; Mlodozeniec et al., 2025) for the AdamW and Muon √ baselines, scaling the matrix/embedding/output
+LRs by 1/k in width
+                  √    (k = d/768)  and  all LRs by 1/   l in training length (l = tokens/15B), with weight
+decay scaled ∝ k/ l. MuonMD needs no width multiplier (the sphere constraint already transfers across    √
+width, Section 4.1.4); its LRs are scaled only with length, by 1/l0.25 (gentler than Complete(d)P’s 1/ l
+on the nominal LR), and its weight decay stays 0. The batch-size experiment  √ reuses the 270M-active base
+config and increases the global batch by a factor k while scaling the LR by k (Malladi et al., 2022).
+Scaling-law fitting. For the scaling-law plot (Figure 11, center, and Figure 1, center), each run is
+summarized by its tail loss, the mean LM loss over its last 25 training iterations, and placed at a compute
+of C = 6 Nact D with Nact the active non-embedding parameter count and D the number of training tokens.
+For each optimizer we take the compute-optimal lower envelope — the runs that set a new record-low
+loss as compute grows — and fit a power law L(C) = A C −α to those frontier points. We assume an
+irreducible floor E = 0, which is reasonable over our experimental compute range (where a nonzero floor
+is not separately identifiable); the fit is then a simple log–log linear regression. The heavily-undertrained
+810M-active@7.5B point is plotted but excluded from the envelope and fit. The fitted exponents are nearly
+identical across the three optimizers (α ≈ 0.05), so the improvement is essentially a downward level shift
+— a smaller coefficient A — rather than a steeper slope: at any compute in range, Muon and especially
+MuonMD reach a lower loss, equivalently the same loss at less compute. We quantify this as the compute
+savings relative to the AdamW baseline at a fixed target loss L = 2.635 (within the fitted range), i.e. the
+ratio CAdamW (L)/Copt (L) of compute needed to reach L, with confidence intervals from a nonparametric
+
+
+                                                     22
+                               Base LR (AdamW)                                  Matrix LR vs. Embedding LR (MuonMD)                            Gains LR (MuonMD)                            Matrix LR with Gains LR fixed (MuonMD)
+       2.92                                                                                                   ELR=2 · 10 −3                                                                                                Gains LR=10 −3
+                                         AdamW (Matrix LR = 8 · 10 −3 )                                                                                   MuonMD (Matrix LR 8 · 10 −3 )
+                                                                                                              ELR=2 3/2 · 10 −3
+       2.91
+                                                                                                              ELR=3 · 10 −3
+                                                                                                              ELR=4 · 10 −3
+       2.90
+                                                                                                              ELR=2 5/2 · 10 −3
+Loss
+       2.89
+
+       2.88
+
+       2.87
+              2 −1.5   2 −1     2 −0.5     20      2 0.5    21      2 1.5   2 1.5    22       2 2.5     23      2 3.5        24   2 1.5   22      2 2.5         23        2 3.5      24   2 1.5   22       2 2.5     23      2 3.5     24
+                              Base LR (--lr) (× 10 −3 )                              Matrix LR (absolute) (× 10 −3 )                      Gains LR (absolute) (× 10 −3 )                          Matrix LR (absolute) (× 10 −3 )
+
+Figure 12: The matrix learning rate is the most important hyperparameter worth sweeping per
+method: the loss is broad in the other groups and essentially flat in the gains LR over more than
+an order of magnitude. Learning-rate sweeps of the parameter groups held fixed in the main text (181M
+model, 25B tokens). (Left) AdamW base LR — the shared LR of all Adam-managed groups (embeddings,
+output layer, gains) — with the matrix LR held fixed at its optimum; the curve is flat, so 10−3 is comfortably
+in range. (Center-left) MuonMD matrix LR swept jointly with the embedding LR (ELR): the optimal matrix
+LR is unchanged and all ELR settings coincide. (Center-right) MuonMD gains LR, which barely affects the
+loss over more than an order of magnitude under the softplus parameterization. (Right) MuonMD matrix LR
+at a gains LR fixed to 10−3 (as in the MoE experiments), where the optimal matrix LR is again unchanged.
+
+bootstrap (500 resamples of the frontier points, refitting each time): Muon reaches L at 1.55× less compute
+(CI [1.49, 1.63]) and MuonMD at 2.01× less compute (CI [1.94, 2.11]).
+
+C              Additional Learning-Rate Ablations
+This section collects the supporting learning-rate sweeps behind the choices we make throughout the paper:
+the fixed learning rates for the parameter groups that Adam manages, the sensitivity of the gains LR
+(Section 4), and the Muon scale factor.
+The different parameter-group learning rates. Across all experiments we share a single recipe for
+the Adam-managed parameter groups — the embeddings, the output (LM-head) layer, and the magnitude
+gains — and sweep only the matrix LR per method, so that every method is tuned with the same budget.
+Since these groups are reused across setups without re-tuning, our goal here is twofold: (1) to verify that the
+fixed base learning rates sit in a good range, and (2) to probe the sensitivity of the gains LR specifically, as
+it governs the only group unique to our method. Figure 12 establishes both on the 181M base model (25B
+tokens) across four panels. (Left) The base Adam LR — the shared learning rate of all Adam-managed
+groups (embeddings, output layer, and normalization layer gains) scaled together: holding the matrix LR
+at the AdamW optimum and sweeping this base LR gives an essentially flat curve, so our 10−3 choice is
+comfortably in range. (Center-left) The embedding LR: sweeping the matrix LR jointly with the embedding
+LR (ELR), the optimal matrix LR does not move and almost all ELR settings reach essentially the same
+loss, confirming 3 · 10−3 as a safe default. (Center-right) The gains LR: under the softplus parameterization
+the loss is flat over more than an order of magnitude, so the magnitudes are remarkably insensitive to their
+LR. (Right) In the dense experiments the gains simply follow the matrix LR, but in the MoE experiments
+we instead fix the gains LR at 10−3 ; this panel verifies that choice, sweeping the matrix LR with the gains
+LR fixed and finding the optimal matrix LR again unchanged. Taken together, the loss is broad in every
+group except the matrix LR: as long as the shared Adam-group LRs are in a reasonable range, the matrix
+LR is the one hyperparameter worth sweeping per method.
+Muon scale factor. Muon’s orthogonalized update is typically multiplied by a shape-dependent factor,
+either to adapt the effective learning rate to the
+                                                q matrix shape or to match a desired
+                                                                             q       update RMS, and several
+conventions exist: a unit-RMS-norm factor ddoutin
+                                                  , “shape scaling” max(1, ddout
+                                                                               in
+                                                                                  ), and the RMS-matching
+factor 0.2 max(dout , din ) of Kimi/Moonlight (Liu et al., 2025), which targets AdamW’s per-entry update
+          p
+
+RMS. In our case (as in the Kimi factor) we use it to match a desired RMS; in our case, that of the weight
+norm sphere. Figure 14 sweeps the matrix LR for each. For plain Muon (left) every convention clearlyqbeats
+the AdamW baseline, but the choice of factor still matters noticeably: the unit-RMS-norm factor      dout
+                                                                                                     din
+                                   q
+and the shape-scaling factor max(1, din ) are essentially tied for best, while the RMS-matching factor is
+                                     dout
+
+
+
+
+                                                                                                                            23
+                       Width+Depth Transfer (AdamW)                                                       Width+Depth Transfer (Muon)                                                      Width + Depth Scale Up
+                                                       181M (12L, d=512)                  2.9                                                                                             646M MuonMD
+       2.9                                                                                                                                                                2.58
+                                                       361M (18L, d=768)                                                                                                                  646M Muon
+                                                       646M (24L, d=1024)                 2.8                                                                             2.57            646M AdamW
+       2.8                                                                                                                                                                2.56
+Loss                                                                               Loss   2.7                                                                      Loss   2.55
+       2.7                                                                                                                                                                2.54
+                                                                                                                             181M (12L, d=512)                            2.53
+                                                                                          2.6                                361M (18L, d=768)
+       2.6                                                                                                                                                                2.52
+                                                                                                                             646M (24L, d=1024)
+                                                                                                                                                                          2.51
+               2 1.5        22       2 2.5             23             2 3.5   24                 2 1.5       22     2 2.5    23          2 3.5                24                 2 1.5     22       2 2.5    23          2 3.5                 24
+                          Matrix LR (absolute) (× 10 −3 )                                                  Matrix LR (absolute) (× 10 −3 )                                               Matrix LR (absolute) (× 10 −3 )
+
+Figure 13: For reference, the plain AdamW and Muon baselines under joint width-and-depth
+scaling, where at the largest model MuonMD reaches a lower optimum than both. Sweeps
+changing only the matrix LR (no magnitude–direction decoupling). (Left) AdamW across joint width-and-
+depth scaling. (Center) The same sweep with Muon. (Right) A head-to-head sweep of all three optimizers
+at the largest joint-scaled model (646M).
+
+                                  Muon Scale Factors                                                       MuonMD (ours) Scale Factors                                                   MuonMD (ours) Scale Factors
+                                      Unit RMS Norm:
+                                                       q
+                                                           out
+                                                           in                                                                     Unit RMS Norm:
+                                                                                                                                                   q
+                                                                                                                                                       out
+                                                                                                                                                       in
+                                                                                                                                                                          3.4                                     Unit RMS Norm:
+                                                                                                                                                                                                                                   q
+                                                                                                                                                                                                                                       out
+                                                                                                                                                                                                                                       in
+                                                              p                                                                                           p                                                                               p
+       2.915                          Shape Scaling: max(1, out/in)
+                                                 p
+                                                                                                                                  Shape Scaling: max(1, out/in)                                                   Shape Scaling: max(1, out/in)
+                                      Shape Up: max(out/in, in/out)
+                                                    p
+                                                                                          2.94                                               p
+                                                                                                                                  Shape Up: max(out/in, in/out)
+                                                                                                                                                                          3.3
+                                                                                                                                                                                                                             p
+                                                                                                                                                                                                                  Shape Up: max(out/in, in/out)
+                                      Spectral 0.2 · max(out, in)                                                                 AdamW Baseline                                                                  AdamW Baseline
+       2.910                          AdamW Baseline
+
+                                                                                          2.92                                                                            3.2
+       2.905
+Loss                                                                               Loss                                                                            Loss   3.1
+       2.900
+                                                                                          2.90
+       2.895                                                                                                                                                              3.0
+       2.890                                                                              2.88                                                                            2.9
+
+                  2 1.5      22       2 2.5                23         2 3.5   24                  2 1.5       22     2 2.5   23          2 3.5                24                 0         5        10      15         20                 25
+                           Matrix LR (absolute) (× 10 −3 )                                                 Matrix LR (absolute) (× 10 −3 )                                                      Training Tokens (B)
+
+Figure 14: All common Muon           scale-factor conventions clearly beat
+                                         q                                 q AdamW, but the choice
+still matters: the unit-RMS-norm            dout
+                                             din and shape-scaling  max(1,    din ) factors are best and
+                                                                             dout
+
+nearly identical, while the RMS-matching factor is noticeably worse. Sweeps of the matrix LR for
+each shape-dependent factor that rescales Muon’s orthogonalized update, on the 181M model (25B tokens).
+(Left) Plain Muon across the scale conventions (with and without warmup); all beat the AdamW baseline,
+with the unit-RMS-norm
+                  q        and shape-scaling factors tied for best. (Center) MuonMD, where we use the
+shape-up factor max din , ddout
+                         dout
+                                     to match the weight-norm RMS. (Right) The corresponding MuonMD
+                                in
+                                   
+
+loss curves, staying ahead of the AdamW baseline throughout training.
+                                                                                                                                                                     q
+noticeably worse. For MuonMD (center and right) the shape-up factor                                                                                                   max ddout , ddout   performs best,
+                                                                                                                                                                                        
+                                                                                                                                                                                     in
+                                                                                                                                                                             in
+
+which we attribute to its matching the RMS of the weight norm under our √1d initialization; its loss curve
+stays ahead of the AdamW baseline throughout training. The factor is thus set by the target weight norm
+and should be adapted whenever that norm changes: for example, the scaled output-projection initialization
+used in the MoE experiments (Section B.2) lowers the sphere-norm target of those projections and changes
+their factor accordingly.
+
+
+D            Comparison to nGPT
+Motivation. Our motivation for holding the weights at a fixed norm is closely related to nGPT (Loshchilov
+et al., 2025), which also places its weights on a sphere and drops weight decay, but extends the idea
+to activations as well. nGPT is, therefore, more than this optimization choice: it bundles the spherical
+constraint together with a set of architectural changes, making it hard to read off how much of its reported
+advantage comes from training on the sphere versus from the architecture itself. We therefore aim to
+compare directly, isolating our optimizer-side recipe from nGPT’s architecture, and, where possible, to
+apply our ideas on top of that architecture to see whether they compose.
+
+
+                                                                                                                     24
+The nGPT architecture. In detail, nGPT is a distinct architecture. Beyond constraining the weights
+to the unit sphere, it (i) replaces every RMSNorm with an L2 normalization, and moves the L2 norms
+after the attention and MLP blocks and at the end of each layer; (ii) reshapes the residual stream as an
+interpolation x + α (x′ − x) toward the normalized block output rather than a plain additive update; (iii)
+adjusts the attention-logit scaling to compensate for the now L2 -normalized queries and keys, as well as
+scales right before the MLP activation; and (iv) places√its 1D learnable vectors (the residual/layer scales,
+logit scales, etc.) at a reduced base scale, typically 1/ d. Since each update is relative to that scale, this
+sharply raises their effective learning rate.
+Disentangling optimizer and architecture. We compare on the 181M base model (25B tokens, 50k
+iterations), matching parameter counts and training budgets and sweeping the matrix LR for every method
+(Figure 15). As proposed, nGPT outperforms our sandwich-norm AdamMD architecture. Applying our
+optimization ideas on top of nGPT’s architecture, however, does better still: replacing nGPT’s per-vector
+(row/column) unit-norm projection with our Frobenius constraint already helps, and adding our magnitude
+gains (AdamMD) helps more, surpassing nGPT. The gap is even larger for Muon — nGPT’s architecture
+with MuonMD is the best variant overall.
+Source of nGPT’s advantage. While we have not investigated every single change, we believe that
+much of nGPT’s edge traces back to the (smart) scale trick for its 1D vectors,√which our base ablation
+architecture does not use. Setting the residual/layer scales to 1 instead of 1/ d (grey line, Figure 15)
+removes this effective-LR boost and brings nGPT roughly back down to our base AdamMD, confirming that
+the trick accounts for a large part of the advantage. We caution, though, that in our experience the very
+high effective LR induced by ever-smaller scales can become unstable at larger model sizes, so its scalability
+is unclear; for example, the recent nGPT LR-transfer work (Shigida et al., 2026) also fixes these scales to
+be equal across model sizes.
+
+E   Depth Scaling
+We extend the depth-transfer results of Section 4.1.4 by probing the block-output scale α that multiplies each
+block’s output after its RMSNorm. The main text uses α = L1 ; here we compare it against α = √12L across
+depths from 12 to 30 layers (181M–252M parameters), sweeping the matrix LR at each depth (Figure 16).
+Both choices give good depth transfer: the optimal matrix LR stays roughly fixed across depths rather than
+drifting with L (Figure 16, left). The softer √12L scale also gives a small but consistent improvement in final
+loss at every depth, showing that the precise exponent on α has a noticeable effect on loss even though both
+choices give transfer without other tricks. A likely explanation shows up in the per-layer activation RMS
+over training (center and right): with α = √12L the post-layer activation scale (measured after the MLP
+residual add) stays controlled around 1 and roughly uniform across layers, whereas α = L1 lets it drift well
+below 1 and spread out across layers in the deep 30-layer model. We leave a fuller study of the optimal α
+and its interaction with the block-output RMSNorm gains to future work.
+
+F   Implementation, Efficiency, and Throughput
+One of the core advantages of MD Decoupling for practical usage lies in the fact that the weights are
+stored in memory as the fused matrix W = diag(γrow ) W    c diag(γcol ). This means that our method adds
+zero overhead to the architecture during the forward and backward calls. The additional overhead comes
+at the optimizer step only, as shown in Algorithm 1, when projecting back W c after the optimizer step, and
+the additional operations to unfuse, update and fuse the gains γ. We note that these operations are all
+element-wise, and thus represent a small fraction of the total FLOPs of a full training step.
+In particular, this overhead remains a fixed fraction of the training step set by the number of tokens
+processed per optimizer step. The element-wise cost scales only with the parameter count, while the
+forward/backward compute scales with both the parameter count and the tokens consumed per step.
+Therefore, the relative overhead shrinks as more tokens are processed per optimizer step, e.g., with a larger
+global batch size or longer sequences. Within the optimizer step, the fraction shrinks further with hidden
+dimension in the Muon regime, where the O(d3 ) Newton-Schulz orthogonalization dominates the gain
+
+
+                                                      25
+                                 Adam Family (181M, 25BT w/ 50k iters)                                        Muon Family (181M, 25BT w/ 50k iters)
+                     2.94          AdamW                                                                                                           Muon
+                                   Adam on Sphere, no gains                                                                                        Muon on Sphere, no gains
+                                   AdamMD (ours)                                                                                                   MuonMD (ours)
+                     2.92          nGPT Arch w/ Adam on Frob.Sphere                                                                                nGPT Arch w/ Muon on Frob Sphere
+                                   nGPT Arch w/ AdamMD                                                                                             nGPT Arch w/ MuonMD
+                                   nGPT                                                                                                            nGPT
+                     2.90          nGPT w/ Residual αA, scale = 1                                                                                  nGPT w/ Residual αA, scale = 1
+              Loss
+                     2.88
+
+                     2.86
+
+                             20      2 0.5       21      2 1.5   22        2 2.5   23   2 3.5        24   20     2 0.5       21      2 1.5    22        2 2.5   23    2 3.5        24
+                                                      Matrix LR (× 10 −3 )                                                        Matrix LR (× 10 −3 )
+
+                             Adam Family (181M, 25BT w/ 50k iters)                                            Muon Family (181M, 25BT w/ 50k iters)
+
+                     3.3
+                     3.2
+
+              Loss   3.1
+                                  AdamW                                                                        Muon
+                                  Adam on Sphere, no gains                                                     Muon on Sphere, no gains
+                     3.0          AdamMD (ours)                                                                MuonMD (ours)
+                                  nGPT Arch w/ Adam on Frob.Sphere                                             nGPT Arch w/ Muon on Frob Sphere
+                                  nGPT Arch w/ AdamMD                                                          nGPT Arch w/ MuonMD
+                     2.9          nGPT                                                                         nGPT
+                                  nGPT w/ Residual αA, scale = 1                                               nGPT w/ Residual αA, scale = 1
+
+                             0               5           10           15           20           25        0              5            10           15           20            25
+                                                  Training Tokens (B)                                                         Training Tokens (B)
+
+Figure 15: nGPT is a distinct architecture, not just spherical optimization, and applying our
+reparameterization on top of it outperforms nGPT as proposed. Comparison on the 181M model
+(25B tokens, 50k iters), matched on parameter count and budget. (Top) LR sweeps of the final loss and
+(bottom) the corresponding loss curves, for the (Left) Adam family and (Right) Muon family. As proposed
+by Loshchilov et al. (2025), nGPT beats our sandwich-norm AdamMD; however, using our Frobenius
+constraint and magnitude gains on nGPT’s architecture (nGPT Arch w/ AdamMD / MuonMD) surpasses
+it, with an even larger margin when using Muon. We believe that much of √       nGPT’s advantage (besides
+constraining the weights) comes from placing its 1D learnable vectors at a 1/ d scale, which raises their
+effective LR: setting solely the residual scales to 1 (grey) brings nGPT back down to our base AdamMD.
+
+Table 3: Peak stable throughput measured for different optimizers (in thousands of tokens per
+second per GPU). The MD variants also show relative slowdown compared to the base optimizer. AdamMD
+overhead decreases drastically with larger batch sizes and MuonMD overhead remains minimal (≲ 2% for
+all model sizes).
+
+                           Params                                Adam                   AdamMD                       Muon                      MuonMD
+                           181M                                  185.69             176.15 (-5.14%)                 173.86                   171.98 (-1.08%)
+                           457M                                  117.16             111.95 (-4.45%)                 111.73                   110.76 (-0.87%)
+                           827M                                   74.65             70.71 (-5.28%)                   70.94                    70.42 (-0.74%)
+                           1.29B                                 54.07              50.73 (-6.18%)                   50.82                    50.55 (-0.53%)
+                           1.54B                                 44.08              41.47 (-5.92%)                   41.95                    41.17 (-1.85%)
+                           1.54B (2×GBS)                         44.78              43.98 (-1.78%)                   43.64                    43.42 (-0.50%)
+
+operations. These operations are moreover memory-bound, which opens the possibility of overlapping the
+gains-related computation with the Muon NS step. We leave such optimizations for future work.
+We show in Table 3 the peak stable throughput observed under different optimizers and model sizes for dense
+models, under equal compute resources. The architectures used are detailed in Table 1 (1.54B model size is
+identical to 1.29B, but using L = 16 layers instead), and the training was done strictly with data parallelism
+and measured with two NVIDIA 4xGH200 nodes (DP=8), with distributed optimizer. In particular, the
+Adam baseline follows a carefully tuned optimizer state sharding following ZeRO-1 (Rajbhandari et al.,
+
+
+                                                                                                     26
+                                                  p
+                      Depth Transfer: 1/L vs 1/ 2L                                      Activation RMS by Layer (252M, 30L), 1/L                                                                                                                p
+                                                                                 10 1                                                                                         Activation RMS by Layer (252M, 30L), 1/ 2L
+                       12L (181M)                                                                               Layer 1       Layer 11         Layer 21
+                                                                                                                                                                            10 1
+       2.90                                                                                                     Layer 2       Layer 12         Layer 22                                                  Layer 1       Layer 11         Layer 21
+                       18L (205M)                                                                               Layer 3
+                                                                                                                Layer 4
+                                                                                                                              Layer 13
+                                                                                                                              Layer 14
+                                                                                                                                               Layer 23
+                                                                                                                                               Layer 24
+                                                                                                                                                                                                         Layer 2
+                                                                                                                                                                                                         Layer 3
+                                                                                                                                                                                                                       Layer 12
+                                                                                                                                                                                                                       Layer 13
+                                                                                                                                                                                                                                        Layer 22
+                                                                                                                                                                                                                                        Layer 23
+                       24L (229M)                                                                               Layer 5       Layer 15         Layer 25                                                  Layer 4       Layer 14         Layer 24
+
+
+
+
+                                                               Activation RMS
+       2.85                                                                                                     Layer 6       Layer 16         Layer 26                                                  Layer 5       Layer 15         Layer 25
+
+
+
+
+                                                                                                                                                          Activation RMS
+                       30L (252M)                                                                               Layer 7
+                                                                                                                Layer 8
+                                                                                                                              Layer 17
+                                                                                                                              Layer 18
+                                                                                                                                               Layer 27
+                                                                                                                                               Layer 28
+                                                                                                                                                                                                         Layer 6
+                                                                                                                                                                                                         Layer 7
+                                                                                                                                                                                                                       Layer 16
+                                                                                                                                                                                                                       Layer 17
+                                                                                                                                                                                                                                        Layer 26
+                                                                                                                                                                                                                                        Layer 27
+                       1/L
+Loss
+                                                                                                                Layer 9       Layer 19         Layer 29                                                  Layer 8       Layer 18         Layer 28
+       2.80              p                                                       10 0                           Layer 10      Layer 20         Layer 30
+                                                                                                                                                                            10 0
+                                                                                                                                                                                                         Layer 9       Layer 19         Layer 29
+                       1/ 2L                                                                                                                                                                             Layer 10      Layer 20         Layer 30
+
+
+       2.75
+
+       2.70
+                                                                                10 −1                                                                                      10 −1
+              2 1.5     22   2 2.5   23   2 3.5   24   2 4.5                             0 (0)    15k (7.86B)        30k (15.7B)         45k (23.6B)                               0 (0)   15k (7.86B)        30k (15.7B)         45k (23.6B)
+                                                  −3
+                       Matrix LR (absolute) (× 10 )                                                     Steps (Tokens)                                                                           Steps (Tokens)
+
+Figure 16: Both block-output scales transfer the matrix LR across depth; the softer α = √12L
+gives a small but consistent loss improvement and keeps per-layer activations better controlled
+around 1. Comparison of α = L1 against α = √12L . (Left) LR sweep of the final loss at depths 12–30
+(181M–252M parameters), with α = L1 (solid) and α = √12L (dashed); the optimal matrix LR stays roughly
+fixed across depth for both. (Center) Per-layer activation RMS over training for the deepest model (α = L1 ,
+252M, 30 layers), drifting well below 1 and spreading out across layers. (Right) The same for α = √12L ,
+where the activation RMS stays more clustered around 1 across layers.
+
+2020), while Muon and MD variants make use of a layerwise state sharding, resulting in an additional,
+scale-dependent overhead for the layerwise variants. The intrinsic gains overhead nonetheless remains small
+at all scales, as most directly seen in the MuonMD-vs-Muon comparison, where both use layerwise sharding.
+Additionally, doubling the global batch size, the 1.54B (2×GBS) configuration, results in a much reduced
+overhead of ≈ 1.78% in the Adam optimizer.
+
+G             Higher-Rank Gains
+From rank-1 to rank-k. Our default per-row and per-column gains act on the direction W               c through
+an elementwise multiplicative factor that is effectively rank-1 : the combined gain diag(γrow ) W  c diag(γcol )
+multiplies entry (i, j) of W
+                           c by γrow [i] γcol [j], i.e. by the outer product γrow γ ⊤ . This naturally raises the
+                                                                                   col
+question of whether a rank-k gain matrix — with finer-grained per-entry control, while still adding far fewer
+parameters than the weight itself — performs better. We take first steps in this direction here.
+Parametrization. We parameterize the gain matrix Γ ∈ Rdout ×din as
+                                                       Γ = 1 + AB ⊤ ,                                 A ∈ Rdout ×k , B ∈ Rdin ×k ,                                                                                                                 (3)
+
+where 1 is the all-ones matrix, and the fused weight becomes W = Γ ⊙ W     c with W
+                                                                                  c on the sphere. This is a
+direct parametrization with a 1 + · offset, analogous to the direct gain of Figure 6 rather than the softplus
+map we adopt for the row/column gains. The low-rank factorization AB ⊤ resembles LoRA (Hu et al.,
+2022), with the key difference that LoRA is additive (the low-rank term is added to the weight, W + AB ⊤ ),
+whereas here it is multiplicative (it scales the direction elementwise, Γ ⊙ W
+                                                                            c ). We initialize A randomly and
+B = 0, so that Γ = 1 at initialization and the gain leaves the direction untouched at the start of training
+(as for our scalar/row/column gains, which start at 1). The factors A, B are updated with Adam at the
+gain LR, analogously to Algorithm 2. Here we test k = 4.
+Results. Figure 17 compares this rank-k (k = 4) gain against the spherical baseline without gains and
+against our default per-row/per-column gains, sweeping the matrix LR on the 181M model (25B tokens). The
+rank-k gain improves over the no-gains baseline, but does not match the softplus row-and-column gain, which
+remains best. We suspect this gap stems from the parametrization and training dynamics rather than the
+expressivity. A rank-k gain with k ≥ 2 can represent the rank-1 row-and-column gain exactly, so at k = 4 it is
+strictly more expressive, yet still falls short. The likely culprit is that we only try the direct parametrization
+here (the additive 1+AB ⊤ offset), whereas the row/column gains use the smoother softplus map we found to
+help (Figure 6). A better parametrization or optimization of the factors A, B may therefore close or reverse
+this gap without changing what the gain can express. We keep the row-and-column gain as our default and
+leave a fuller exploration of the rank, the parameterization, and the gain learning rate to future work.
+
+
+                                                                                                           27
+                                        Gains vs Rank-k (MuonMD)                                          Gains vs Rank-k (MuonMD)
+                         2.92                            Muon on Sphere, no gains                                       Muon on Sphere, no gains
+                                                         γrow + γcol (Rank k=1)                 3.3                     γrow + γcol (Rank k=1)
+                         2.91                            Rank-k Matrix (k=4)                                            Rank-k Matrix (k=4)
+                                                                                                3.2
+                         2.90
+                  Loss                                                                   Loss   3.1
+                         2.89
+                                                                                                3.0
+                         2.88
+                                                                                                2.9
+                         2.87
+                                2 1.5     22     2 2.5        23      2 3.5    24                     0    5       10      15      20       25
+                                        Matrix LR (absolute) (× 10 −3 )                                        Training Tokens (B)
+
+Figure 17: A higher-rank gain improves over no gains but does not beat the simpler row-and-
+column gain, which remains our default. MuonMD on the 181M model (25B tokens), comparing the
+spherical baseline without gains, our default per-row/per-column gain γrow + γcol , and a rank-k gain matrix
+Γ = 1 + AB ⊤ with k = 4. (Left) LR sweep of the final loss. (Right) The corresponding loss curves.
+
+H    Gain Dynamics
+The gains γrow , γcol add a learnable magnitude on top of the fixed-norm direction, and the main text settles
+which gain mode and parameterization to use (Figure 6). Here we take a brief, descriptive look at how these
+gains behave over the course of training. Figure 18 tracks three representative projections at layer 6 of the
+181M dense model (the attention QKV projection, the MLP up-and-gate projection (linear_fc1), and the
+MLP output projection (linear_fc2)) for the four parameterizations of Figure 6 (the direct update with
+and without a 10−5 floor, the exponential map, and softplus). We plot the raw-gain norm ∥b      γ ∥2 and the
+minimum and maximum effective gain φ(b    γ ) over training for the row and column gains.
+The gains are actively used. In every projection, the raw-gain norm grows throughout training and the
+effective gains spread out over more than an order of magnitude (here from roughly 0.1 up to 5–7), so the
+model moves the magnitudes well away from their initialization of 1 rather than leaving them put. This
+holds both for linear_qkv, which is following the pre-norm and feeds into QK-norm, linear_fc1, whose
+output feeds the SwiGLU nonlinearity with no normalization layer afterward, and linear_fc2, which
+writes into the residual stream and is followed by the post-MLP Sandwich Norm. This is evidence that the
+gains add control beyond what normalization already provides.
+Parameterization is benign. The parameterizations differ just as the shape of each map φ would suggest:
+the exponential map grows the widest range of effective gains, while softplus stays the most contained,
+and the unfloored direct update even lets some gains cross zero and flip sign (its minimum settles around
+−1.5). Perhaps surprisingly, as the main text shows (Figure 6), this leaves the loss and the overall dynamics
+essentially unchanged. We make no claim to a mechanistic understanding of why per-row and per-column
+scales help or what role the model assigns to the large and small gains, and leave these interpretability
+questions to future work.
+
+I   Extended Related Work
+This section expands the broader context paragraph of the related work in Section 5.
+Sphere and manifold constraints for LLM training. A connected line of work constrains the weights
+(and sometimes updates) to a sphere or matrix manifold during pretraining, differing mainly in which norm
+is fixed and whether magnitude is added back. On a per-vector or Frobenius sphere: nGPT (Loshchilov
+et al., 2025) normalizes every weight’s rows/columns (depending on up/down projection) as well as
+activations to a fixed L2 norm of 1 (different to RMSNorms), alongside further architectural changes we
+dissect and compare against in Appendix D; anGPT (Franke et al., 2025) relaxes this to an approximate
+norm constraint, and Fishman et al. (2026) find how nGPT enables low-precision training. The same
+activations-on-the-sphere idea has also been used for generation, where Deschenaux & Gulcehre (2026)
+learn a latent flow that produces language by transporting token representations along a velocity field
+on the hypersphere. Nemotron-Flash (Fu et al., 2025) keeps the nGPT unit-norm projections without
+the other architectural changes; and Mano (Gu & Xie, 2026) projects the momentum onto the tangent
+
+
+                                                                                    28
+space of a rotational oblique manifold (alternating unit-norm columns and rows). On the spectral norm
+instead: SSO (Xie et al., 2026) constrains both weights and updates, Modular Manifolds (Bernstein, 2025)
+co-designs the optimizer with a Stiefel constraint, and Enforced Lipschitz Constants (Newhouse et al., 2025)
+bounds the operator norm throughout training. We instead fix the softer Frobenius norm and add learnable
+magnitudes inside the optimizer, independent of how the update step is obtained. Relatedly, width scaling
+under operator norms (Xu et al., 2026) obtains the same LR transfer from an operator-norm view, while
+Target Variance Rescaling (Owen et al., 2025) periodically rescales to a target variance rather than a norm.
+Controlling the relative update. Previous work aims to control the update size relative to the weight,
+without an explicit magnitude/direction split. The underlying dynamics were first studied for scale-invariant
+weights under normalization, where weight decay and the norm together set an “effective learning rate” (van
+Laarhoven, 2017; Hoffer et al., 2018; Arora et al., 2019; Li & Arora, 2020; Wan et al., 2021; Kodryan et al.,
+2022; Kosson, 2026). Prior work argued that controlling the relative weight update is the main effect of
+weight decay, creating Rotational Optimizer Variants (RVs) (Kosson et al., 2024a) and LionAR (Kosson
+et al., 2024b) that achieve the same effect by fixing the weight norm and scaling the update norm to be
+proportional on average. Nero (Liu et al., 2021) was an earlier optimizer that used a similar mechanism of
+constraining the norms and controlling the update norm of each neuron without specifically relating it to
+weight decay. LARS (You et al., 2017) and LAMB (You et al., 2020), and variants of AdaFactor (Zhai et al.,
+2022) scale the update of each layer to be proportional to the weight norm without explicitly constraining it.
+In RL, Normalize-and-Project (Lyle et al., 2024) periodically projects weights back to their initial per-layer
+norm to keep the effective LR constant, and SimbaV2 (Lee et al., 2025) normalizes weights and features onto
+a hypersphere to scale up RL agents — like our sphere constraint, but motivated by plasticity and stability
+rather than transfer. For diffusion models, EDM2 (Karras et al., 2024) combines weight projections and
+normalization layers to keep relative updates from decaying over time and balance their size between layers.
+AdamP/SGDP (Heo et al., 2021) removed the radial component of the update stemming from momentum
+to slow down the magnitude growth without explicitly constraining the norm.
+Hyperparameter transfer and warmup. A parallel line of work transfers hyperparameters across
+scale rather than retuning them. The maximal-update parametrization (µP) (Yang et al., 2021) and its
+depth extension (Yang et al., 2024) transfer the optimal LR across width and depth, with later analyses
+mapping how the right exponents depend on the optimizer and parametrization (Everett et al., 2024; Dey
+et al., 2025; Mlodozeniec et al., 2025; Ren et al., 2026); we instead obtain width transfer directly from
+the sphere constraint. Related to our motivation, νGPT (Shigida et al., 2026) restores LR transfer for the
+normalized-transformer (nGPT) architecture by combining µP with alignment exponents. A related thread
+investigates how weight decay and batch size — not just the LR — influences learning and how it should
+scale, and how whole loss curves collapse onto a universal trajectory under the right recipe (Andriushchenko
+et al., 2024; Wang & Aitchison, 2025; Bergsma et al., 2025a;b); MD Decoupling instead removes weight-decay
+tuning altogether. Warmup is another near-universal ingredient we are able to drop: it has been explained
+both as preventing instability in the deeper layers (Gotmare et al., 2019) and as a variance-reduction device
+for adaptive optimizers in their early steps (Goyal et al., 2017; Liu et al., 2020; Xiong et al., 2020), neither
+of which generally arises once the updates are normalized and the weights stay on the sphere.
+Classic reparameterization and normalization. The idea of separating a weight’s magnitude from its
+direction goes back to before LLMs. Weight Normalization (Salimans & Kingma, 2016) reparameterizes
+each weight as w = (g/∥v∥) v — a learnable scalar magnitude g times a direction. This is the most direct
+classic ancestor of our gains, though without a fixed-norm constraint or a separate LR for the direction.
+Decoupled Networks (Liu et al., 2018) factor the neuron’s inner product into a magnitude function times
+an angular function of the angle between weight and input. Weight Standardization (Qiao et al., 2019) and
+its use in BiT (Kolesnikov et al., 2020) standardize the weights feeding each output channel to zero mean
+and unit variance to smooth the loss landscape, and Spectral Normalization (Miyato et al., 2018) divides
+each matrix by its top singular value to bound the Lipschitz constant in GANs. Hyperspherical units,
+e.g. AKOrN (Miyato et al., 2025), keep their state vectors on a sphere by construction. These methods
+normalize or reparameterize weights for conditioning, stability, or robustness. Our contribution is to put
+the direction on a fixed sphere with a normalized update and learn per-row/per-column magnitudes at their
+own rate, specifically to remove the magnitude–direction interference and improve training performance.
+
+
+
+                                                      29
+                                        Row kγbk 2 (raw)                                                   Row Minimum ϕ(γb)                                           Row Maximum ϕ(γb)
+                                                                                        1.0
+               40                                                                                                                                           6
+                                                                                        0.5
+               30
+                                                                                        0.0
+                                                                                                                                                            4
+               20                                                                      -0.5
+                                                            Direct γ                                 Direct γ                                                                          Direct γ
+               10                                           softplus(γ)                -1.0          softplus(γ)                                                                       softplus(γ)
+                                                            exp(γ)                                   exp(γ)                                                 2                          exp(γ)
+                                                            Direct γ with min 1e-5                   Direct γ with min 1e-5                                                            Direct γ with min 1e-5
+                0                                                                      -1.5
+                         0              15k               30k             45k                  0              15k               30k             45k              0        15k        30k             45k
+                        (0)           (7.86B)           (15.7B)         (23.6B)               (0)           (7.86B)           (15.7B)         (23.6B)           (0)     (7.86B)    (15.7B)         (23.6B)
+
+                                     Column kγbk 2 (raw)                                                Column Minimum ϕ(γb)                                          Column Maximum ϕ(γb)
+               30                                                                       1.0                                       Direct γ                  5
+                                                                                                                                  softplus(γ)
+                                                                                        0.8                                       exp(γ)                    4
+               20                                                                                                                 Direct γ with min 1e-5
+                                                                                        0.6
+                                                                                                                                                            3
+               10                                           Direct γ                    0.4                                                                                            Direct γ
+                                                            softplus(γ)                                                                                     2                          softplus(γ)
+                                                            exp(γ)                      0.2                                                                                            exp(γ)
+                                                            Direct γ with min 1e-5                                                                                                     Direct γ with min 1e-5
+                0                                                                                                                                           1
+                         0              15k               30k             45k                  0              15k               30k             45k              0        15k        30k             45k
+                        (0)           (7.86B)           (15.7B)         (23.6B)               (0)           (7.86B)           (15.7B)         (23.6B)           (0)     (7.86B)    (15.7B)         (23.6B)
+                                          Steps (Tokens)                                                        Steps (Tokens)                                             Steps (Tokens)
+
+                                                                                       (a) Attention QKV projection.
+                                          Row kγbk 2 (raw)                                                 Row Minimum ϕ(γb)                                           Row Maximum ϕ(γb)
+                                                                                        1.0                                                                 8
+                                                                                                                                   Direct γ
+               100                                                                                                                 softplus(γ)
+                                                                                        0.8                                        exp(γ)                   6
+                75                                                                                                                 Direct γ with min 1e-5
+                                                                                        0.6
+                50                                                                                                                                          4
+                                                              Direct γ                  0.4                                                                                            Direct γ
+                25                                            softplus(γ)                                                                                                              softplus(γ)
+                                                              exp(γ)                                                                                        2                          exp(γ)
+                                                              Direct γ with min 1e-5    0.2                                                                                            Direct γ with min 1e-5
+                    0
+                          0               15k              30k              45k                 0              15k              30k              45k             0        15k        30k             45k
+                         (0)            (7.86B)          (15.7B)          (23.6B)              (0)           (7.86B)          (15.7B)          (23.6B)          (0)     (7.86B)    (15.7B)         (23.6B)
+
+                                       Column kγbk 2 (raw)                                               Column Minimum ϕ(γb)                                         Column Maximum ϕ(γb)
+                                                                                        1.0                                        Direct γ
+                30                                                                                                                 softplus(γ)              4
+                                                                                        0.8                                        exp(γ)
+                                                                                                                                   Direct γ with min 1e-5
+                20                                                                      0.6                                                                 3
+
+                10                                            Direct γ                  0.4                                                                                            Direct γ
+                                                              softplus(γ)                                                                                   2                          softplus(γ)
+                                                              exp(γ)                    0.2                                                                                            exp(γ)
+                                                              Direct γ with min 1e-5                                                                                                   Direct γ with min 1e-5
+                    0                                                                                                                                       1
+                          0               15k              30k              45k                 0              15k              30k              45k             0        15k        30k             45k
+                         (0)            (7.86B)          (15.7B)          (23.6B)              (0)           (7.86B)          (15.7B)          (23.6B)          (0)     (7.86B)    (15.7B)         (23.6B)
+                                           Steps (Tokens)                                                       Steps (Tokens)                                             Steps (Tokens)
+
+                        (b) MLP up-and-gate projection (linear_fc1); no normalization layer downstream.
+                                        Row kγbk 2 (raw)                                                   Row Minimum ϕ(γb)                                           Row Maximum ϕ(γb)
+                                                                                       1.0                                        Direct γ                  6
+                                                                                                                                  softplus(γ)
+                                                                                       0.8                                        exp(γ)                    5
+               20                                                                                                                 Direct γ with min 1e-5
+                                                                                                                                                            4
+                                                                                       0.6
+               10              Direct γ
+                                                                                                                                                            3                          Direct γ
+                               softplus(γ)                                             0.4                                                                  2                          softplus(γ)
+                               exp(γ)                                                                                                                                                  exp(γ)
+                               Direct γ with min 1e-5                                                                                                                                  Direct γ with min 1e-5
+                0                                                                      0.2                                                                  1
+                         0              15k               30k              45k                 0              15k               30k             45k              0        15k        30k             45k
+                        (0)           (7.86B)           (15.7B)          (23.6B)              (0)           (7.86B)           (15.7B)         (23.6B)           (0)     (7.86B)    (15.7B)         (23.6B)
+
+                                      Column kγbk 2 (raw)                                               Column Minimum ϕ(γb)                                          Column Maximum ϕ(γb)
+                                                                                       1.0                                        Direct γ                  4
+                                                                                                                                  softplus(γ)
+               60                                                                      0.9                                        exp(γ)
+                                                                                                                                  Direct γ with min 1e-5    3
+               40                                                                      0.8
+
+                                                             Direct γ                  0.7                                                                  2                          Direct γ
+               20                                            softplus(γ)                                                                                                               softplus(γ)
+                                                             exp(γ)                    0.6                                                                                             exp(γ)
+                                                             Direct γ with min 1e-5                                                                                                    Direct γ with min 1e-5
+                0                                                                                                                                           1
+                         0              15k               30k              45k                 0              15k               30k             45k              0        15k        30k             45k
+                        (0)           (7.86B)           (15.7B)          (23.6B)              (0)           (7.86B)           (15.7B)         (23.6B)           (0)     (7.86B)    (15.7B)         (23.6B)
+                                          Steps (Tokens)                                                        Steps (Tokens)                                             Steps (Tokens)
+
+                    (c) MLP output projection (linear_fc2); followed by the post-MLP Sandwich Norm.
+Figure 18: Across all three projections, the learned gains spread over more than an order
+of magnitude during training. Gain dynamics at layer 6 of the 181M dense model, for the four
+parameterizations of Figure 6. In each panel, (top) row and (bottom) column gains; (Left) The raw-gain
+norm ∥b γ ∥2 , (Center) The minimum effective gain φ(b
+                                                     γ ) (over all dimensions), and (Right) The maximum
+effective gain (over all dimensions).
+
+                                                                                                                       30
+

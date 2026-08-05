@@ -1,0 +1,57 @@
+# sft_self_improvement_preregistration.yaml
+# Self-Improvement Loop for SFT (Self-SFT)
+# Written BEFORE the run. Follows the preregistration pattern from claims.yaml.
+id: SELF-SFT-PREREG-v0.1
+status: design_draft
+
+reframed_question: >
+  Can a small model (1.3B-10B parameters) improve its own verifier-pass rate
+  by iterating on its own verifier-filtered outputs, without requiring
+  additional human annotation or larger teacher models?
+
+motivation: >
+  Self-improvement (STaR, ReST, SPIN) is proven for large models. This
+  experiment tests whether it transfers to the small-model regime where
+  Aurelius operates. A positive result means Aurelius can bootstrap from
+  its own correct outputs indefinitely — creating a data flywheel with
+  zero annotation cost.
+
+design:
+  base: "FROZEN-BASE (Aurelius 1.3B or Qwen2.5-1.5B equivalent)"
+  n_prompts: 500
+  n_rounds: 3
+  n_samples_per_prompt: 3
+  generation_temperature: 0.7
+  verifier: "SimpleVerifier (length + refusal + repetition) + domain verifiers (code test pass, schema check, math answer)"
+  training:
+    learning_rate: 2e-5 initial, 1e-5 subsequent
+    epochs: 3 round 0, 2 rounds 1-2
+    batch_size: 4
+    optimizer: AdamW
+    data_mix: "seed + round N accepted"
+  module: "src/training/self_sft_loop.py"
+
+hypotheses:
+  H-SSFT-0 (round improvement): >
+    "Acceptance rate increases monotonically across 3 rounds. Base acceptance
+    rate (after round 1) < acceptance after round 2 < acceptance after round 3."
+  H-SSFT-1 (quality transfer): >
+    "Held-out verifier pass rate improves 5-15% compared to teacher-only SFT
+    at matched training examples."
+  H-SSFT-2 (independence from teacher): >
+    "By round 3, the models own accepted outputs are more diverse (n-gram
+    overlap drops 20%) than teacher-generated outputs from the same prompts."
+
+primary_endpoint: "Round-over-round acceptance rate change. Positive monotonic trend = mechanism works."
+
+non_claims:
+  - "This does not test whether self-improvement generalizes beyond the training prompt distribution."
+  - "Verifier quality determines ceiling; a weak verifier produces weak self-improvement."
+  - "3 rounds is a pilot; the mechanism may scale to more rounds."
+
+kill_decision_map:
+  - "H-SSFT-0 fails: acceptance rate does not increase. -> Stop. Reduce temperature or use easier prompts and restart. If second attempt also fails, the mechanism does not transfer to this scale — document negative result."
+  - "H-SSFT-1 fails: held-out accuracy does not improve. -> Self-improvement matches but does not beat teacher-only SFT. The data-flywheel value (free data) may still justify the approach; report as 'cost-effective but not accuracy-improving'."
+  - "H-SSFT-KILL: zero accepted examples in any round. -> Verifier is too strict or prompts are too hard. Loosen verifier or simplify prompts. If zero persists, the model cannot generate correct outputs at this scale -> kill."
+
+blocks_remaining: [NO_BLOCKS — runnable with src/training/self_sft_loop.py]

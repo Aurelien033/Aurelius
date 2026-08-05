@@ -1,0 +1,932 @@
+                                                   ConSolv: Solvent-Conditional Machine Learning Implicit Solvent
+                                                                             Potential
+                                                                                    Linying Zhang1 and Julija Zavadlav*1,2
+
+
+
+
+arXiv:2606.24983v1 [physics.chem-ph] 23 Jun 2026
+                                                         1
+                                                         Multiscale Modeling of Fluid Materials, Department of Engineering Physics and
+                                                     Computation, TUM School of Engineering and Design, Technical University of Munich,
+                                                                                           Germany
+                                                     2
+                                                       Atomistic Modeling Center (AMC), Munich Data Science Institute (MDSI), Technical
+                                                                                University of Munich, Germany
+
+                                                                                         *Email: julija.zavadlav@tum.de
+
+                                                                                                        Abstract
+                                                            Implicit solvent machine learning potentials (MLPs) offer a powerful route to bridging the gap be-
+                                                        tween accuracy and efficiency in molecular simulations. However, existing models have largely focused
+                                                        on aqueous environments, overlooking the diverse and important roles of non-aqueous solvents in areas
+                                                        such as organic synthesis and battery technology. Here, we present ConSolv, a solvent-conditional MLP
+                                                        architecture that explicitly incorporates solvent effects on solute interactions through an attention-based
+                                                        solvent-embedding block. By combining experimental solvation free energy data with ab initio data, we
+                                                        train a single implicit solvent MLP that is transferable across 66 common organic solvents. ConSolv
+                                                        outperforms classical explicit solvent methods and selected ab initio implicit solvent approaches across
+                                                        multiple solvation free energy benchmarks, and demonstrates generalization to unseen solvents. Beyond
+                                                        solvation free energies, the model shows close agreement with experimental nuclear magnetic resonance
+                                                        (NMR) data for γ-fluorohydrin molecules in chloroform. ConSolv’s architecture is readily extensible to
+                                                        broader chemical spaces and alternative training strategies, while its attention-based design supports ex-
+                                                        plainable artificial intelligence (AI) analysis that can help elucidate complex, solvent-dependent molecular
+                                                        interactions.
+
+
+                                                   Introduction
+                                                   Solvents play an active and often decisive role in molecular processes. They modulate intermolecular in-
+                                                   teractions, screen electrostatic forces, stabilize or destabilize intermediates and transition states, and shift
+                                                   reaction equilibria. These effects are central to a wide range of applications, including pharmacology, or-
+                                                   ganic synthesis, and electrochemistry [1–5], where the solvent environment influences drug solubility, reaction
+                                                   rates, electrolyte stability, and the conformational dynamics of solute molecules. Accurately capturing both
+                                                   solvent and solute dynamics is therefore essential for improving the predictive power of molecular dynamics
+                                                   (MD) simulations.
+                                                       Conventional simulation methods, however, face a fundamental trade-off between accuracy and efficiency.
+                                                   Quantum-mechanical approaches such as density functional theory (DFT) can provide high accuracy, but
+                                                   their computational cost is often prohibitive to study solvent-mediated molecular processes. Classical force
+                                                   fields such as GAFF [6], by contrast, enable explicit-solvent simulations over larger spatial and temporal
+                                                   scales, but rely on fixed functional forms and approximate parameterizations that may limit their accuracy
+                                                   and transferability. Machine learning (ML) potentials (MLPs) [7–9], particularly those based on graph neural
+                                                   networks (GNNs), have emerged as a powerful route to overcoming this trade-off. By learning flexible many-
+                                                   body interaction potentials directly from data, MLPs can approach ab initio accuracy at a fraction of the
+                                                   computational cost. Recent advances have therefore enabled explicit-solvent simulations with near-ab initio
+                                                   accuracy [10], opening new opportunities for the atomistic study of solvent effects.
+
+
+                                                                                                             1
+    Despite these advances, explicit-solvent MLP simulations remain computationally demanding. Although
+MLPs scale linearly with the number of particles and can therefore be applied to very large systems, including
+systems containing millions of atoms [11], they remain orders of magnitude slower than classical force fields.
+This makes it challenging to reach the long timescales needed to sample solvent-driven conformational
+dynamics, reaction pathways, and rare events. Implicit-solvent MLPs offer a promising solution to this
+bottleneck. By removing explicit solvent degrees of freedom and encoding solvent effects directly into the
+effective solute interactions, they can provide speedups of two to three orders of magnitude, particularly
+when solvent molecules constitute the majority of the system [12]. Contrary to traditional models [13–15],
+ML-based implicit-solvent models can, in principle, reproduce explicit-solvent conformational ensembles of
+complex molecular and macromolecular systems with high fidelity, provided that sufficient training data
+and adequate model expressivity are available [16]. Nonetheless, developing transferable implicit solvent
+MLPs requires addressing two intertwined questions: how the solvent effects should be incorporated into the
+architecture, and which data should be used to parametrize the model.
+    On the architectural level, one strategy is to use ML only for the solvent-solute contribution, while
+treating intramolecular interactions with conventional methods. Within this framework, parameterization
+can be physics-based or fully data-driven. Physics-based approaches leverage established implicit solvent
+models such as Generalized Born [17] and use ML to optimize their parameters [18–20]. For example, the
+GNNIS model uses a GNN to predict environment-dependent Generalized Born radii and solvent-dependent
+surface-tension coefficients for 39 organic solvents [21]. Such models benefit from physical grounding and are
+less likely to produce unphysical behavior outside the training distribution. The data-driven approaches [14,
+22] instead learn effective solvent-solute interactions directly from simulation data, offering greater flexibility
+but typically requiring broader training sets or unconventional training approaches [16, 23, 24]. While both
+parameterization strategies benefit from reduced system complexity, they share a fundamental limitation, as
+their accuracy is bounded by the fidelity of the traditional method used to model the solute. The alternative
+strategy overcomes this limitation by allowing the MLP to model the intramolecular interactions, which
+are modified to account for the solvent environment. This approach offers the greatest flexibility and, in
+principle, can achieve the highest accuracy, but existing models of this type have so far focused exclusively
+on aqueous environments [12, 23, 25–27], leaving the chemically diverse and technologically important space
+of non-aqueous solvents largely unexplored.
+    The choice of training data is equally critical. The first option is to train on explicit-solvent simulations,
+which requires coarse-graining over the solvent degrees of freedom. Unlike conventional MLPs, where config-
+urations can be generated with an inexpensive MD simulation and subsequently labeled with a high-fidelity
+(e.g., DFT) model, coarse-grained models must be trained on configurations generated by the target model
+itself, since configurations sampled under a different potential introduce a statistical bias unless the configura-
+tional ensemble is reweighted [28]. Since training directly on ab initio explicit-solvent data is computationally
+prohibitive, previous approaches relied on classical force fields as data sources [21], which inherently limits
+the attainable accuracy. A second option is to train on implicit solvent data. This avoids coarse-graining
+but transfers the approximations of the underlying implicit solvent model to the MLP. Semi-empirical quan-
+tum implicit-solvent methods, including COSMO-RS [29] and self-consistent continuum solvation (SCCS)
+approaches [30], that treat the solute quantum mechanically and the solvent as a dielectric continuum could
+be employed. However, large-scale implicit-solvent datasets comparable in size and chemical diversity to
+SPICE [31] or OMol25 [32] are not yet available, and existing datasets such as Aquamarine [33] are largely
+restricted to water. A third option is to train on experimental observables. This top-down strategy cir-
+cumvents the need for expensive quantum-mechanical solvent calculations, but requires differentiable links
+between model parameters and experimental quantities. For example, the DiffTRe framework [34] enables
+this link via reweighting for time-independent observables. The recent ReSolv model [12] extended DiffTRe
+to parameterize an implicit water MLP by combining DFT data for gas-phase molecules with experimen-
+tal hydration free energies. This approach achieved hydration-free-energy predictions more accurate than
+those of classical explicit-solvent models while providing speedups of four orders of magnitude relative to
+explicit-solvent MLPs. Nevertheless, the extensions to non-aqueous solvents are still missing.
+    In this work, we present ConSolv, a solvent-conditional implicit-solvent MLP that is transferable across
+small organic molecules. Instead of developing a separate model for each solvent, ConSolv models multiple
+non-aqueous solvents within a single, unified architecture, enabling information transfer between solvents.
+The attention-based solvent-embedding block is used to incorporate the solvent effects by modulating solute
+
+
+                                                        2
+interactions in a solvent-dependent manner while maintaining the flexibility of a fully data-driven MLP.
+Building on the ReSolv parametrization, we integrate DFT data for molecules in vacuum with experimental
+solvation free energy data from Solv@TUM [30], allowing for simultaneous training across 66 non-aqueous
+solvents. We demonstrate that ConSolv accurately predicts solvation free energies for unseen solute molecules
+across multiple benchmark datasets, generalizes to new solvents, and offers interpretable solvent-solute in-
+teraction patterns through its attention mechanism. By extending implicit-solvent MLPs beyond aqueous
+environments, ConSolv establishes a scalable and flexible framework for investigating solvent-dependent
+molecular behavior across common solvents.
+
+
+Methods
+Message Passing Graph Neural Network Potential
+Message Passing Graph Neural Networks (MPGNNs) [35] are state-of-the-art architectures for predicting
+potential energy of a system based on the positions and chemical elements of atoms. Any MPGNN archi-
+tectures could be extended to include solvent conditioning. Here, we use the MACE model [36], a popular
+equivariant MPGNN, as a baseline architecture. Below, we summarize the main components, while detailed
+information can be found in Refs. [36, 37].
+    MPGNNs operate on a graph, in which each atom defines a node and an edge is drawn between atoms i
+and j when their separation rij is smaller than a predefined cutoff radius rcutoff , defining the local environment
+of each atom. The node features hi ∈ RNchannel are initialized with an atom embedding block as trainable
+vectors that encode atom types Zi into Nchannel channels, obtained via index embedding based on the
+atom’s position in the periodic table (Figure 1a). In the radial embedding block, edge features eij (rij ) are
+
+
+
+
+Figure 1: ConSolv architecture (a) and training (b). In a conventional message passing graph neural network
+(MPGNN; a, gray), the node features hi initially represent atom types Zi . The atomic environment is
+encoded with radial eij and angular Yij embeddings, where rij and r̂ij denote the interatomic distance
+and unit direction vector, respectively. The solvent embedding block (a, blue) outputs the modulated node
+h̃i and edge ẽij features represented with bar plots (b) based on the k-th solvent descriptor vector Sk via
+multi-head attention and multi-layer perceptron (MLP), respectively. Consequently, the per-atom energy
+Ui changes depending on the solvent, as visualized for the ethyl propanoate molecule in (top to bottom)
+dimethylformamide, chloroform, and octanol for the RDKit-generated minimum energy conformer. The
+parameters are trained to match the experimental solvation free energy ∆Gexp .
+
+generated from interatomic distances, with each rij expanded in a Bessel radial basis and multiplied by a
+
+
+                                                        3
+smooth polynomial cutoff envelope before being passed to a small multilayer perceptron, yielding distance-
+dependent embeddings that decay smoothly to zero at the cutoff. The angular embedding Yij (r̂ij ) encodes
+directional information via spherical harmonics.
+    The interaction block iteratively updates node features via message passing, aggregating information
+from neighboring nodes and edges. At each message passing layer t, a message is constructed for each atom
+                                                                              
+                                      (t)                (t)    (t)
+                                           X
+                                   mi =          ϕ(t)
+                                                  m     hi   , hj   , eij , Yij ,                      (1)
+                                            j∈N (i)
+
+        (t)
+where ϕm is a learnable message function. The permutation-invariance is ensured by the pooling operation
+over neighboring atoms j ∈ N (i), while tensor products are used to ensure the resulting representations
+transform equivariantly under rotation. The node features are updated using
+                                                                 
+                                         (t+1)           (t)  (t)
+                                        hi     = ϕ(t)
+                                                  u     hi , mi ,                                    (2)
+        (t)
+where ϕu is a learnable update function. After T message passing iterations, a readout function aggregates
+the node features to predict per-atom energy contribution
+                                                      T                
+                                                                    (t)
+                                                      X
+                                              Ui =          ϕ(t)
+                                                             r     hi ,                                     (3)
+                                                      t=1
+        (t)
+where ϕu is a learnable readout function. The forces on the atoms are calculated by taking analytical
+derivatives of the total potential energy with respect to the positions of the atoms.
+
+ConSolv architecture
+ConSolv extends the MPGNN architecture to enable a solvent-conditional potential energy model. In par-
+ticular, we encode the k-th solvent with a feature vector Sk ∈ RNd , where subscript k = 1, . . . , Ns runs over
+solvent type. Classical descriptors based on solvent molecular structure and properties are used to construct
+the solvent embedding feature vector Sk . The selection of molecular descriptors was guided by the findings
+of Ferraz-Caetano et al. [38], who demonstrated that the accurate prediction of solvation Gibbs free en-
+ergy is primarily driven by the solvent’s and solute’s polar surface area, polarizability, and electronic charge
+distribution. Consequently, we employed Nd = 15 standard RDKit [39]-generated 2D and 3D descriptors,
+including Van der Waals Surface Area descriptors, molecular refractivity, and atomic partial charges, that
+effectively capture fundamental physicochemical properties of molecules. The descriptor set is detailed in
+Supporting Information Table S2.
+    We use precomputed solvent features to modulate the MPGNN embedding block such that the node and
+radial features depend not only on atom type Zi and radial distance rij but also on the solvent descriptor Sk
+(Fig. 1a). The node feature modulation is implemented using a multi-head cross-attention mechanism [40].
+The attention mechanism computes a weighted sum of value vectors, where the weights are determined by
+the compatibility between a query and a set of keys
+                                                                   QK ⊤
+                                                                        
+                                  Attention(Q, K, V ) = softmax      √      V,                               (4)
+                                                                       d
+where Q, K, and V denote the query, key, and value matrices, respectively. d is the dimension of the
+queries and keys used to stabilize the dot product magnitude. Each solvent descriptor vector Sk is projected
+to a p-dimensional space using a linear layer, resulting in a solvent embedding matrix Fk ∈ RNd ×p . The
+atom embedding hi serves as the query. In contrast, the solvent embedding matrix Fk serves as both the
+key and value, allowing each atom to attend selectively to the most relevant solvent features. To capture
+diverse solvent-solute interactions simultaneously, H parallel attention heads are used. The modulated
+atom embedding h̃i is obtained by adding the attention-weighted solvent embedding to the original atom
+embedding hi , i.e.,
+                              h̃i = hi + Concat(head1 , . . . , headm , . . . , headH )W O ,                (5)
+                                                Q       K       V
+                          headm = Attention(hi Wm , Fk Wm , Fk Wm ),                                        (6)
+
+
+                                                            4
+where Wm Q
+           ∈ RNchannel ×d , Wm
+                             K
+                                ∈ Rp×d , Wm V
+                                              ∈ Rp×dv , and W O ∈ RHdv ×Nchannel are learnable matrices, with
+dv denoting a dimension of the value matrix.
+   For the edge features eij , a multi-layer perceptron g(·) is employed to transform the solvent descriptors
+Sk to produce a modulation factor for each component of the Bessel radial basis embedding
+
+                                            ẽij = eij + g(Sk ) ⊙ eij ,                                      (7)
+
+where ⊙ denotes element-wise multiplication.
+   The modulated node features h̃i and edge features ẽij are the outputs of the solvent embedding block.
+The node features h̃i are passed to the first interaction (message-passing) layer, and the edge features are
+passed to all interaction layers. The spherical harmonic edge attributes Y(r̂ij ) remain unchanged.
+
+Two Stage Training using ReSolv
+We train the ConSolv MLP architecture using the ReSolv method previously employed to obtain an implicit
+water MLP model [12]. Briefly, ReSolv consists of two stages: a bottom-up and top-down training. In the
+first stage, we start from a randomly initialized parameter set and perform a standard training against a
+DFT dataset using the energy and force matching loss function
+                                                                                         
+                            Nbs                                Nl,a 3
+                         1 X    wU (Ul − Ul,DFT )2 + wF  1    XX
+                  L1 =                                                (Film − Film,DFT )2  ,         (8)
+                        Nbs                              3Nl,a i=1 m=1
+                            l=1
+
+
+where wU and wF are user-defined weights for the energy Ul and force Film on atom i in configuration l and
+direction m, respectively. The subscript DFT denotes the ab initio data target, Nbs batch size, while Nl,a is
+the number of atoms in configuration l. After training, we obtain an MLP model that takes a configurational
+and chemical state C as input and predicts the potential energy Uvac = U (C; θvac ) for molecules in vacuum
+with near-ab initio accuracy.
+    In the second stage, the architecture is augmented with a solvent-embedding block. The resulting MLP
+model is solvent-type-dependent, i.e., Usolv = U (C, S; θsolv ), where S is the solvent type. The parameter
+set is correspondingly enlarged θsolv = {θ, θse }, where θ parameters are initially set to the values of the
+vacuum model, while the parameters of the solvent embedding block θse are initialized randomly using a
+Gaussian distribution with zero mean and a standard deviation of 0.1. This initialization introduces a small
+perturbation to the vacuum model and enables accurate free energy calculations from trajectories sampled
+from the vacuum state. After initialization, all parameters of the model θsolv are optimized using a loss
+function that minimizes the difference between the calculated free energy difference ∆G between the vacuum
+model U (C; θvac ) and the implicit solvent model Usolv (C, S; θsolv ) and the experimental solvation free energy
+∆Gexp
+                                                  Nbs
+                                               1 X                       2
+                                         L2 =         (∆G − ∆Gexp ) .                                         (9)
+                                              Nbs
+                                                   l=1
+
+This training process continues until the model converges, yielding the final implicit solvent potential Usolv .
+    Second-stage training is not as straightforward as the first stage, because ∆G is not a direct output of
+an MLP but is instead computed via MD simulations. Nevertheless, we can use the fact that free energy is
+a state function and construct a free energy path along the training procedure, i.e., ∆G = ∆Gθvac →θsolv =
+∆Gθvac →θ̃ + ∆Gθ̃→θsolv , where θ̃ corresponds to parameters of the implicit solvent model at some point
+during training and θsolv are the current parameters. The first term has been computed during previous
+training steps, while the second term can be estimated from a reference trajectory {Cn }N   n=1 generated under
+reference parameters θ̃ using
+                                           N
+                                                                                                   !
+                                          X      n    h                                         io
+                              −1       −1
+             ∆Gθ̃→θsolv = −β ln N             exp −β Usolv (Cn , S; θsolv ) − Usolv (Cn , S; θ̃)     ,     (10)
+                                           n=1
+
+where β = 1/kB T . This provides a differentiable relation between ∆G and θsolv , enabling gradient-based
+optimization. To reduce the cost of trajectory generation, reference trajectories are reused across training
+
+
+                                                         5
+steps via an effective sample size criterion [41]. When the criterion is no longer satisfied, a new trajectory
+is generated, and the accumulated free energy difference is updated using the Bennett Acceptance Ratio
+(BAR) method [42]. For further details, see Ref. [12].
+
+Datasets and Further Details
+We use a filtered version of the DFT-generated SPICE dataset [43] for the first stage. SPICE contains over
+105 distinct molecular systems covering drug-like molecules and peptides, and over 2 × 106 conformations.
+Charged and ill-posed molecules are excluded, resulting in a dataset covering 10 chemical elements {H,
+C, N, O, F, P, S, Cl, Br, I}, corresponding to 85% of the original dataset size [31]. The selected data is
+randomly split into train (95%) and test (5%) portions. After training, the resulting MLP for molecules in
+vacuum achieves test-set accuracies of 1.8 meV/atom and 46 meV/Å for energies and forces, respectively.
+The accuracy is below the chemical accuracy threshold of 1 kcal/mol (43.4 meV) and comparable to that
+of state-of-the-art models trained on the same dataset. For example, the MACE-OFF23(S) [37] achieves
+errors of 1.0–2.0 meV/atom and 16–40 meV/Å on a matching test set. Slightly lower force errors of the
+MACE-OFF23(S) model compared to ours could be due to a larger number of trainable parameters.
+    For the second stage, we use the Solv@TUM database [30], containing 5952 experimental solvation free
+energy values for neutral molecules across 146 non-aqueous solvents. For consistency with the vacuum MLP,
+molecules containing elements outside the filtered SPICE dataset are excluded, yielding 5592 unique solute-
+solvent pairs. We select a subset of 66 solvents with more than 30 solute data points to avoid overfitting,
+resulting in 4577 data points. ConSolv is initially trained on all of these points to check the overall error
+distribution. We observe systematic outliers for molecules with positive solvation free energies (Fig. S1).
+These outliers correspond to small gas molecules: deuterium, nitrogen monoxide, carbon monoxide, oxygen,
+carbon tetrafluoride, and nitrogen. We attribute this behavior to two reasons: (i) the SPICE dataset contains
+drug-like organic molecules and peptides, and thus, the vacuum MLP cannot extrapolate to gas molecules;
+(ii) the experimental solvation free energies of soluble gases are difficult to measure accurately [44]. Since
+our model is intended for organic and drug-like molecules, gas molecules were subsequently excluded from
+the dataset. Additionally, molecules for which the vacuum model yields unstable simulations, identified by
+the presence of isolated atoms beyond the cutoff distance of 5.0 Å during trajectory generation, are also
+excluded. After all filters, solute molecules within each solvent are randomly split into 80% for training and
+20% for testing, resulting in 3596 training and 923 test data points.
+    The MD simulations performed during training are initiated with solute configurations generated by
+OpenBabel [45] from the Simplified Molecular Input Line Entry System (SMILES) strings in the Solv@TUM
+database. We perform a 25 ps initial equilibrium followed by a 225 ps production run for each molecule.
+We use the velocity Verlet algorithm with a 1 fs time step. Simulations are performed in the constant-
+number, constant-volume, constant-temperature (NVT) ensemble with a Langevin thermostat at 298.15 K
+and a friction coefficient of 50 ps−1 . The same protocol is used for training and testing. The convergence
+of the solvation free energy estimate using these settings was previously tested [12]. All MD simulations are
+conducted using Jax MD [46]. The MLP training was performed using chemtrain software [47]. All hyper-
+parameter settings regarding the MLP architecture and numerical optimization are reported in Supporting
+Information Table S1.
+
+
+Results
+ConSolv outperforms explicit solvent force fields in predicting Solvation Free
+Energies
+We first test ConSolv’s performance in predicting solvation free energy on different held-out data (Ta-
+ble 1). To enable extensive comparison with traditional models, including DFT-based implicit solvent models
+SCCS [30] and COSMO-RS [48] as well as the explicit solvent classical force field GAFF [49], we use three
+datasets: the Solv@TUM test set, CombiSolv [50], and Zhang et al. [49] benchmark. Across all datasets, the
+estimated experimental uncertainties are around 0.2 kcal/mol [49, 50], providing a reference noise floor for
+interpreting the reported errors.
+
+
+
+                                                      6
+Table 1: Root mean squared error (RMSE in kcal/mol), mean absolute error (MAE in kcal/mol), and overall
+Pearson correlation coefficient R2 performance of ConSolv (current study), implicit solvent ab initio models
+SCCS and COSMO-RS, and the explicit solvent GAFF. For Solv@TUM, methods are compared for a non-
+identical test set. All other values are recomputed on the identical test set using data published in the
+corresponding dataset references.
+
+                           Test set                      Method         RMSE       MAE      R2 overall
+                                                         ConSolv         0.64      0.50       0.97
+                       Solv@TUM [30]
+                                                          SCCS         0.84 [30]     -          -
+                                                         ConSolv         1.14      0.80       0.87
+         CombiSolv [50] \ Solv@TUM training set
+                                                        COSMO-RS         0.71      0.40       0.95
+                                                         ConSolv         0.82      0.68       0.93
+                      Zhang et al. [49]                   GAFF           1.18      0.87       0.85
+                                                        COSMO-RS         0.71      0.50       0.92
+
+
+    On the Solv@TUM test set (923 points), ConSolv reliably predicts solvation free energies with over 92% of
+ColSolv’s predictions being within 1 kcal/mol of experimental values. Moreover, it significantly outperforms
+SCCS, trained on the same dataset (Table 1), highlighting the benefit of a flexible functional form over a
+physics-based one. On the Solv@TUM training test (3596 points), the MAE is 0.31 kcal/mol, the RMSE is
+0.45 kcal/mol, and the R2 is 0.97. We identified two outliers with errors above 4 kcal/mol, visible in the parity
+plot (Fig. S3a), namely the iodine molecule in chlorobenzene and in 2,2,4-trimethylpentane solvents. These
+errors stem from the low representation of iodine-containing molecules in the SPICE training set, resulting
+in an inaccurate vacuum potential energy surface and, consequently, large errors in solvation free energy.
+These two outliers directly cause the RMSE spikes for chlorobenzene and 2,2,4-trimethylpentane in the per-
+solvent breakdown (Fig. 2a). Excluding the iodine molecule from the test set reduces the RMSE for both
+solvents below 1 kcal/mol. Beyond these outliers, ConSolv achieves lower errors than SCCS for most solvents,
+with the only remaining solvent above 1 kcal/mol being undecane, which has limited representation during
+training with only 24 data points. To further assess the robustness of ConSolv beyond individual solvents, we
+analyze the error distributions across different chemical spaces and physicochemical properties. Partitioning
+the accuracy metrics by solvent’s functional group reveals no meaningful error divergence despite unequal
+data availability, confirming broad applicability across the organic chemical space (Fig. S5a). The predictive
+performance remains consistent across solvent polarity classifications, with a uniform error distribution across
+polar protic, polar aprotic, and non-polar environments (Fig. S5c). Examination by solute’s functional group
+shows high accuracy for common chemical groups and slightly larger variance for specialized ones, consistent
+with the data distributions in the training set (Fig. S5b). Finally, categorization by solute’s molecular size
+reveals a gradual increase in MAE with the number of heavy atoms, reflecting the higher complexity of larger
+molecules and their relative scarcity in the training data (Fig. S5d).
+    Next, we evaluate ConSolv against COSMO-RS using a subset of the CombiSolv database [50]. To assess
+extrapolation beyond the Solv@TUM training distribution, we retain solute–solvent pairs with both experi-
+mental and COSMO-RS reference values that are absent from the Solv@TUM training set. For consistency
+with the chemical space targeted during ConSolv training, we further exclude solutes with more than 11
+heavy atoms, gas molecules, and iodine-containing molecules, which were identified as outliers in the preced-
+ing evaluations. The final filtered test set contains 471 data points. COSMO-RS achieves superior accuracy
+owing to its quantum mechanical treatment of the solute, which requires a DFT-level calculation per molecule
+and is therefore computationally demanding (Table 1). Nevertheless, ConSolv retains good predictive accu-
+racy, with an overall MAE below the chemical-accuracy threshold. ConSolv also captures the overall trend
+in solvation free energies for this external CombiSolv benchmark subset (Fig. S3b), although the error dis-
+tribution indicates a slight systematic overestimation of solvation free energies (Fig. S3e). Results for a less
+restrictive filtered dataset, which includes solutes with up to 19 heavy atoms and contains 661 data points,
+are reported in the Supporting Information. On this set, ConSolv achieves an MAE of 1.05 kcal/mol and an
+RMSE of 1.43 kcal/mol. The larger errors mainly arise because ConSolv is primarily trained on molecules
+with fewer than 11 heavy atoms, leading to increased errors for larger solutes (Fig. S6b), and because the
+experimental solvation free energies of larger molecules are also larger in magnitude (Fig. S6a). When the
+
+
+                                                       7
+Figure 2: Root mean squared error (RMSE) with respect to solvent using Solv@TUM test set (a) and solute
+using Zhang et al. [49] benchmark (b). The corresponding training dataset size is shown as a gray bar plot.
+Results are shown for ConSolv (blue), SCCS (red) [30], COSMO-RS (green) [49], and GAFF (orange) [49]
+models.
+
+
+averaged absolute relative error (AARE) is considered instead of the absolute error, the performance is more
+consistent across molecular sizes (Fig. S6c).
+    Lastly, we compare ConSolv with GAFF and COSMO-RS using the benchmark proposed by Zhang et
+al. [49]. This benchmark contains 228 data points, of which 50 solute-solvent pairs are not included in the
+ConSolv training dataset, while the solvent is one of the 66 solvents for which ConSolv is parameterized.
+On this subset, ConSolv substantially outperforms GAFF, as expected, considering that GAFF was not
+parameterized to reproduce solvation free energies. Examining the per-solute predictive errors (Fig. 2b)
+highlights divergent failure modes. For GAFF, molecules containing nitro functional groups, including ni-
+tromethane and nitrobenzene, show pronounced deviations, arising from the limitations of assigning static
+partial charges to highly polar constituents, which cannot adequately encode complex electrostatic interac-
+tions and polarization effects [49]. For ConSolv, the largest predictive errors occur for molecules with high
+polarizability or highly constrained internal geometries, such as diethyl sulfide and thiophene. In addition,
+the RMSE for ConSolv increases with decreasing amount of available training data per solute, reflecting
+the typical data limitations of machine learning models. Despite these data limitations, ConSolv reaches
+an overall accuracy close to that of COSMO-RS, and for several solutes it yields lower predictive errors
+(Fig. 2b). This agreement is notable because COSMO-RS evaluates each solute using a quantum-mechanical
+
+
+                                                     8
+description, whereas ConSolv maintains comparable performance after learning from sparse solute-specific
+training data. The per-solvent error analysis (Fig. S4) confirms that ConSolv predictions are reliable, with
+nearly all solvent-specific RMSE values close to or below 1 kcal/mol, while GAFF introduces large statistical
+variance and significant errors for several solvents.
+
+Importance of the solvent embedding semantics
+The ConSolv architecture is not the only approach to making an MLP potential solvent-dependent. Many
+architectural variations are possible, and the optimal choice likely depends on the specific application and
+dataset. Prior studies have not systematically explored different solvent embeddings for MLPs, leaving the
+optimal architecture an open question. Designing a solvent-dependent MLP framework requires decisions on
+three key elements: the stage at which the embedding is applied, the embedding method, and the mechanism
+for modulating graph features. We compare five architectural variants across these three design axes. The
+embedding stage determines where solvent information is incorporated: input-based approaches modulate
+node and edge features before message passing, while the output-based approach applies modulation only
+to the final per-atom potential energy after the readout layer. The embedding method specifies how the
+solvent is represented: descriptor-based methods use fixed, predetermined physicochemical solvent descrip-
+tors, whereas trainable methods learn a distinct embedding vector for each solvent directly from data. The
+modulation mechanism dictates how the solvent representation is combined with solute graph features, and
+we examine both attention and concatenation mechanisms. ConSolv employs the input-based descriptor
+approach with attention modulation. The four alternative combinations evaluated are: input-based de-
+scriptor with concatenation, input-based trainable with attention, input-based trainable with concatenation,
+and output-based descriptor with attention. Implementation details for these variants are provided in the
+Supporting Information.
+    The input-based trainable embedding with attention achieves the lowest Root Mean Squared Error
+(RMSE) and Mean Absolute Error (MAE) (Table 2) on the Solv@TUM test set. However, these com-
+monly used metrics do not fully capture the performance of a multi-solvent model, where distinguishing
+between different solvent environments is essential. To address this, we also compute the average Pearson
+correlation coefficient for each solute molecule (per-solute R2 ). The input-based descriptor setup yields a
+significantly higher per-solute R2 while maintaining strong RMSE and MAE performance, demonstrating
+superior differentiation across solvent environments. Although it exhibits slightly higher RMSE and MAE
+values compared to the input-based descriptor with concatenation, we select the ConSolv design as the op-
+timal architecture due to its physically meaningful modulation of interatomic interactions (Figure 3b) and
+interpretability via the attention mechanism (Figure 6).
+
+Table 2: Impact of solvent embedding architecture design on the Solv@TUM test set performance. Root mean
+squared error (RMSE) and mean absolute error (MAE) are in units of kcal/mol. The Pearson correlation
+coefficient R2 per solute is calculated with the weighted Fisher’s z-transformation [51].
+
+             Embedding        Embedding        Modulation      RMSE      MAE         R2          R2
+                   Stage         Method        Mechanism                         per solute    overall
+         (ConSolv) Input      Descriptors        Attention      0.64     0.50       0.85        0.97
+                   Input      Descriptors    Concatenation      0.62     0.48      0.86         0.97
+                   Input       Trainable         Attention      0.60     0.44       0.70        0.95
+                   Input       Trainable     Concatenation      0.74     0.57       0.72        0.95
+                 Output       Descriptors        Attention      0.82     0.60       0.32        0.92
+
+    To substantiate our findings, we analyze the models’ predictive patterns for representative solutes in the
+test dataset. Figure 3(a) displays the key advantage of the descriptor-based approach, namely its ability to
+resolve solvent-specific variations. For 1-hexanol solute molecule evaluated across six solvents, the descriptor-
+based models closely reproduce experimental trends, while both input-based trainable embedding models and
+the output-based model predict nearly identical solvation free energies across all solvents. This demonstrates
+a clear inability to distinguish between different solvent environments. Similar shortcomings are observed for
+other solutes in the test set (Figure S2). These failures can be attributed to two factors: trainable embeddings
+
+
+                                                       9
+rely solely on learned representations, making them prone to overfitting and poor generalization to unseen
+solutes, while output-based solvent embeddings are incorporated too late in the MPGNN to influence the
+message-passing encoding of local atomic environments.
+
+
+
+
+Figure 3: (a) Parity plot of solvation free energy predictions for 1-hexanol solute molecule across six solvents
+with diverse dielectric constant denoted by the color of the points with blue and red representing the lowest
+and highest dielectric constants, respectively. The black line represents the ideal prediction, while the shaded
+gray region marks the chemical accuracy region (1 kcal/mol). (b) Per-atom potential energy contribution
+difference between vacuum and solvent models. The red and blue colors refer to positive and negative
+changes, respectively, while white refers to the zero value. The results are shown for the 1-hexanol solute
+and the same six solvents as in (a), with the solvent’s dielectric constant decreasing from left to right.
+
+    Figure 3b further illustrates these differences by visualizing the per-atom potential energy changes,
+∆U = Usolv −Uvac . The shifts were computed by subtracting the vacuum potential from the solvent potential
+using a single energy-minimized conformation generated with OpenBabel using the original SMILES strings
+and the MMFF94 force field. Although per-atom potential energies are not rigorous quantum-mechanical ob-
+servables, their solvent-induced variations provide qualitative insight into how each architecture redistributes
+atomic energy contributions in response to solvent information. ConSolv exhibits physically consistent and
+solvent-sensitive energy redistributions that agree with established group-contribution descriptions of solva-
+tion phenomena [52]. As solvent polarity increases (Figure 3b right to left), hydrogen atoms along the alkyl
+
+
+                                                      10
+chain shift from weakly stabilizing negative shifts to small positive corrections. This trend is consistent with
+the increasing free-energy cost associated with cavity formation and reduced favorable dispersion interactions
+for nonpolar aliphatic groups in highly cohesive polar solvents [52, 53]. Simultaneously, the hydroxyl group
+remains strongly stabilized across all solvents due to favorable electrostatic interactions with the surrounding
+dielectric medium. In contrast, the input-based trainable with concatenation and output-based descriptor
+with attention architectures produce nearly invariant molecular energy fields across solvents, indicating that
+these models fail to encode solvent-specific environmental information. The input-based trainable with at-
+tention architecture generates irregular potential-energy redistributions without any systematic correlation
+to solvent polarity. Similarly, the input-based descriptor with concatenation architecture exhibits unphys-
+ical coupling between solvent descriptors and atomic environments, leading to artificially localized positive
+energy contributions on carbon atoms within the hexanol alkyl chain. Such behavior is inconsistent with
+established solvation theory, where polarity-dependent stabilization effects are expected to remain compara-
+tively smooth along nonpolar alkyl segments and to localize primarily around the polar hydroxyl functional
+group [52, 54].
+
+Generalization to unseen solvents
+A key advantage of descriptor-based solvent representations over trainable solvent embeddings is their capac-
+ity to predict properties for entirely new solvents without requiring retraining. To assess this generalization,
+we evaluate ConSolv on solvents absent from the training set, thus testing its transferability beyond the
+66 organic solvents for which it was originally parametrized. Specifically, we investigate the performance
+on the four holdout solvents o-xylene, acetonitrile, dimethyl sulfoxide (DMSO), and nitromethane using,
+in total, 30 experimental data points extracted from Zhang et al. [49]. These solvents cover a wide spec-
+trum of physicochemical properties, ranging from weakly polar aromatic environments (o-xylene) to highly
+polar aprotic solvents (DMSO and nitromethane). ConSolv exhibits strong predictive accuracy across all
+tested solvents (Fig. 4a). Compared to GAFF and COSMO-RS, it achieves the highest R2 for o-xylene
+
+
+
+
+Figure 4: Generalization to solvents unseen during ConSolv training (o-xylene, acetonitrile, dimethyl sulfox-
+ide (DMSO), nitromethane) evaluated using N experimental data points [49]. Error metrics (a) including
+root mean squared error (RMSE, kcal/mol), mean absolute error (MAE, kcal/mol), and Pearson correlation
+R2 , and parity plots (b) for ConSolv, GAFF [49], and COSMO-RS [49] models.
+
+and acetonitrile solvents, as well as the lowest RMSE for DMSO. Notably, ConSolv’s predictions do not
+
+
+                                                      11
+show significant outliers across all evaluated solvents (Fig. 4b). In contrast, the GAFF simulations exhibit
+a pronounced outlier in nitromethane solvent corresponding to the nitromethane’s self-solvation free en-
+ergy. Nitromethane possesses a strong permanent dipole together with highly localized charge separation
+around the nitro group. Since conventional fixed-charge force fields rely on static partial charges, they can-
+not explicitly adapt to environment-dependent polarization effects in strongly polar media [55]. In pure
+nitromethane, strong dipole-dipole interactions can therefore become excessively stabilized if the assigned
+charges slightly overestimate the interaction strength, a known limitation for generalized force-field treat-
+ments of nitro-containing systems [49, 56]. Consequently, GAFF produces an artificially over-stabilized
+solvation free energy. Overall, the results indicate that ConSolv exhibits far greater reliability in highly
+polar solvents compared to GAFF.
+
+Generalization to out-of-target experimental data
+After extensive solvation free energy generalizability testing, we proceed to the out-of-target property test.
+To this end, we reproduce the test of Morado et al. [57] exploiting experimental nuclear magnetic resonance
+(NMR) data for 10 γ-fluorohydrins (Fig. 5b) solvated in chloroform. Note that the γ-fluorohydrin molecules
+are absent from both the SPICE and the Solv@TUM training set, providing a stringent test of model
+transferability. To calculate the J-coupling constants (h1 JOH...F ), we perform 20 MD simulations for each
+of the 10 γ-fluorohydrins starting with 20 different RDkit-generated configurations from SMILES strings.
+Each MD simulation is 1 ns long, totaling 20 ns of data per γ-fluorohydrin solute. Other MD simulation
+details are the same as for the solvation free energy calculations. We use MD trajectories to determine
+the relative conformational populations and subsequently compute a weighted average of the theoretical
+J-coupling constants obtained at the ωB97X/6-311++G(2d,p)/PCM level of theory, as further detailed in
+the Supporting Information. We follow the same simulation and analysis protocols for ConSolv and the
+ML-based Generalized Born implicit solvent GNNIS model [21]. We additionally compare with previously
+published results [57] for other traditional and ML-based models.
+    ConSolv shows excellent performance across overall RMSE and R2 error metrics, outperforming the
+explicit solvent classical force field GAFF, the ANI-2x model using an MLP for the solute and a classical
+force field for the solvent, as well as GNNIS (Figure 5a). In addition, the predictions are in significantly
+closer agreement with the experiment than the ab initio implicit solvent ωB97X/6-311++G(2d,p)/PCM
+model. Parity plot reveals several outliers for all models except for the ConSolv and the best-performing
+MP2/6-311++G(2d,p)/PCM model (Figure 5c). We further quantify the quality of conformational sampling
+of γ-fluorohydrin molecules by computing the sum of absolute error of the populations (SAEP). It measures
+the difference between the model-generated populations against analytical Boltzmann populations derived
+at the MP2/6-311++G(2d,p)/PCM level of theory, with lower values indicating better compliance with
+reference quantum mechanics calculations. For analysis details, see Ref. [57]. ConSolv achieves a closer
+agreement (average SAEP of 60.84) than previous ML-based ANI-2x (114.44) and GNNIS (67.00) models,
+and comparable performance to GAFF (50.50) (Figure 5d).
+
+Insights into solvent effects via explainable artificial intelligence
+Owing to its attention-based design, ConSolv enables explainable artificial intelligence (AI) analysis. To
+understand how the solvent embedding block captures solvent effects, we visualize per-atom attention weights
+across four representative heads in the multi-head attention mechanism. These weights reflect the learned
+affinity between solute node features and solvent descriptor representations, indicating which descriptors
+are preferentially selected during the aggregation of solvent information. Note that the analysis does not
+directly quantify the modulation magnitude on individual node features, as this is jointly determined by the
+attention weights and the learned value representations. Figure 6 shows the most interpretable head (head3 )
+for 1-hexanol in two solvents of contrasting polarity, namely methanol (ε = 32.61, polar) with a predicted
+solvation free energy of −6.2 kcal/mol (experimental −7.2 kcal/mol) and 2,2,4-trimethylpentane (TMP,
+ε = 1.93, non-polar) with a predicted solvation free energy of −5.0 kcal/mol (experimental −5.1 kcal/mol).
+    When predicting the potential energy of 1-hexanol in methanol, three size- and polarisability-related
+descriptors receive the highest attention weights, all sharply localized at the hydroxyl oxygen atom of the
+solute. These are the molecular refractivity (MolMR, which quantifies how easily the electron cloud of
+
+
+                                                     12
+Figure 5: Root mean squared error (RMSE, kcal/mol), Pearson correlation coefficient R2 (a) and parity
+plot (c) of h1 JOH...F for 10 fluorohydrins (b) in chloroform solution with respect to experimental nuclear
+magnetic resonance (NMR) data. The black solid line denotes perfect correlation. Sum of absolute error
+of the populations (SAEP) (d) between the populations predicted by molecular dynamics simulations using
+ConSolv (blue), GNNIS (violet), ANI-2x (yellow), and GAFF (orange) models, and the Boltzmann popula-
+tions calculated at the second-order Møller-Plesset perturbation theory (MP2)/6-311++G(2d,p)/polarizable
+continuum model (PCM) level of theory, labeled as MP2. ωB97X denotes calculations with the ωB97X/6-
+31G*/PCM level of theory.
+
+
+a molecule is distorted by an external electric field and serves as a measure of molecular polarisability),
+the average molecular weight (MolWt), and the exact monoisotopic molecular weight (ExactMolWt). The
+attention weights for all three descriptors approach the observed maximum at the oxygen site, while carbon
+backbone atoms and carbon-bound hydrogen atoms show moderate attention weights. This pattern is
+physically consistent with the known behavior of polar protic solvation, where the refractivity and mass of
+the solvent govern the strength of inductive interactions and the energy required to form a solvent cavity [58],
+and these contributions are most strongly felt at the electronegative, hydrogen-bond-accepting oxygen atom
+of 1-hexanol.
+
+
+                                                      13
+Figure 6: Per-atom attention weights (head3 ) for 1-hexanol solute molecule and solvent descriptors of
+methanol (top, ε = 32.61, polar) and 2,2,4-trimethylpentane (bottom, ε = 1.93, non-polar).
+
+
+    On the other hand, when TMP is used as a solvent, the attention pattern shifts markedly. The descriptors
+that receive the highest attention weights are still concentrated on hydroxyl oxygen, but they are now
+MaxPartialCharge (the largest positive partial charge on the solvent molecule) and PEOE_VSA1 (the van
+der Waals surface area of the solvent in the most negatively charged partial charge bin, which reflects the
+distribution of electron density across the solvent surface). Both descriptors encode the near-absence of
+significant charge on the TMP molecule, and their localization at the hydroxyl oxygen of the solute reflects
+the electrostatic mismatch between the polar solute site and the charge-neutral solvent environment [53].
+The attention thereby encodes the energetic penalty associated with placing a polar functional group in a
+medium with insufficient dielectric screening.
+    A similar pattern as in head3 is observed in head0 (Fig. S7), albeit with a smaller peak weight. In contrast,
+the attention in head2 (Fig. S8) focuses on non-oxygen atoms. This head can be interpreted as the encoding
+of a global cavity-formation contribution, in which the solvent refractivity modulates the solvation free energy
+throughout the solute’s molecular volume rather than through site-specific electrostatic interactions. The role
+of hydrogen-bond-specific descriptors is revealed in head5 (Fig. S9). In methanol, the descriptor fr_Al_OH
+(the count of aliphatic hydroxyl groups in the solvent molecule, which encodes its hydrogen-bond donor
+and acceptor capacity) achieves the highest attention weight in this head, with activation co-localized at the
+hydroxyl oxygen of 1-hexanol. This reflects the bifunctional nature of the hydroxyl group as simultaneously a
+hydrogen-bond donor and a hydrogen-bond acceptor, and is consistent with the dominance of hydrogen-bond
+complementarity in the solvation of alcohols by polar protic solvents [59]. MinEStateIndex (the minimum
+electrotopological state index, which combines the electronic environment and topological connectivity of
+the least electron-rich atom in the molecule) shows additional moderate activation at the oxygen site in
+methanol, reinforcing the interpretation that electron-rich, topologically peripheral atoms constitute the
+primary sites of favorable electrostatic engagement with the polar solvent. In TMP, head5 instead localizes
+high attention for MinPartialCharge (the most negative partial atomic charge on any atom of the solvent
+molecule) exclusively at the hydroxyl oxygen of the solute, encoding the same electrostatic mismatch signal
+identified in head3 from a complementary descriptor perspective.
+    The above analysis focuses on which molecular descriptors are most strongly attended when ConSolv
+evaluates solute solvation in different solvent environments. It is instructive to compare these learned de-
+
+
+                                                       14
+scriptor preferences with the solvent properties used to parameterize DFT implicit-solvent models such as
+SM5, including surface tension, index of refraction, hydrogen bonding acidity, and hydrogen bonding basic-
+ity [60]. Several connections emerge naturally. MolMR and SMR_VSA1 are refractivity-based descriptors
+and therefore relate to the index of refraction and optical polarisability. Kappa1, MolWt, ExactMolWt, and
+van der Waals surface-area descriptors encode solvent size, shape, and exposed surface, which are indirectly
+related to cavity formation and nonpolar solvation terms that are often parameterized through surface-area
+or surface-tension contributions [52]. The localized activation of fr_Al_OH provides the clearest molecular
+proxy for hydrogen bonding acidity and hydrogen bonding basicity in alcohol solvents, while MinEStateIn-
+dex, MaxPartialCharge, MinPartialCharge, and PEOE_VSA1 provide complementary information on the
+local charge distribution that supports polar and hydrogen-bonding interactions [59]. Thus, although Con-
+Solv is not trained directly on these macroscopic solvent properties, the learned attention patterns recover
+several relevant physical categories through the available molecular descriptors.
+    Descriptors including the Quantitative Estimate of Drug-likeness (qed, a composite score developed to
+assess pharmaceutical candidates), the E-State-weighted van der Waals surface area (VSA_EState1), and
+the logP-binned surface area (SlogP_VSA1) remain consistently near or below the uniform baseline across
+all conditions, confirming their limited relevance to solvation free energy prediction.
+
+Computational cost
+Finally, we compare the computational cost of ConSolv with the corresponding vacuum model without
+the solvent embedding block, the published GNNIS implementation [21], and explicit-solvent OPLS-AA
+simulations performed with GROMACS 2025.3 [61]. The benchmark was carried out for the representative
+fluorohydrin anti-A molecule solvated in chloroform. For the explicit-solvent simulation, the solute was
+placed in a 4 nm simulation box containing 2418 atoms in total. All timings were measured over 1 ns
+on an NVIDIA RTX 4090 GPU using a 1 fs timestep and exclude the initial compilation step. ConSolv
+achieved a simulation speed of 153 ns/day, compared with 161 ns/day for the vacuum model, 17 ns/day
+for GNNIS, and 1310 ns/day for the explicit-solvent simulation. These results demonstrate the efficiency
+of the current ConSolv implementation. Adding the solvent embedding block reduces the throughput by
+only about 5% relative to the vacuum MACE model, indicating that solvent conditioning introduces only a
+small computational overhead. ConSolv is also about nine times faster than GNNIS under the matched 1
+fs benchmark conditions. The explicit-solvent OPLS-AA simulation is faster for this small classical system
+due to GPU optimization. The reported performance should therefore be interpreted as implementation-,
+hardware-, and system-size-dependent. Optimized equivariant kernels, such as cuEquivariance [62], could
+further improve the speed of ConSolv, while different software backends, hardware platforms, or larger
+solvent-dominated systems may change the relative timings.
+
+
+Conclusion
+We have introduced ConSolv, a solvent-conditional MLP architecture for implicit solvent modeling. By in-
+corporating solvent information into atomic embeddings via descriptor-based solvent conditioning, ConSolv
+enables accurate, computationally efficient predictions across chemically diverse solvent environments. Us-
+ing a two-step training strategy, the model not only achieves strong correlation with experimental solvation
+free energies but also maintains simulation efficiency comparable to that of vacuum models. Our findings
+demonstrate that descriptor-conditioned solvent embeddings robustly capture solvent-specific effects, en-
+abling reliable generalization to both polar and non-polar solvents, even those absent from the training set.
+In direct comparisons, ConSolv outperforms or matches traditional explicit-solvent force-field simulations
+and DFT-based SCCS implicit-solvent approaches, all while operating at a fraction of the computational
+cost of DFT-based implicit solvent methods. Furthermore, analysis of the solvent attention mechanism re-
+veals chemically interpretable patterns: descriptors tied to solvent size and polarizability contribute broadly
+to molecular representations, while electrostatic and hydrogen-bonding descriptors are selectively activated
+around polar functional groups in a solvent-dependent fashion. Collectively, these results show that ConSolv
+learns physically meaningful solvent–solute interaction patterns, underscoring its versatility and accuracy.
+    Despite ConSolv’s strong accuracy and transferability across diverse solvent environments, certain limita-
+tions persist. The model’s predictive performance declines for solute chemistries that are underrepresented in
+
+
+                                                      15
+the DFT training distribution, such as small gas-phase molecules, demonstrating that transferability is fun-
+damentally linked to the chemical diversity of training data. Extending the model’s applicability to larger or
+more complex molecules will require access to broader solvation free energy datasets, such as CombiSolv [50],
+or extensive force-labeled datasets for macromolecules in explicit solvent. Moreover, further optimization
+of the classical solvent descriptor set could enhance both model performance and generalization. Thus,
+investigating alternative solvent representations, including pre-trained molecular embeddings from machine-
+learning-based feature-extraction models [63], represents a promising future research direction.
+    Importantly, the solvent-embedding architectural extension introduced in ConSolv is not restricted to
+the MACE architecture or the specific training framework utilized here. This approach can be readily
+incorporated into other MLPs and training protocols, broadening its potential impact. Particularly notable
+are emerging models that incorporate long-range interactions [64, 65]. Altogether, this work underscores
+the promise of solvent-conditioned MLPs for efficient, transferable implicit solvent modeling, providing a
+practical framework to advance molecular simulations across areas such as drug discovery, materials science,
+and electrochemistry.
+
+
+Supporting Information
+Details of method implementation, training procedures, hyperparameters, and additional qualitative results
+are available in the Supporting Information.
+
+
+Acknowledgements
+Funded by the European Union. Views and opinions expressed are however those of the author(s) only
+and do not necessarily reflect those of the European Union or the European Research Council Executive
+Agency. Neither the European Union nor the granting authority can be held responsible for them. This work
+was funded by the ERC (StG SupraModel) - 101077842. Funded by the Deutsche Forschungsgemeinschaft
+(DFG, German Research Foundation) – SPP2363, Projektnummer: 561190767. The authors gratefully
+acknowledge the Gauss Centre for Supercomputing e.V. (www.gauss-centre.eu) for funding this project by
+providing computing time through the John von Neumann Institute for Computing (NIC) on the GCS
+Supercomputer JUPITER and JUWELS [66] at Jülich Supercomputing Centre (JSC).
+
+
+Data and Software Availability
+The code and data supporting this study will be made publicly available on GitHub upon acceptance of this
+manuscript.
+
+
+References
+ (1)   Hirata, F., Molecular theory of solvation; Springer Science & Business Media: 2003; Vol. 24.
+ (2)   Gorges, J.; Grimme, S.; Hansen, A.; Pracht, P. Towards understanding solvation effects on the con-
+       formational entropy of non-rigid molecules. Physical Chemistry Chemical Physics 2022, 24, 12249–
+       12259.
+ (3)   Matczak, P.; Domagała, M. Heteroatom and solvent effects on molecular properties of formaldehyde
+       and thioformaldehyde symmetrically disubstituted with heterocyclic groups C 4 H 3 Y (where Y=
+       O–Po). Journal of Molecular Modeling 2017, 23, 1–11.
+ (4)   Odey, M. O.; Antai, E. E.; Adindu, E. A.; Godfrey, O. C.; Bassey, I. U.; Nwaokolrie, F. O.; Owolabi, A.;
+       Nkang, A.; Gber, T. E.; Edim, M. M., et al. Unraveling the impact of polar solvation on the molecular
+       geometry, spectroscopy (FT-IR, UV, NMR), reactivity (ELF, NBO, HOMO-LUMO) and antiviral
+       inhibitory potential of Cissampeline by molecular docking approach. Chemical Physics Impact 2023,
+       7, 100346.
+
+
+
+                                                      16
+ (5)   Ensing, B.; Meijer, E. J.; Blöchl, P.; Baerends, E. J. Solvation effects on the SN 2 reaction between
+       CH3Cl and Cl-in water. The Journal of Physical Chemistry A 2001, 105, 3300–3310.
+ (6)   Vassetti, D.; Pagliai, M.; Procacci, P. Assessment of GAFF2 and OPLS-AA general force fields in
+       combination with the water models TIP3P, SPCE, and OPC3 for the solvation free energy of druglike
+       organic molecules. Journal of chemical theory and computation 2019, 15, 1983–1995.
+ (7)   Zuo et al., Y. Performance and cost assessment of machine learning interatomic potentials. J. Phys.
+       Chem. A 2020, 124, DOI: 10.1021/acs.jpca.9b08723, 731–745.
+ (8)   Mueller, T.; Hernandez, A.; Wang, C. Machine learning for interatomic potential models. J. Chem.
+       Phys. 2020, 152, DOI: 10.1063/1.5126336, 050902.
+ (9)   Friederich, P.; Häse, F.; Proppe, J.; Aspuru-Guzik, A. Machine-learned potentials for next-generation
+       matter simulations. Nat. Mater. 2021, 20, 750–761.
+(10)   Plé, T.; Adjoua, O.; Benali, A.; Posenitskiy, E.; Villot, C.; Lagardère, L.; Piquemal, J.-P. A foundation
+       model for accurate atomistic simulations in drug design. 2025.
+(11)   Störmer, I.; Zavadlav, J. Aluminum solidification and nanopolycrystal deformation via a Graph Neural
+       Network Potential and Million-Atom Simulations. arXiv preprint arXiv:2603.24360 2026.
+(12)   S. Röcken and A. F. Burnet and J. Zavadlav Predicting solvation free energies with an implicit solvent
+       machine learning potential. arXiv 2024, DOI: 10.48550/arXiv.2406.00183.
+(13)   Zhou, R.; Berne, B. J. Can a continuum solvent model reproduce the free energy landscape of a
+       β-hairpin folding in water? PNAS 2002, 99, 12777–12782.
+(14)   Chen, Y.; Krämer, A.; Charron, N. E.; Husic, B. E.; Clementi, C.; Noé, F. Machine Learning Implicit
+       Solvation for Molecular Dynamics. J. Chem. Phys. 2021, 155, 084101.
+(15)   Cumberworth, A.; Bui, J. M.; Gsponer, J. Free energies of solvation in the context of protein folding:
+       Implications for implicit and explicit solvent models. J. Comp. Chem. 2016, 37, 629–640.
+(16)   Thaler, S.; Stupp, M.; Zavadlav, J. Deep coarse-grained potentials via relative entropy minimization.
+       The Journal of Chemical Physics 2022, 157.
+(17)   Wojciechowski, M.; Lesyng, B. Generalized Born model: Analysis, refinement, and applications to
+       proteins. The Journal of Physical Chemistry B 2004, 108, 18368–18376.
+(18)   Mahmoud, S. S. M.; Esposito, G.; Serra, G.; Fogolari, F. Generalized Born radii computation using
+       linear models and neural networks. Bioinformatics 2020, 36, 1757–1764.
+(19)   Katzberger, P.; Riniker, S. Implicit solvent approach based on generalized Born and transferable graph
+       neural networks for molecular dynamics simulations. The Journal of Chemical Physics 2023, 158.
+(20)   Katzberger, P.; Pultar, F.; Riniker, S. Transferring knowledge from MM to QM: A graph neural
+       network-based implicit solvent model for small organic molecules. Journal of Chemical Theory and
+       Computation 2025, 21, 7450–7459.
+(21)   Katzberger, P.; Hauswirth, L. M.; Kuhn, A. S.; Landrum, G. A.; Riniker, S. Rapid Access to Small
+       Molecule Conformational Ensembles in Organic Solvents Enabled by Graph Neural Network-Based
+       Implicit Solvent Model. Journal of the American Chemical Society 2025, 147, 13264–13275.
+(22)   Airas, J.; Ding, X.; Zhang, B. Transferable implicit solvation via contrastive learning of graph neural
+       networks. ACS Central Science 2023, 9, 2286–2297.
+(23)   Ding, X.; Zhang, B. Contrastive learning of coarse-grained force fields. Journal of chemical theory and
+       computation 2022, 18, 6334–6344.
+(24)   Durumeric, A. E.; Chen, Y.; Pasos-Trejo, A. S.; Noé, F.; Clementi, C. Learning data-efficient coarse-
+       grained molecular dynamics from forces and noise. Nature Communications 2026.
+(25)   Mutlu, E.; Kankinou, S. G.; Tayfuroglu, O.; Kocak, A. Data-Efficient Equivariant NNPs Enable DFT-
+       Accurate Simulations and Implicit Solvation Free Energies. The Journal of Physical Chemistry B
+       2025, 129, 12630–12641.
+
+
+
+
+                                                       17
+(26)   Andris, E.; Kormaník, J. M.; Kalvoda, T.; Rezac, J.; Rulíšek, L. Machine-Learned Extrapolation
+       of Quantum Mechanical Energies in Implicit Solvent from Short to Long Oligopeptides. Journal of
+       Chemical Information and Modeling 2026.
+(27)   Charron, N. E.; Bonneau, K.; Pasos-Trejo, A. S.; Guljas, A.; Chen, Y.; Musil, F.; Venturin, J.; Gusew,
+       D.; Zaporozhets, I.; Krämer, A., et al. Navigating protein landscapes with a machine-learned trans-
+       ferable coarse-grained model. Nature chemistry 2025, 17, 1284–1292.
+(28)   Chen, W.; Görlich, F.; Fuchs, P.; Zavadlav, J. Enhanced Sampling for Efficient Learning of Coarse-
+       Grained Machine Learning Potentials. Journal of Chemical Theory and Computation 2025, 22, 219–
+       230.
+(29)   Mu, T.; Jürgen, G. Conductor-like screening model for real solvents (COSMO-RS). Progress in Chem-
+       istry 2008, 20, 1487.
+(30)   Hille, C.; Ringe, S.; Deimel, M.; Kunkel, C.; Acree, W.; Reuter, K.; Oberhofer, H. Generalized molec-
+       ular solvation in non-aqueous solutions by a single parameter implicit solvation scheme. J Chem Phys
+       2019, 150, 041710.
+(31)   Eastman, P.; Behara, P. K.; Dotson, D. L.; Galvelis, R.; Herr, J. E.; Horton, J. T.; Mao, Y.; Chodera,
+       J. D.; Pritchard, B. P.; Wang, Y., et al. Spice, a dataset of drug-like molecules and peptides for training
+       machine learning potentials. Scientific Data 2023, 10, 11.
+(32)   Levine, D. S.; Shuaibi, M.; Spotte-Smith, E. W. C.; Taylor, M. G.; Hasyim, M. R.; Michel, K.; Batatia,
+       I.; Csányi, G.; Dzamba, M.; Eastman, P., et al. The open molecules 2025 (omol25) dataset, evaluations,
+       and models. arXiv preprint arXiv:2505.08762 2025.
+(33)   Sandonas, L. R. M.; Van Rompaey, D.; Fallani, A.; Hilfiker, M.; Hahn, D.; Perez-Benito, L.; Verhoeven,
+       J.; Tresadern, G.; Wegner, J. K.; Ceulemans, H., et al. Aquamarine: quantum-mechanical exploration
+       of conformers and solvent effects in large drug-like molecules. 2024.
+(34)   S. Thaler and J. Zavadlav Learning neural network potentials from experimental data via Differentiable
+       Trajectory Reweighting. Nat. Comm. 2021, 12, DOI: 10.1038/s41467-021-27241-4, 6884.
+(35)   Gilmer, J.; Schoenholz, S. S.; Riley, P. F.; Vinyals, O.; Dahl, G. E. In International conference on
+       machine learning, 2017, pp 1263–1272.
+(36)   Batatia, I.; Kovacs, D. P.; Simm, G. N. C.; Ortner, C.; Csanyi, G. In Advances in Neural Information
+       Processing Systems, ed. by Oh, A. H.; Agarwal, A.; Belgrave, D.; Cho, K., 2022.
+(37)   Kovács, D. P.; Moore, J. H.; Browning, N. J.; Batatia, I.; Horton, J. T.; Pu, Y.; Kapil, V.; Witt, W. C.;
+       Magdau, I.-B.; Cole, D. J., et al. Mace-off: Short-range transferable machine learning force fields for
+       organic molecules. Journal of the American Chemical Society 2025, 147, 17598–17611.
+(38)   Ferraz-Caetano, J.; Teixeira, F.; Cordeiro, M. N. D. Explainable supervised machine learning model to
+       predict solvation Gibbs energy. Journal of Chemical Information and Modeling 2023, 64, 2250–2262.
+(39)   RDKit: Open-source cheminformatics. [Online; accessed 11-April-2013].
+(40)   Vaswani, A.; Shazeer, N.; Parmar, N.; Uszkoreit, J.; Jones, L.; Gomez, A. N.; Kaiser, Ł.; Polosukhin, I.
+       Attention is all you need. Advances in neural information processing systems 2017, 30.
+(41)   Carmichael, S. P.; Shell, M. S. A new multiscale algorithm and its application to coarse-grained peptide
+       models for self-assembly. The Journal of Physical Chemistry B 2012, 116, 8383–8393.
+(42)   Shirts, M. R.; Bair, E.; Hooker, G.; Pande, V. S. Equilibrium Free Energies from Nonequilibrium
+       Measurements<? format?> Using Maximum-Likelihood Methods. Physical review letters 2003, 91,
+       140601.
+(43)   Moore, H.; Kovacs, D. P.; Browning, N. J.; Batatia, I.; Horton, J. T.; Kapil, V.; Witt, W.; Magdau, I.;
+       Cole, D.; Csanyi, G. Research data supporting MACE-OFF23, 2024.
+(44)   Wilhelm, E.; Battino, R.; Wilcock, R. J. Low-pressure solubility of gases in liquid water. Chemical
+       reviews 1977, 77, 219–262.
+(45)   O’Boyle, N. M.; Banck, M.; James, C. A.; Morley, C.; Vandermeersch, T.; Hutchison, G. R. Open
+       Babel: An open chemical toolbox. Journal of cheminformatics 2011, 3, 33.
+
+
+                                                       18
+(46)   Schoenholz, S.; Cubuk, E. D. Jax md: a framework for differentiable physics. Advances in Neural
+       Information Processing Systems 2020, 33, 11428–11441.
+(47)   Fuchs, P.; Thaler, S.; Röcken, S.; Zavadlav, J. chemtrain: Learning deep potential models via automatic
+       differentiation and statistical physics. Computer Physics Communications 2025, 310, 109512.
+(48)   Klamt, A.; Jonas, V.; Bürger, T.; Lohrenz, J. C. Refinement and parametrization of COSMO-RS. The
+       Journal of Physical Chemistry A 1998, 102, 5074–5085.
+(49)   Zhang, J.; Tuguldur, B.; van der Spoel, D. Force field benchmark of organic liquids. 2. Gibbs energy
+       of solvation. Journal of Chemical Information and Modeling 2015, 55, 1192–1201.
+(50)   Vermeire, F. H.; Green, W. H. Transfer learning for solvation free energies: From quantum chemistry
+       to experiments. Chemical Engineering Journal 2021, 418, 129307.
+(51)   Fisher, R. A. On the" probable error" of a coefficient of correlation deduced from a small sample.
+       Metron 1921, 1, 3–32.
+(52)   Truhlar, D. Implicit solvation models: equilibria, structure, spectra, and dynamics. Chemical reviews
+       1999.
+(53)   Reichardt, C.; Welton, T., Solvents and solvent effects in organic chemistry; John Wiley & Sons: 2011.
+(54)   Marenich, A. V.; Cramer, C. J.; Truhlar, D. G. Universal solvation model based on solute electron
+       density and on a continuum model of the solvent defined by the bulk dielectric constant and atomic
+       surface tensions. The Journal of Physical Chemistry B 2009, 113, 6378–6396.
+(55)   Mobley, D. L.; Dumont, É.; Chodera, J. D.; Dill, K. A. Comparison of charge models for fixed-
+       charge force fields: small-molecule hydration free energies in explicit solvent. The Journal of Physical
+       Chemistry B 2007, 111, 2242–2254.
+(56)   Zhang, J.; Zhang, H.; Wu, T.; Wang, Q.; van der Spoel, D. Comparison of implicit and explicit solvent
+       models for the calculation of solvation free energy in organic solvents. J. Chem. Theory Comput. 2017,
+       13, 1034–1043.
+(57)   Morado, J.; Mortenson, P. N.; Nissink, J. W. M.; Essex, J. W.; Skylaris, C.-K. Does a machine-learned
+       potential perform better than an optimally tuned traditional force field? A case study on fluorohydrins.
+       Journal of Chemical Information and Modeling 2023, 63, 2810–2827.
+(58)   Pierotti, R. A. A scaled particle theory of aqueous and nonaqueous solutions. Chemical Reviews 1976,
+       76, 717–726.
+(59)   Abraham, M. H.; Andonian-Haftvan, J.; Whiting, G. S.; Leo, A.; Taft, R. S. Hydrogen bonding. Part
+       34. The factors that influence the solubility of gases and vapours in water at 298 K, and a new method
+       for its determination. Journal of the Chemical Society, Perkin Transactions 2 1994, 1777–1791.
+(60)   Li, J.; Cramer, C. J.; Truhlar, D. G. Application of a universal solvation model to nucleic acid bases:
+       Comparison of semiempirical molecular orbital theory, ab initio Hartree–Fock theory, and density
+       functional theory. Biophysical chemistry 1999, 78, 147–155.
+(61)   Berendsen, H. J.; van der Spoel, D.; van Drunen, R. GROMACS: A message-passing parallel molecular
+       dynamics implementation. Computer physics communications 1995, 91, 43–56.
+(62)   Geiger, M.; Kucukbenli, E.; Zandstein, B.; Tretina, K. Accelerate Drug and Material Discovery with
+       New Math Library NVIDIA cuEquivariance, https://developer.nvidia.com/blog/accelerate-
+       drug- and- material- discovery- with- new- math- library- nvidia- cuequivariance/, Accessed:
+       2026-06-19, 2024.
+(63)   Oestreich, M.; Ewert, I.; Becker, M. Small molecule autoencoders: architecture engineering to optimize
+       latent space utility and sustainability. Journal of cheminformatics 2024, 16, 26.
+(64)   Fuchs, P.; Sanocki, M.; Zavadlav, J. Learning non-local molecular interactions via equivariant local
+       representations and charge equilibration. npj Computational Materials 2025, 11, 287.
+(65)   Sanocki, M.; Zavadlav, J. Generalization of long-range machine learning potentials in complex chemical
+       spaces. Digital Discovery 2026, 5, 2195–2208.
+
+
+
+                                                      19
+(66)   Jülich Supercomputing Centre JUWELS Cluster and Booster: Exascale Pathfinder with Modular Su-
+       percomputing Architecture at Juelich Supercomputing Centre. Journal of large-scale research facilities
+       2021, 7, DOI: 10.17815/jlsrf-7-183.
+
+
+
+
+                                                     20
+

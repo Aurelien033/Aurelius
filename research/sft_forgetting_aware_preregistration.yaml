@@ -1,0 +1,55 @@
+# sft_forgetting_aware_preregistration.yaml
+# Forgetting-Aware Multi-Task SFT with Active Replay
+id: FORGET-SFT-PREREG-v0.1
+status: design_draft
+
+reframed_question: >
+  Multi-task SFT (training on code, then math, then tool use in sequence)
+  causes catastrophic forgetting of earlier tasks. Can explicit tracking
+  of per-task accuracy and scheduled replay of regressing tasks prevent
+  this without a unified multi-task architecture?
+
+motivation: >
+  Aurelius needs SFT across multiple domains: code generation, tool calling,
+  math reasoning, safety responses, and long-context tasks. Training on one
+  domain typically degrades others. Sequential SFT with forgetting-aware
+  replay could maintain all-task performance without requiring multi-task
+  architecture changes.
+
+design:
+  base: "Aurelius 1.3B"
+  tasks: [code, tool, math, safety, long_context]
+  data_per_task: 500 examples
+  tracking_method: "ForgettingTracker from src/training/forgetting_tracker.py"
+  replay_method: "ReplayBuffer from src/training/forgetting_tracker.py"
+  training_orders:
+    - sequential: [code, math, tool, safety, long_context]
+    - sequential: [tool, code, math, long_context, safety]
+    - interleaved: random mix (baseline)
+    - forgetting-aware: sequential + replay on forgetting > 5% threshold
+  module: "src/training/forgetting_tracker.py"
+
+hypotheses:
+  H-FORGET-0 (forgetting exists): >
+    "Sequential multi-task SFT causes >5% accuracy regression on at least 2
+    of 5 tasks, measured by per-task accuracy before and after training
+    on other tasks."
+  H-FORGET-1 (replay helps): >
+    "Forgetting-aware SFT limits regression to <2pp on all 5 tasks,
+    compared to >5pp regression under sequential SFT."
+  H-FORGET-2 (replay efficiency): >
+    "Forgetting-aware training adds <50% to total training time (due to
+    replay data overhead) and reduces regression by at least 60%."
+
+primary_endpoint: "Per-task accuracy delta before/after multi-task SFT. Forgetting-aware: max(delta) < 2pp. Sequential: max(delta) > 5pp."
+
+non_claims:
+  - "Replay buffer stores only training data, not model weights. This is not experience replay from RL."
+  - "Optimal replay proportion may vary by task family."
+
+kill_decision_map:
+  - "H-FORGET-0 fails: sequential SFT does not cause >5pp regression on any task. -> Forgetting is not a problem for this model scale. Report and move on."
+  - "H-FORGET-1 fails: replay does not limit regression. -> Either the ForgettingTracker threshold is wrong, or replay buffer needs more examples. Tune threshold [0.02, 0.05, 0.10] and replay proportion [0.2, 0.3, 0.5]. If still fails, forgetting may not be replay-fixable."
+  - "FORGET-KILL: tracking + replay doubles training time without halving regression. -> The overhead of per-task eval and replay mixing is not worth the benefit for this model scale."
+
+blocks_remaining: [NO_BLOCKS — runnable with src/training/forgetting_tracker.py]

@@ -1,0 +1,20 @@
+# Self-Improvement Loop SFT experiment config
+include: sft_base.yaml
+
+experiment:
+  name: self_sft_loop
+  module: src.training.self_sft_loop
+  class: SelfSFTLoop
+
+self_sft:
+  n_rounds: 3
+  generation_temperature: 0.7
+  n_samples_per_prompt: 3
+  max_new_tokens: 256
+  acceptance_threshold: 0.05
+  rounds_dir: experiments/self_sft/rounds
+  verifier: simple  # simple or domain_specific
+
+training:
+  learning_rate: 2e-5
+  epochs_per_round: [3, 2, 2]  # round 0: 3 epochs, round 1: 2, round 2: 2

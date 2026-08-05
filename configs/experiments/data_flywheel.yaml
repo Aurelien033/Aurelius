@@ -1,0 +1,15 @@
+# Data Flywheel experiment config
+include: sft_base.yaml
+
+experiment:
+  name: data_flywheel
+  module: src.training.data_flywheel
+  class: DataFlywheel
+
+flywheel:
+  log_dir: data/flywheel/logs
+  output_dir: data/flywheel/training
+  min_accepted_for_training: 50
+  max_pairs_per_cycle: 1000
+  task_families: [code, tool, math, safety, long_context, general]
+  rotate_logs_every_n_calls: 1000

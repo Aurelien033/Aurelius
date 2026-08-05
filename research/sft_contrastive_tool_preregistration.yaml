@@ -1,0 +1,55 @@
+# sft_contrastive_tool_preregistration.yaml
+# Contrastive Tool-Call SFT — teaching correct vs plausible-but-wrong tool calls
+id: CONTR-SFT-PREREG-v0.1
+status: design_draft
+
+reframed_question: >
+  Standard SFT trains only on correct tool-call examples. Can adding near-miss
+  negative variants (typo'd parameters, type violations, wrong names, missing
+  required params) with a contrastive margin loss improve tool-call accuracy
+  and reduce false positive rate?
+
+motivation: >
+  Small models frequently generate plausible-but-wrong tool calls — correct
+  schema shape but wrong parameter names, wrong types, or missing required
+  fields. Standard SFT never shows negative examples, so the model has no
+  training signal distinguishing correct from near-miss wrong calls.
+  Contrastive training directly addresses this.
+
+design:
+  base: "Aurelius 1.3B or equivalent"
+  data: "Glaive Function Calling v2 (HF) + Berkeley Function Calling Leaderboard"
+  n_positive: 1000
+  n_negatives_per_positive: 3
+  error_types: [parameter_name_typo, type_violation, wrong_tool_name, missing_parameter]
+  training:
+    learning_rate: 2e-5
+    epochs: 3
+    contrastive_margin: 0.5
+    contrastive_lambda: 0.3
+    batch_size: 4
+  module: "src/training/contrastive_loss.py"
+
+hypotheses:
+  H-CONTR-0 (accuracy improvement): >
+    "Contrastive SFT achieves 10-20% higher tool-call accuracy on held-out
+    function-calling tasks compared to standard SFT at matched example count."
+  H-CONTR-1 (false positive reduction): >
+    "False positive rate on adversarial near-miss tool calls drops by 30%+
+    relative to standard SFT."
+  H-CONTR-2 (generalization to unseen schemas): >
+    "Contrastive benefits transfer to tool schemas not seen during training
+    (held-out API families)."
+
+primary_endpoint: "Held-out tool-call accuracy (exact match on name + args). Contrastive - Standard > 0 with 95% CI."
+
+non_claims:
+  - "This does not test multi-turn tool-use reliability (only single-call accuracy)."
+  - "Negative generation quality matters; auto-generated negatives that are too easy or too hard will not help."
+
+kill_decision_map:
+  - "H-CONTR-0 fails: contrastive does not improve accuracy. -> Contrastive tool-call training is not beneficial for this model scale. Document and report null result."
+  - "H-CONTR-1 fails (FP rate does not drop): negatives are not informative. -> Redesign negative generation to target actual failure modes from the model's current errors. If second attempt also fails, contrastive signal is too weak."
+  - "CONTR-KILL: contrastive adds >20% training time without any accuracy improvement. -> The computational cost of generating 3 negatives + two forward passes is not justified."
+
+blocks_remaining: [NO_BLOCKS — runnable with src/training/contrastive_loss.py]

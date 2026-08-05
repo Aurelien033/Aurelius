@@ -1,0 +1,23 @@
+# Contrastive Tool-Call SFT experiment config
+include: sft_base.yaml
+
+experiment:
+  name: contrastive_tool_sft
+  module: src.training.contrastive_loss
+  class: ContrastiveToolLoss
+
+contrastive:
+  margin: 0.5
+  lambda_c: 0.3
+  n_negatives: 3
+  contrastive_frequency: 0.5
+  error_types:
+    - parameter_name_typo
+    - type_violation
+    - wrong_tool_name
+    - missing_parameter
+
+data:
+  datasets:
+    primary: glaiive_ai/glaive-function-calling-v2
+    eval: gorilla-llm/Berkeley-Function-Calling-Leaderboard

@@ -1,0 +1,23 @@
+{
+  "instance_id": "gym-v0.3/F3/24a4ff275441e574/a54c7c123803d1f1",
+  "broken_artifact": "def running_max(xs: list[int]) -> list[int]:\n    out: list[int] = []\n    m = xs[0]\n    for x in xs:\n        m = min(m, x)\n        out.append(m)\n    return out\n",
+  "prompt_context": "Repair the broken Python function so the visible test passes.\n\n# Visible test (must pass):\nassert running_max([1,3,2,5]) == [1,3,3,5]\n\n# Broken code:\n# Canary GUID: 4bb9ae1bf54fa6f9\ndef running_max(xs: list[int]) -> list[int]:\n    out: list[int] = []\n    m = xs[0]\n    for x in xs:\n        m = min(m, x)\n        out.append(m)\n    return out\n\n# Corrected code:\ndef running_max(xs: list[int]) -> list[int]:\n",
+  "verifier": "functional: repaired function + hidden asserts (subprocess rc==0)",
+  "hidden_tests": [
+    "assert running_max([1,3,2,5]) == [1,3,3,5]"
+  ],
+  "reference_body": "    out: list[int] = []\n    m = xs[0]\n    for x in xs:\n        m = max(m, x)\n        out.append(m)\n    return out",
+  "function_header": "def running_max(xs: list[int]) -> list[int]:",
+  "metadata": {
+    "family": "F3_type",
+    "function_name": "running_max",
+    "mutation_operators": [
+      "body_logic_bug"
+    ],
+    "difficulty": "moderate",
+    "contamination_flag": "CLEAN_BY_CONSTRUCTION",
+    "canary_guid": "4bb9ae1bf54fa6f9",
+    "license": "synthetic-public-domain",
+    "provenance": "synthetic running_max v6"
+  }
+}

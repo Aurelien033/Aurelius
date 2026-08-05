@@ -1,0 +1,1099 @@
+                                                                    Neural Garbage Collection:
+                                                            Learning to Forget while Learning to Reason
+
+                                                    Michael Y. Li˚              Jubayer Ibn Hamid                   Emily B. Fox                 Noah D. Goodman
+                                                 Stanford University            Stanford University              Stanford University             Stanford University
+
+
+
+
+arXiv:2604.18002v1 [cs.LG] 20 Apr 2026
+                                                                                                        Abstract
+
+                                                      Chain-of-thought reasoning has driven striking advances in language model capability, yet every reasoning step
+                                                 grows the KV cache, creating a bottleneck to scaling this paradigm further. Current approaches manage these constraints
+                                                 on the model’s behalf using hand-designed criteria. A more scalable approach would let end-to-end learning subsume
+                                                 this design choice entirely, following a broader pattern in deep learning. After all, if a model can learn to reason,
+                                                 why can’t it learn to forget? We introduce Neural Garbage Collection (NGC), in which a language model learns to
+                                                 forget while learning to reason, trained end-to-end from outcome-based task reward alone. As the model reasons, it
+                                                 periodically pauses, decides which KV cache entries to evict, and continues to reason conditioned on the remaining
+                                                 cache. By treating tokens in a chain-of-thought and cache-eviction decisions as discrete actions sampled from the
+                                                 language model, we can use reinforcement learning to jointly optimize how the model reasons and how it manages
+                                                 its own memory: what the model evicts shapes what it remembers, what it remembers shapes its reasoning, and the
+                                                 correctness of that reasoning determines its reward. Crucially, the model learns this behavior entirely from a single
+                                                 learning signal — the outcome-based task reward — without supervised fine-tuning or proxy objectives. On Countdown,
+                                                 AMC, and AIME tasks, NGC maintains strong accuracy relative to the full-cache upper bound at 2–3x peak KV cache
+                                                 size compression and substantially outperforms eviction baselines. Our results are a first step towards a broader vision
+                                                 where end-to-end optimization drives both capability and efficiency in language models.
+
+
+                                         1       Introduction
+                                         A central lesson of deep learning is that desirable properties emerge from end-to-end optimization pressure
+                                         rather than being built in manually [Sutton, 2019]. Yet, when it comes to making models more efficient,
+                                         practitioners rely on deep domain knowledge to design architectures [Ainslie et al., 2023, Dao and Gu, 2024],
+                                         systems-level optimizations [Dao et al., 2022, Kwon et al., 2023], and inference-time heuristics [Li et al.,
+                                         2024]. We ask whether efficiency itself can be treated as a model capability. Under this perspective, the same
+                                         end-to-end optimization that drives capability can also drive efficiency, enabling an additional dimension of
+                                         self-improvement [Silver and Sutton, 2025] in which models become more capable but also more efficient.
+                                         A setting where this approach is particularly promising is the chain-of-thought reasoning paradigm [Zelikman
+                                         et al., 2022] that has driven dramatic advances in model capability [Guo et al., 2025, OpenAI, 2024]: by
+                                         thinking longer before answering, models can solve problems that would otherwise be out of reach. However,
+                                         these thinking traces rapidly grow the KV cache, creating a bottleneck to further scaling along this dimension.
+                                         But paying this cost is not fundamental to reasoning itself — after all, humans reason over long horizons
+                                         despite severely limited working memory: instead, it is an artifact of how we manage the KV cache. Much
+                                         of the KV cache consists of transient information: intermediate steps that become irrelevant as reasoning
+                                         progresses or scratch work on sub-problems where only the answer matters downstream. This suggests that
+                                             ˚
+                                             Correspondence to michaelyli@stanford.edu
+
+
+                                                                                                            1
+                                                            Neural Garbage Collection
+
+             Q:        x+6    =7       <think>         hm                   (1) Score KV cache         (2) Sample cache evictions (3) Sample next token
+
+Layer 1
+                                                               πθ                                                                                  πθ
+Layer 2
+Layer 3
+                                                               LM                                                                                  LM
+                                                                                                                                                                 x =         1       ✓
+                                                                                                                                                                                    Task
+                             KV cache                                  per-layer softmax scores                   pruned cache                                                     reward
+                                                                                                                       evicted
+                                                                                                                                                        policy gradient
+                                                                      policy gradient through sampled evictions                                     through sampled tokens
+                                                                                                                                                                                   ∇θ L
+
+                    AIME 2025 (4.6x compression)                        Countdown (2.4x compression)                                       Budget-aware Interoception
+                                                                                                                               60%
+   NGC (ours)                                                 21.4%                                           49.6%
+                                                                                                                               50%
+      SnapKV                             10.7%                                 7.8%
+                                                                                                                               40%
+
+                                                                                                                      pass@1
+          KeyDiff               7.1%                                                    21.2%
+                                                                                                                               30%
+          KNorm 0.0%                                                    0.1%                                                   20%
+                                                                                                                                                            NGC
+                                                                                                                                                            NGC + Interoception
+StreamingLLM 0.0%                                                       0.2%                                                   10%                          Min cache size during training
+                  0%     5%        10%           15%    20%            0%      10%    20%       30%   40%   50%                      350     400        450       500       550         600
+                                pass@32                                                pass@1                                              Peak KV cache size (tokens)
+Figure 1: Neural Garbage Collection: Learning to Forget while Learning to Reason. (top) As the
+language model (LM) generates its chain-of-thought, it periodically enters an eviction round: (1) the LM
+scores KV cache entries via softmax, (2) samples cache evictions using those scores via Gumbel top-k, and
+(3) samples the next token conditioned only on the pruned cache. Since both tokens and cache evictions
+are discrete actions sampled from the LM, we can jointly train the LM to reason and manage its memory
+via end-to-end reinforcement learning from outcome-based task reward alone (e.g., binary correctness) —
+no proxy objectives, no supervised finetuning. (bottom left) NGC substantially outperforms baseline
+eviction methods at a 50% eviction rate per round, corresponding to 2.4x reduction in peak KV cache size
+for Countdown and 4.6x for AIME 2025. (bottom right) To give the LM explicit awareness of its resource
+constraint before it reasons, we include the eviction rate in the prompt during training — a technique we call
+budget-aware interoception. This technique improves generalization across cache budgets at test time.
+
+
+actively managing the KV cache during reasoning need not degrade performance, and may enable models to
+reason over longer horizons than current resource constraints permit.
+Cache management, so far, relies on fixed heuristics or proxy objectives. Heuristic eviction policies remove
+cache entries based on criteria such as attention weights or recency [Li et al., 2024, Park et al., 2025, Xiao et al.,
+2024]. Compression methods learn compact representations of the model’s KV cache using hand-tailored
+training objectives like reconstruction or distillation losses [Monea et al., 2025, Zweiger et al., 2026], and
+summarization-based approaches use elaborate prompts that specify what the model should preserve [Vajipey
+et al., 2025]. Relying on fixed rules or proxy objectives for these decisions is anachronistic for reasoning
+models, whose capabilities emerge from end-to-end optimization against outcome-based task reward. And
+since the contents of the KV cache arise from the model’s own reasoning process, the model is naturally
+positioned to manage its own cache. If a model can learn to reason, why can’t it learn to forget?
+
+                                                                                            2
+To that end, we introduce Neural Garbage Collection (NGC), in which a language model learns to forget
+while learning to reason. As the model generates a chain-of-thought, it periodically pauses, computes a
+softmax over its KV cache entries, samples which to evict, and continues reasoning conditioned on the pruned
+cache. Since this eviction decision is discrete, prior work resorts to differentiable relaxations [Łańcucki
+et al., 2025] or separate supervised training for those decisions using auxiliary objectives [Chen et al., 2026,
+Liu et al., 2025a]. Our key insight is that, because we already train reasoning models against task reward
+with reinforcement learning — where tokens are discrete actions sampled from the LM — we can cast cache
+eviction as another discrete action sampled from the LM and optimize it within the same framework. A
+single outcome-based task reward jointly trains the model to reason and manage its own memory end-to-
+end: what the model evicts shapes what it remembers, what it remembers shapes its reasoning, and the
+correctness of that reasoning trains both the eviction decisions and reasoning tokens that produced it. Our
+key methodological contribution is to show that both types of decisions can be optimized from a single
+learning signal — the outcome-based task reward — without auxiliary objectives or separate training stages.
+This follows the tabula rasa spirit of AlphaZero [Silver et al., 2017]: end-to-end optimization pressure alone
+guides how the model reasons and what it forgets.
+We evaluate NGC on Countdown [Gandhi et al., 2024, 2025], and on math tasks AMC, and AIME. On
+Countdown, NGC more than doubles the accuracy of the next-best baseline (49.6% vs 21.2%) at a 2.4x
+reduction in peak cache size. We then validate NGC at larger scale by training on DAPO-17k [Yu et al., 2025].
+On mathematical reasoning tasks (AMC, AIME), we show that NGC maintains strong performance at 2-3x
+reductions in peak KV cache size and outperforms all baseline cache management methods.
+
+
+2    Related work
+Language Model Self-Improvement. A growing body of work explores language models that self-
+improve. STaR [Zelikman et al., 2022] demonstrated that LMs can bootstrap reasoning ability by fine-tuning
+on self-generated chains-of-thought filtered by correctness. Subsequent work extended this paradigm to more
+general latent reasoning and iterative self-improvement, including Quiet-STaR [Zelikman et al., 2024], ReST
+[Gulcehre et al., 2023], and Self-Rewarding Language Models [Yuan et al., 2024]. The reinforcement learning
+from verifiable rewards (RLVR) paradigm [Guo et al., 2025, OpenAI, 2024] showed that self-improving
+reasoning scales: models trained on outcome supervision can acquire sophisticated reasoning capabilities.
+NGC is inspired by this line of work, but targets a different dimension of self-improvement: rather than
+improving task performance, the model learns to improve its own efficiency. This reframes efficiency as a
+capability: models typically become more capable at the cost of being slower and more expensive to run,
+whereas a model that improves its efficiency, in principle, becomes cheaper as it improves. Crucially, many
+forms of resource management (e.g.,eviction, routing) naturally take the form of discrete decisions, making
+them directly amenable to the same reinforcement learning with verifiable rewards (RLVR) framework used
+to train modern reasoning models.
+
+Resource Rationality, Bounded Rationality, Metacognition. A long tradition in cognitive science
+and AI studies intelligent behavior under computational constraints, viewing agents as trading off task
+performance against the cost of computation [Horvitz, 1989, 1990, Russell and Wefald, 1991, Simon, 1955].
+Resource rationality [Lieder and Griffiths, 2020] formalizes this perspective by treating cognition as the
+optimization of task performance subject to resource costs. This work has primarily used resource rationality
+as a normative framework to explain behavior, rather than as a training objective to produce it in language
+models. A related tradition studies metacognition—the ability of an agent to monitor and regulate its own
+cognitive processes. Recent work explores metacognitive prompting and metacognitive reuse, where models
+reflect on prior reasoning traces to extract reusable strategies [Didolkar et al., 2025]. NGC teaches a model
+
+                                                       3
+to regulate its own current cognitive state by deciding what information to retain under a memory budget.
+This makes NGC a form of online, prospective metacognition: the model learns not just to reason, but to
+manage the memory on which its reasoning depends.
+
+Sparse attention, alternative architectures, and conditional computation. Several lines of work
+improve efficiency by changing how transformers use compute. Sparse attention methods reduce the cost of
+attending over long contexts by selecting only a subset of keys per query [Chen et al., 2026, Liu et al., 2025a,
+Yuan et al., 2025]. These methods use attention scores to determine which entries are read at a given step,
+but they do not reduce the size of the cache itself; memory still grows without bound. NGC uses a related
+scoring mechanism but with fundamentally different semantics: its decisions determine which entries are
+removed indefinitely, permanently reshaping the context available to future tokens, and providing a practical
+mechanism for keeping the KV cache constant size. A related line of work uses conditional computation to
+improve efficiency by routing tokens to only a subset of model parameters, as in mixture-of-experts (MoE)
+architectures [Fedus et al., 2022, Liu et al., 2025a, Shazeer et al., 2017]. These models show that routing
+decisions can themselves be learned, but they target a different resource and training regime: MoEs sparsify
+parameter compute through architectural routing whereas NGC sparsifies memory during inference by
+deciding what information to retain under an explicit budget. State-space models [Dao and Gu, 2024, Gu
+and Dao, 2023] achieve efficiency through different computational primitives, but require pre-training from
+scratch and cannot fully leverage the thriving hardware and software ecosystem specific to transformers.
+By contrast, NGC requires no modification to the base transformer architecture, repurposing the existing
+parameters to perform eviction, and can be applied directly during post-training.
+Most crucially, what distinguishes NGC from prior approaches is how its discrete decisions are trained. In
+methods such as DeepSeek Sparse Attention [DeepSeek-AI, 2025], the indexer, which selects which tokens
+the model attends to, and the main model are not trained under a unified objective. Instead, the indexer
+is first warm-started to imitate dense attention via a KL-divergence loss against the attention scores, and
+its input is then explicitly detached from the computational graph throughout sparse training: the indexer
+continues to receive signal only from the KL-divergence term, while the main model is optimized only by
+the language modeling loss [DeepSeek-AI, 2025]. The indexer is a separate module trained by the designer
+to recognize importance according to a proxy criterion, then installed into the system while the main model
+optimizes around it. NGC instead trains eviction under a unified objective: the same reward signal that
+shapes reasoning also shapes how it remembers. Moreover, NGC does not require a separate warm-up stage.
+Likewise, conditional-computation methods such as mixture-of-experts learn routing decisions, but their
+routers are typically trained with standard backpropagation-based objectives and load-balancing schemes
+rather than from downstream task reward [Fedus et al., 2022]. In contrast, NGC treats discrete choices that
+modulate memory use as a first-class action and optimizes them with reinforcement learning.
+
+KV cache compression. KV cache compression methods reduce memory by evicting or compressing
+cache entries during generation. Static methods apply fixed eviction rules: retaining only the most recent
+tokens [Xiao et al., 2024] or tokens with high attention scores [Li et al., 2024]. More recent methods use
+richer proxies for importance such as diversity [Park et al., 2025] or optimization objectives to compress
+the cache [Eyuboglu et al., 2026, Mu et al., 2024, Zweiger et al., 2026]. Breadcrumbs [Monea et al., 2025]
+and Memento [Kontonis et al., 2025] compress the KV cache during reasoning, but via a fundamentally
+different mechanism. Breadcrumbs trains a compressed student policy to match an uncompressed teacher
+via token-level KL divergence, distilling from the teacher’s rollouts. Memento teaches models to produce
+compressed summaries via SFT on reasoning traces interleaved with summaries generated by a strong teacher
+prompted with hand-designed rubrics. Both methods inject inductive bias about what good compression looks
+like—Breadcrumbs via the frozen teacher’s reasoning style, Memento via the prompt author’s rubrics—rather
+than letting task reward determine what to remember. NGC takes a conceptually different approach and
+
+                                                       4
+jointly learns how to manage memory and reason, end-to-end from outcome-based task reward alone. This
+requires no annotation pipeline, no teacher model, no supervised data, and no hand-designed objectives.
+
+3     Problem setting: resource use as a learned capability
+Today, practitioners manage resource constraints through design choices that span the entire modeling
+stack: architecture, systems-level optimizations, and even scaling laws that account for inference time
+cost [Hoffmann et al., 2022, Sardana et al., 2025]. We ask whether efficiency can instead be learned—treating
+it as a capability the model acquires through end-to-end training.
+We model resource-constrained generation as a sequential decision process of horizon T , in which the
+model makes two kinds of decisions at each step: a task action at (e.g. a generated token) and a resource-
+management action ut (e.g., which KV cache entries to evict). Let zt P Z denote the model’s internal
+computational state at step t, and let
+                                        pat , ut q „ πθ,ϕ p¨ | zt q,
+where θ governs task behavior and ϕ governs resource allocation; these parameters can be shared or tied but
+this is a design choice independent of the general formulation.
+A trajectory is
+                                             τ “ pzt , at , ut qTt“1 .
+We optimize expected task reward subject to a resource budget B:
+                         max Eτ „πθ,ϕ rRpτ qs   subject to       Eτ „πθ,ϕ rC pz1:T qs ď B,                 (1)
+                          θ,ϕ
+
+where R is a task reward (e.g., answer correctness) and C : Z T Ñ Rě0 measures resource consumption (e.g.,
+the mean fraction of KV cache entries retained over the trajectory). The resource-management decision ut is
+typically discrete, which makes it naturally amenable to the reinforcement-learning paradigm already used
+to train reasoning models. We instantiate this framework for KV-cache management in the next section.
+
+4     Neural Garbage Collection
+In this section, we describe NGC, our method for training a language model to jointly reason and manage
+its KV cache via end-to-end reinforcement learning using purely an outcome-based task reward. The main
+deviation from standard RLVR settings is that our action space consists of both eviction decisions and tokens.
+Our key methodological contribution is to show that both types of decisions can be optimized from a single
+learning signal — the outcome-based task reward — without auxiliary objectives or separate training stages.
+
+4.1   State space and environment dynamics: grow-then-evict cycle
+In this section, we define the state space and environment dynamics of our reinforcement learning formula-
+tion. In language modeling, the state corresponds to the model’s context window—represented by its KV
+cache—while the environment dynamics dictate how this context evolves over time. In standard RLVR,
+environment transitions are strictly monotonic: the LM samples the next token conditioned on all previously
+generated tokens, steadily growing the KV cache. In NGC, the environment dynamics fundamentally differ
+because the model actively modifies its own state space by managing its own KV cache, in addition to
+generating tokens.
+Specifically, we introduce a “grow-then-evict” dynamic. Periodically, at a set of discrete eviction steps, the
+LM selects cache entries to keep. Every δ tokens, an eviction round fires: the model produces scores for
+all cache entries and samples a p1 ´ εq fraction of them to keep, where ε P p0, 1s is the eviction rate, and
+
+                                                        5
+permanently evicts the rest; we will refer to δ as the eviction cadence. Both prefill and generation tokens are
+eligible for eviction and we evict the same fraction (though not the same entries) in each of the L layers of
+the transformer. The first eviction round fires when the total number of tokens in the cache including prefill
+tokens reaches δ. Between eviction rounds, the cache grows as usual as the model generates additional
+tokens conditioned on the surviving entries. Under these dynamics, the maximum cache size before an
+eviction round converges to the steady state value L δε ; this is independent of the number of reasoning tokens
+generated. We formalize this in Section A.2 of the Appendix.
+
+4.2   Extending the action space: block-level evictions via existing attention mechanism
+Having formalized the state space, we now describe how we extend the LM’s action space to include cache
+evictions. At each eviction round, the action is a subset of cache entries to keep. Language models do not
+natively support this type of action since their action space consists only of tokens. In the rest of this section,
+we describe how we use the transformer’s existing attention mechanism to parameterize cache evictions,
+enabling the model to act on its own KV cache — even though it was never trained, through pre-training or
+supervised fine-tuning (SFT), to do so.
+
+Parameterizing eviction actions To perform KV cache evictions, the LM must be able to evaluate the
+utility of its cache entries—a task it was never explicitly trained to perform. Fortunately, the transformer’s
+native attention mechanism is already well-suited for this role. First, after standard pre-training, attention
+weights naturally encode a prior over which past entries are relevant for ongoing computation. This provides
+an effective initialization, which has been shown to be essential for stable reinforcement learning [Gandhi
+et al., 2025]. Second, re-purposing this existing machinery introduces no additional architectural overhead.
+We therefore parameterize eviction decisions directly with the model’s attention scores, setting ϕ “ θ and
+introducing no new parameters.
+Concretely, at each eviction step, we score the remaining (prefix) keys according to how much they are
+attended to by the w most recent queries. For layer ℓ, we use the queries Qpℓq associated with the w most
+recent tokens, compute attention weights from these queries to the prefix keys,
+                                                  ¨               ˛
+                                                            pℓq J
+                                                     Qpℓq Kprefix
+                                     A “ softmax˝        ?        ‚,
+                                                           dh
+
+and average across heads and recent queries to obtain a scalar importance score for each prefix key:
+                                                         H w
+                                                   1 ÿ ÿ pℓ,hq
+                                           ψt “                A    .
+                                                  H ¨ w h“1 q“1 q,t
+
+In our experiments, we use w “ 5, so scoring incurs only a small, constant memory overhead. This
+construction is inspired by sparse attention methods [Liu et al., 2025a], which also use attention scores to
+decide which keys to read when decoding a token. NGC uses the same primitive but with fundamentally
+different semantics: rather than deciding which entries are read at the current step, these scores decide
+which entries are permanently removed from memory. Moreover, instead of requiring a separate quantized
+KV cache, used to decide which actual KV cache entries get used for a decode step, and additional scoring
+parameters, we re-purpose the attention mechanism into a parameter-free eviction policy.
+
+Coarsening the action space via block-level evictions Evicting at the individual key level creates a
+credit assignment problem: the marginal contribution of any single key is difficult to isolate. Moreover, the
+importance of adjacent keys is highly correlated: semantically coherent units such as sub-computations
+typically occupy contiguous spans of tokens in the chain-of-thought. Consider a set of surviving keys
+
+                                                        6
+of length T . We coarsen the action space by working at the block level and partitioning the T keys into
+N “ rT {bs blocks of contiguous tokens of size b, where the final block may be smaller if b ∤ T (b does not
+divide T ). Let mt be a mask indicating whether a key t is valid (e.g., non-padding); we omit the layer index
+for simplicity. We aggregate the per-key scores ψ P RT to block-level scores by averaging over valid keys in
+a block:                                          ř
+                                                    tPB mt ψt
+                                             sj “ ř j
+                                                      tPBj mt
+
+yielding s P RN , one score per block. This dramatically reduces the size of the action space.
+While the focus of our work is on the algorithmic properties of NGC rather than hardware optimizations,
+blockwise selection broadly aligns with hardware principles: GPUs have higher throughput for contiguous
+memory accesses, and block-level [Yuan et al., 2025] eviction maps naturally onto paged KV cache systems
+such as vLLM [Kwon et al., 2023], where the cache is partitioned into fixed-size pages of contiguous keys.
+
+4.3   Efficiently sampling eviction actions with Gumbel-top-k
+We now define a procedure for tractably sampling eviction actions for training. KV cache eviction is conven-
+tionally performed using deterministic top-k rules [Li et al., 2024, Xiao et al., 2024]. We instead formulate
+cache eviction as a stochastic action sampled from the LM. This formulation enables us to leverage policy gra-
+dient methods for unbiased gradient estimates: stochastic sampling with exact log-probabilities is precisely
+the structure these methods require.
+Concretely, we need to be able to sample a size-K subset of kept cache entries in a way that exposes a
+well-defined log-probability of the selected set. Initially, this seems challenging since subset selection is
+combinatorial and the partition function is intractable. We formulate this task as sequential sampling without
+replacement using the Gumbel-top-k trick [Kool et al., 2019, Vieira, 2014]. Conveniently, sampling can be
+done in parallel: we sample a size-K subset by adding i.i.d. Gumbel noise to the block logits and keep the
+K largest perturbed values. The log-probability of the selected block sequence σ “ pσ1 , . . . , σK q admits a
+closed form                                     »                                fi
+                                             K
+                                             ÿ                   ÿ
+                            log ppσ | sq “      –sσj ´ log              exppst qfl                          (2)
+                                           j “1            t R tσ1 ,...,σj ´1 u
+
+where indices range over blocks.
+Each term naively requires recomputing the partition function over the remaining blocks, i.e., computing a
+logsumexp K times. We avoid this via a prefix sum trick that tracks the cumulative fraction of removed
+probability mass.
+
+4.4   Policy optimization: token and eviction policy gradients
+With the states, actions, and sampling procedure established, we now formalize the policy optimization
+objective. In standard RLVR, the policy gradient applies solely to the token space. Here, we define a unified
+objective over a joint action space consisting of both tokens and discrete cache evictions. Concretely, we
+detail how the single, outcome-based task reward in RLVR can be used to update the model to jointly optimize
+both its chain-of-thought reasoning and how it manages it own KV cache.
+                                                                                                           |τ |
+Given a prompt x, we sample G trajectories tτi uG                                                          i
+                                                 i“1 from πθ , where each trajectory τi “ tpoi,t , σi,t qut“1
+interleaves token generation oi,t with eviction decisions σi,t , where σi,t “ H at timesteps t that do not
+correspond to an eviction round. Each trajectory is scored with a binary task reward ri P t0, 1u computed
+from the generated tokens toi,t u.
+
+                                                      7
+                    Reasoning with dynamic KV cache management
+
+                                              t0       tˆ1       t2       tˆ3       t4         t5       t6        t7      t8    t9
+
+
+                                                                                                    w/o t1 , t3       w/o t2 , t5
+                                                                                    Round 1                       Round 2
+                                                                                         encode into attention mask
+
+                                                   Replay Attention Mask
+                                                                       key token j
+                                                   0     1   2        3   4     5    6     7        8   9
+                                               0
+
+                                               1                                                                       retained (visible)
+                                               2                                                             ˆ         evicted (round 1)
+
+
+                              query token i
+                                               3                                                             ˆ         evicted (round 2)
+                                               4                                                                       future
+                                               5         ˆ            ˆ
+
+                                               6         ˆ            ˆ
+
+                                               7         ˆ            ˆ
+
+                                               8         ˆ   ˆ        ˆ         ˆ
+
+                                               9         ˆ   ˆ        ˆ         ˆ
+
+
+
+
+Figure 2: Replay masks enable efficient end-to-end RL training. During reasoning, the language model
+samples eviction decisions that dynamically change its KV cache. We can perform the policy gradient
+update efficiently and correctly using replay attention masks. The eviction decisions can be captured by
+attention masks that reproduce the visibility patterns over previous tokens induced by the eviction decisions.
+We then use these masks to compute log-probabilities in parallel using a single forward pass over all the
+tokens. (top) The model evicts cache entries at fixed intervals. (round 1: evicts t1 , t3 ; round 2: evicts
+t2 , t5 ). For illustrative purposes, we show the schematic for a single layer, but in practice we evict separately
+across layers. (bottom) The resulting replay mask: row t marks which keys were visible when token t was
+generated. A single forward pass with this mask reproduces the next-token distributions from generation in
+parallel. Without the replay mask, token log-probabilities are computed under a richer context than the
+model actually saw during generation, introducing a systematic off-policyness that causes training collapse.
+
+
+Following GRPO [Guo et al., 2025], we compute group-normalized advantages:
+                                                                                               G
+                                                                                 1 ÿ
+                                                                      Âi “ ri ´        rj .
+                                                                                 G j “1
+The only training signal is task accuracy.
+We optimize πθ using Dr. GRPO [Liu et al., 2025c]. For the token-level actions, we have a token-level policy
+gradient:                                  »                                        fi
+                                                G   |oi |
+                                             1 ÿ    ÿ
+                            Ltoken “ ´E –                 log πθ poi,t | Ci,t q Âi fl .                  (3)
+                                             G g“1 t“1
+
+Here, Ci,t denotes the context available at step t of trajectory i (i.e., the surviving KV cache entries).
+
+                                                                                    8
+For the eviction decisions, we have an eviction decision level policy gradient
+                                                    «                                            ff
+                          L                               G
+                         ÿ
+                              ℓ          ℓ            1 ÿ 1 ÿ                   ℓ      ℓ
+                Lmem “       Lmem ,     Lmem “ ´E                      log πθ pσi,t | Hi,t q Âi              (4)
+                         ℓ“1
+                                                      G i“1 |Tiℓ |   ℓtPTi
+
+where L is the number of transformer layers, Tiℓ is the set of eviction rounds at layer ℓ for rollout i that fire
+                                   ℓ                                                      ℓ
+before sequence termination, σi,t     is the subset of blocks retained at round t, and Hi,t is the context used
+to make eviction decisions at the ℓ-th layer (layer-ℓ queries and alive keys at round t); with slight abuse of
+                        ℓ      ℓ
+notation, we write πθ pσi,t | Hi,t q to denote the probability of the retained subset given by Gumbel top-k in
+Equation 2. The inner mean averages over eviction rounds within an individual rollout. We use the layer
+index to emphasize that we make separate eviction decisions for each KV entry in each layer rather than
+making the same decision for all layers for a given token.
+Crucially Âi is the same for both Ltoken and Lmem : both learning to generate reasoning tokens and learning
+to evict come from the same learning signal. The total objective is:
+                                               L “ Ltoken ` Lmem .                                            (5)
+We again emphasize that although we call L a loss, it is not an auxiliary loss (e.g., an ℓ1 sparsity penalty
+or a KL divergence between teacher and student attention weights [DeepSeek-AI, 2025]): it introduces no
+independent training signal beyond the task reward already present in Âi . It is a scalar whose gradient is the
+correct policy gradient estimate for both token and eviction decisions. The resource constraint in our setting
+enters by construction (evicting a fixed amount of cache each time) rather than through auxiliary losses.
+Because eviction decisions are scored by the model’s own queries and keys (ϕ “ θ), the policy gradient from
+Lmem flows into every parameter that shapes Q and K—which is every parameter the LM uses to reason.
+Token generation and cache management are therefore treated as a single policy optimized under a single
+outcome reward.
+
+4.5   Computing rollout log-probabilities efficiently with replay masks
+To compute the policy gradients defined above, we need to evaluate the log-probabilities of the exact
+trajectories sampled during rollouts. This section introduces replay attention masks, a mechanism to efficiently
+compute these probabilities.
+The key challenge is that because NGC dynamically modifies its own context through cache eviction, it
+breaks an assumption in standard RLVR: that the model attends to all previous tokens when generating a new
+token. Concretely, when the model generates a new token, it does not attend to cache entries it has already
+evicted. Therefore, naively computing log-probabilities under a standard causal attention mask would be
+incorrect and create a form of off-policyness [Liu et al., 2025b, Zheng et al., 2025]. We use replay attention
+masks to correctly and efficiently compute Equation 3 (i.e., the log-probability of the generated tokens)
+during training. Specifically, we “replay” the rollout log-probabilities under a per-layer attention mask that
+replicates the exact visibility pattern over past tokens that was induced by the eviction decisions (Figure 2).
+A single forward pass over those tokens with these replay masks gives us the correct log-probabilities.
+Another subtle technical challenge is ensuring that gradients flow from Lmem ; see Figure 9 for a schematic of
+the desired autograd graph. Eviction decisions at a given round are scored using the queries and keys at that
+eviction round. If those tensors were simply cached during rollouts and passed directly into Equation 4, they
+would be numerically correct but detached from the computation graph, and no gradient from Lmem would
+reach θ. We recompute these inputs in the replay forward pass, so that the values are on the autograd graph.
+Using these inputs, we then re-compute the eviction log-probabilities via Equation 4, analogously to how we
+recompute per-token log-probabilities for Ltoken . The resulting eviction log-probabilities are therefore live
+on the autograd graph, and gradients flow from Lmem through the eviction decisions into θ.
+
+                                                         9
+Crucially, this replay step introduces no additional overhead beyond standard RL training, which already
+requires a forward pass over sampled trajectories. We only have to store a negligible amount of additional
+state (a binary mask per layer and per eviction round) to construct the replay masks.
+
+4.6   Eviction Rate Curriculum
+Finally, we introduce a curriculum to ensure that our model can be trained stably to both optimize its own
+reasoning and cache management. Intuitively, evicting large amounts of the KV cache from the start of
+training can be destabilizing to the model. During training, we smooth the transition to more aggressive
+eviction rates by slowly increasing the eviction rate using a staircase curriculum over the retention rate p0
+(i.e., percentage of kept entries). More formally, let tρ0 , ρ1 , . . . , ρK u be a sequence of retention rates with
+ρ0 ě ρ1 ě ¨ ¨ ¨ ě ρK , and let ∆ denote the number of training steps per stage. At training step t, the current
+stage index is ℓ “ minptt{∆u, K q. Within stage ℓ ă K, we apply a linear blend toward the next level during
+the final fraction α P p0, 1q of the stage. We set α “ 0.6 in our experiments. Let s “ pt mod ∆q{∆ denote
+the fractional progress within the stage. Then:
+                                     $
+                                     &ρℓ                                      if s ă 1 ´ α,
+                            p0 ptq “        s ´ p 1 ´ α q                                                         (6)
+                                     %ρℓ `                pρℓ`1 ´ ρℓ q if s ě 1 ´ α.
+                                                  α
+At the final stage ℓ “ K, we set p0 ptq “ ρK . See the rightmost panel of Figure 5 for an illustration of this
+schedule.
+
+5     Experiments
+We begin with a controlled study on Countdown, validating and ablating core design choices, and then
+evaluate on standard math competition benchmarks.
+
+5.1   Shared experimental setup
+Model and training recipe. We train DeepSeek-R1-Distill-Qwen-1.5B [Guo et al., 2025] using on-policy
+Dr. GRPO with a staircase eviction curriculum. We use block size b “ 32 and window size w “ 5. Training
+hyperparameters are standard; see Section A.1 in the Appendix for details.
+
+Baselines. We compare NGC against four inference-time eviction heuristics applied to a model trained with
+the full KV cache: SnapKV [Li et al., 2024] (attention weights), KeyDiff [Park et al., 2025] (key diversity),
+KNorm [Devoto et al., 2024] (key norm statistics), and StreamingLLM [Xiao et al., 2024] (sliding window
+with attention sinks).
+
+Metrics. We report accuracy on held-out test problems. At evaluation time, we replace Gumbel-top-k
+sampling with greedy top-k selection, retaining the K highest-scored blocks deterministically.
+To measure memory savings, we report the average peak KV cache reduction: the factor by which a
+method reduces the peak KV cache size relative to no eviction. Concretely, let pi denote the prompt length,
+cbase
+ i    the completion length under the no-eviction baseline, and cmethod   i the completion length under the
+method being evaluated. Let peakpp, c, ϵ, δ q denote the maximum number of KV entries held in memory at
+any point during generation for a sequence with prompt length p, completion length c, eviction rate ϵ, and
+cadence δ. The average peak KV cache reduction is then
+                                              peakppi , cbase
+                                          „                            ȷ
+                                                          i , 0, δ q
+                                       E                                 ,
+                                            peakppi , cmethod
+                                                        i     , ϵ, δ q
+
+                                                         10
+where the expectation is over prompts. A value of 2x means the method uses half the peak memory of the
+no-eviction baseline.
+
+5.2              Controlled analysis on Countdown
+Setup. We train DeepSeek-R1-Distill-Qwen-1.5B [Guo et al., 2025] for 250 steps on Countdown [Gandhi
+et al., 2024], a combinatorial arithmetic task requiring a model to combine randomly drawn numbers via
+basic operations to reach a target number. We use a maximum completion length of 1024 tokens, eviction
+cadence 256, 32 unique prompts per update step, and 16 rollouts per prompt. Our training set contains
+327,680 problems (3 and 4 input numbers); our test set contains 1024 held-out problems. Countdown is a
+demanding testbed since DeepSeek-R1-Distill-Qwen-1.5B achieves near-zero accuracy before training; NGC
+must jointly learn to reason about this task and manage memory from scratch. It has also become a standard
+setting for evaluating LM reasoning at scales accessible to academic labs [Gandhi et al., 2024, 2025, Pan et al.,
+2025].
+
+5.2.1                Main results
+
+                                       Upper bound
+               60%                                                                                                               NGC
+                                                                                                                                 KeyDiff
+                      49.6%                                                                                                      KNorm
+               50%                                                                                                               StreamingLLM
+                                                                                                                                 SnapKV
+               40%
+
+Accuracy (%)                                                       Accuracy (%)
+               30%
+                               21.2%
+               20%
+               10%                                          7.8%
+                                          0.1%       0.2%
+               0%
+                              2.4x cache reduction                                     360   380 400 420 440 460           480
+                                                                                             Peak KV cache size (tokens)
+
+Figure 3: Comparing NGC against KV cache eviction baselines. (left) NGC significantly outperforms
+baseline cache eviction methods. Error bars correspond to 1 SE and we report pass@1 accuracies. All
+methods evict 50% of entries at each eviction round, corresponding to 2.4x reduction in peak KV cache size.
+The dashed horizontal line corresponds to a model trained and evaluated with full cache. (right) We also
+test NGC’s generalization to other eviction rates (smaller cache sizes) that it was not explicitly trained for;
+the vertical dashed line indicates the minimum cache size during training. NGC pareto-dominates all other
+methods even at higher compression rates.
+
+NGC outperforms all baselines on test-set. We report accuracy on 1024 held-out test problems. In
+Figure 3, we compare NGC against several baseline methods at a 50% eviction rate per eviction round (corre-
+sponding to 2.4x reduction in peak cache size). NGC achieves 49.6% accuracy, substantially outperforming all
+heuristic methods. This shows that NGC learns to reason and manage memory jointly, a more challenging
+task than learning to reason alone.
+
+NGC generalizes to unseen eviction rates. In Figure 3 (right), we evaluate NGC across a range of
+eviction rates more aggressive than those seen during training. NGC pareto-dominates all baselines, and its
+performance degrades gracefully beyond the training distribution until a very low cache size.
+
+                                                                                  11
+                                                                    Training objective
+                                                 50                                      49.6%
+
+                                                 40                        35.7%
+
+                                  Accuracy (%)
+                                                 30
+                                                 20
+                                                 10
+                                                         2.5%
+                                                  0
+                                                        Targeted         Token Log        NGC
+                                                       KV Dropout        Probs Only      (ours)
+
+Figure 4: Ablating NGC design choices. We use two ablations to characterize the properties of end-to-end
+training. Targeted KV dropout evicts cache entries during RL but ignores the off-policyness introduced by
+evictions. Token log-probs only corrects for off-policyness via replay masks but drops the eviction decision
+policy gradient term. Both significantly under-perform NGC.
+
+
+5.2.2    Ablations
+To understand the benefits of end-to-end training, we consider two ablations.
+
+End-to-end training is essential. Our first ablation evaluates whether exposing the model to cache
+eviction during training enables the model to handle evictions at test time. Concretely, Targeted KV dropout
+evicts cache entries during training using NGC’s scoring mechanism and applies the same curriculum, but
+optimizes only Equation 3 with a standard causal mask—ignoring the off-policyness that eviction introduces;
+see Section 4.5. Token log-probs only corrects for this off-policyness using replay masks but drops the
+eviction policy gradient term Lmem . Both significantly under-perform NGC (2.5% and 35.7% vs. 49.6%),
+confirming that correct off-policy handling and end-to-end training of both reasoning and eviction are
+essential for performance.
+
+Training dynamics. Figure 5 shows reward and gradient norm over training. NGC improves steadily
+but more slowly than training without eviction (no evict). Targeted KV dropout initially improves at low
+eviction rates but collapses during training around step 100, coinciding with a spike in gradient norm. This
+illustrates the training instability created by off-policyness.
+
+5.3     Budget-aware Interoception
+If resource use is part of the task, then intuitively the model could benefit from “sensing” its budget constraints
+before reasoning. We ask whether explicitly conditioning the model on the eviction rate in the prompt
+improves its accuracy and generalization to various compression rates. We call this budget-aware interoception:
+like organisms sensing internal state (such as hunger) to maintain homeostasis, the model perceives its
+memory budget before it reasons.
+
+Setup. To implement this, we simply modify the prompt during training and testing: we sample a single
+eviction rate ρ for a group of G rollouts, as before, and simply append the same structured tag to every
+prompt in that group:
+
+                                                      <eviction_rate>ρ%</eviction_rate>
+
+
+                                                                         12
+                                                                                        NGC Training Dynamics
+                                                  Reward                                                Gradient norm                                             Eviction rate curriculum
+    Eviction rate increase                                                             101                                                              0.5
+    Targeted KV Dropout
+                                  0.8
+    NGC
+    No evict                                                                           100                                                              0.4
+                                  0.6
+
+                         Reward                                            Grad norm                                                    Eviction rate
+                                                                                       10 1                                                             0.3
+                                  0.4
+
+                                                                                       10 2                                                             0.2
+                                  0.2
+
+                                                                                       10 3                                                             0.1
+                                  0.0
+                                        0   50    100 150         200    250                  0        50    100 150        200   250                         0     50    100 150        200   250
+                                                 Training step                                              Training step                                                Training step
+
+Figure 5: NGC training dynamics on Countdown. (left) Reward over training: NGC improves steadily but
+more slowly than training without any eviction (no evict) but eventually reaches a similar level of accuracy.
+Targeted KV Dropout increases initially at a low eviction rate but collapses after around step 100 due to
+off-policyness. (center) Targeted Dropout exhibits exploding gradient norms coinciding with its reward
+collapse, whereas NGC and the no-eviction baseline remain stable throughout training. (right) The staircase
+eviction rate curriculum, shared across both NGC and targeted KV dropout, which gradually increases the
+percentage of KV cache evicted to 50% over „ 100 steps. Vertical dashed teal lines in the left and center
+panels mark the steps where the eviction rate begins to increase.
+
+
+This approach takes inspiration from the “difficulty-conditioned” conjecturer from Poesia et al. [2024]. At
+inference time, we vary the eviction rate and compare against a standard NGC model trained under identical
+conditions but without the eviction-rate tag in the prompt.
+
+
+                                                                        Budget-aware Interoception
+                                                          60%
+
+                                                          50%
+
+                                                          40%
+
+                                                 pass@1   30%
+
+                                                          20%
+                                                                                                      NGC
+                                                                                                      NGC + Interoception
+                                                          10%                                         Min cache size during training
+                                                                 350      400                     450       500       550         600
+                                                                        Peak KV cache size (tokens)
+Figure 6: Budget-aware interoception. By training and evaluating the model with the eviction rate ρ in
+the prompt <eviction_rate>ρ%</eviction_rate>, we see softened performance degradation as peak KV cache
+size decreases and generalization to stricter budgets. At aggressive budgets, this gives an 8-13% boost in
+performance. The dashed vertical line represents the minimum cache size used during training.
+
+Results. Figure 6 reports accuracy as a function of the peak cache size. The interoceptive model matches
+or exceeds standard NGC across the full training distribution, and the gap widens at more aggressive eviction
+rates which require generalization beyond the training distribution. The result also illustrates a broader
+
+                                                                                                  13
+                                            Pass@k (3-5x cache size reduction)
+                            AMC 2023                                       AMC 2025                                     AIME 2025
+          70.0%                                      60.0%                                                                                            NGC (ours)
+                                                                                                    20.0%
+          60.0%                                      50.0%                                                                                            KeyDiff
+          50.0%                                                                                     15.0%                                             KNorm
+                                                     40.0%                                                                                            SnapKV
+pass@k
+          40.0%                                                                                                                                       StreamingLLM
+                                                     30.0%                                          10.0%
+          30.0%
+                                                     20.0%
+          20.0%                                                                                      5.0%
+                                                     10.0%
+          10.0%
+                                                      0.0%                                           0.0%
+                      12 4 8     16             32                  12 4 8     16             32                 12 4 8     16             32
+                         k (number of attempts)                        k (number of attempts)                       k (number of attempts)
+
+Figure 7: Pass@k across math reasoning benchmarks. NGC consistently outperforms all inference-time
+eviction baselines across AMC 2023, AMC 2025, and AIME 2025; all methods evict 50% at each eviction
+round, corresponding to a 3-5x peak cache size reduction.
+
+                                                NGC performance vs cache size reduction
+                          AMC 2023                                           AMC 2025                                         AIME 2025
+                                                                                                                 50                                     Upper bound
+          80                                                   80                                                                                       NGC (ours)
+                                                                                                                 40
+          60                                                   60
+
+pass@32                                              pass@32                                           pass@32
+                                                                                                                 30
+          40                                                   40
+                                                                                                                 20
+
+          20                                                   20                                                10
+
+           0                                                    0                                                 0
+               1.8×       2.2×   2.8×    3.3×                       1.9×    2.5×    3.2×     3.8×                     2.2×    3.0×    3.8×     4.6×
+                  Peak KV cache reduction                              Peak KV cache reduction                           Peak KV cache reduction
+
+Figure 8: NGC pass@32 across varying cache size reductions. For moderate reductions in max cache
+size 2-3x, NGC can still maintain relatively strong accuracy relative to an upper bound that is trained with
+no eviction and uses no eviction during inference.
+
+
+principle: conditioning on resource constraints in the prompt is a simple way to enable a model to have a
+meta-awareness of its own computational constraints.
+
+5.4            Mathematical reasoning experiments
+To test whether the same approach generalizes to broader reasoning tasks, we now evaluate NGC on standard
+math competition benchmarks.
+
+Setup. We train DeepSeek-R1-Distill-Qwen-1.5B on DAPO-17k [Yu et al., 2025], a large-scale mathematical
+reasoning dataset spanning a broad range of problem types and difficulties. We evaluate on AMC 2023, AMC
+2025, and AIME 2025 to assess whether NGC generalizes beyond its training distribution. We use the same
+baseline eviction approaches as before on top of a model trained without eviction. We train with an eviction
+cadence of 350 tokens and a maximum response length of 1050, using 256 prompts per update step and 8
+rollouts per prompt for a total of 469 steps. At test time, we use top_p “ 0.95 and temperature 0.6 and a
+max completion length of 3850 tokens.
+
+                                                                                        14
+Results. Figure 7 reports pass@k [Chen et al., 2021] at a 3-5x cache reduction size (corresponding to
+50% eviction rate at every eviction round) across AMC 2023, AMC 2025, and AIME 2025. NGC consistently
+outperforms baselines across all three benchmarks; heuristic baselines can degrade to near-zero accuracy
+while NGC maintains a reasonable performance. Moreover, heuristic baselines are inconsistent across datasets.
+The relative ranking of KeyDiff and SnapKV shifts across benchmarks: SnapKV fails catastrophically on
+Countdown but performs reasonably well on math reasoning tasks. This inconsistency illustrates why a
+fixed proxy for importance is fragile — it is task-dependent in ways that are difficult for a practitioner to
+anticipate. NGC’s consistently strong performance across tasks shows that end-to-end training allows the
+model to adapt to each task and discover what information to keep in a task-dependent manner. In Figure 8,
+we compare the pass@32 performance across different cache reduction sizes. We find that at more moderate
+(2-3x) cache reduction sizes, NGC can come close to matching the upper bound (no-eviction ceiling).
+
+6    Conclusion
+We introduced Neural Garbage Collection, a framework in which a language model jointly learns to reason
+and manage its own KV cache by optimizing outcome-based task reward alone. Experiments on Countdown
+and DAPO-17k show that NGC outperforms heuristic eviction baselines. NGC is a first step towards a broader
+vision: as models become more capable, they can also learn to use their own resources more efficiently.
+Under this view, efficiency is a behavior the model can acquire through the same end-to-end optimization
+pressure that drives capability. This could unlock the possibility of inverting the usual tradeoff between
+capability and cost.
+
+7    Acknowledgements
+We especially thank Kanishk Gandhi and Aditya Cowsik for detailed comments. We also thank Hengyuan
+Hu, Neil Band, Omar Shaikh, Thomas Chen, and Cocolab members for helpful discussions as always. This
+work was supported in part by ONR Grant N00014-22-1-2110, NSF Grant 2205084, and the Stanford Institute
+for Human-Centered Artificial Intelligence (HAI). EBF is a Biohub, San Francisco, Investigator.
+
+
+
+
+                                                     15
+References
+J. Ainslie, J. Lee-Thorp, M. de Jong, Y. Zemlyanskiy, F. Lebrón, and S. Sanghai. Gqa: Training generalized
+   multi-query transformer models from multi-head checkpoints, 2023.
+M. Chen, J. Tworek, H. Jun, Q. Yuan, H. P. de Oliveira Pinto, J. Kaplan, H. Edwards, Y. Burda, N. Joseph,
+ G. Brockman, A. Ray, R. Puri, G. Krueger, G. Sastry, A. Askell, P. Mishkin, J. Clark, G. Irving, J. Wu, and
+ A. Radford. Evaluating large language models trained on code, 2021.
+Y. Chen, R. Chen, S. Yi, X. Zhao, X. Li, J. Zhang, J. Sun, C. Hu, Y. Han, L. Bing, Y. Deng, and T. Chen. MSA:
+   Memory sparse attention for efficient end-to-end memory model scaling to 100m tokens, Mar. 2026. URL
+   https://doi.org/10.5281/zenodo.19103670.
+T. Dao and A. Gu. Transformers are ssms: Generalized models and efficient algorithms through structured
+   state space duality. arXiv preprint arXiv:2405.21060, 2024.
+T. Dao, D. Y. Fu, S. Ermon, A. Rudra, and C. Ré. Flashattention: Fast and memory-efficient exact attention
+  with io-awareness. In Advances in Neural Information Processing Systems (NeurIPS), 2022.
+DeepSeek-AI. Deepseek-v3.2-exp: Boosting long-context efficiency with deepseek sparse attention. https:
+ //github.com/deepseek-ai/DeepSeek-V3.2-Exp, 2025. GitHub repository.
+A. Devoto, Y. Zhao, S. Scardapane, and P. Minervini. A simple and effective L2 norm-based strategy for
+  KV cache compression. In Proceedings of the 2024 Conference on Empirical Methods in Natural Language
+  Processing (EMNLP), 2024.
+A. Didolkar, N. Ballas, S. Arora, and A. Goyal. Metacognitive reuse: Turning recurring llm reasoning into
+  concise behaviors, 2025.
+S. Eyuboglu, R. S. Ehrlich, S. Arora, N. Guha, D. Zinsley, E. R. Liu, A. Rudra, J. Zou, A. Mirhoseini, and C. Re.
+   Cartridges: Lightweight and general-purpose long context representations via self-study. In The Fourteenth
+   International Conference on Learning Representations, 2026.
+W. Fedus, B. Zoph, and N. Shazeer. Switch transformers: Scaling to trillion parameter models with simple
+ and efficient sparsity. Journal of Machine Learning Research (JMLR), 23(120):1–39, 2022.
+K. Gandhi, D. H. J. Lee, G. Grand, M. Liu, W. Cheng, A. Sharma, and N. Goodman. Stream of search (sos):
+  Learning to search in language. In First Conference on Language Modeling, 2024.
+K. Gandhi, A. K. Chakravarthy, A. Singh, N. Lile, and N. Goodman. Cognitive behaviors that enable self-
+  improving reasoners, or, four habits of highly effective STaRs. In Second Conference on Language Modeling,
+  2025.
+S. Goyal, Z. Ji, A. S. Rawat, A. K. Menon, S. Kumar, and V. Nagarajan. Think before you speak: Training
+   language models with pause tokens. In International Conference on Learning Representations, 2024.
+A. Gu and T. Dao. Mamba: Linear-time sequence modeling with selective state spaces. arXiv preprint
+  arXiv:2312.00752, 2023.
+C. Gulcehre, T. L. Paine, K. Srinivasan, A. Ahuja, Y. Wang, L. Adolphs, C. Fuegen, C. Sommer, J. Tsai, D. Wu,
+  et al. Reinforced self-training (rest) for language modeling. arXiv preprint arXiv:2308.08998, 2023.
+D. Guo, D. Yang, H. Zhang, et al. DeepSeek-R1: Incentivizing reasoning capability in LLMs via reinforcement
+  learning. arXiv preprint arXiv:2501.12948, 2025.
+
+                                                       16
+J. Hoffmann, S. Borgeaud, A. Mensch, et al. Training compute-optimal large language models. arXiv preprint
+   arXiv:2203.15556, 2022.
+E. Horvitz. Reasoning under varying and uncertain resource constraints. In AAAI, 1989.
+E. Horvitz. Computation and action under bounded resources. PhD thesis, Stanford University, 1990.
+V. Kontonis, Y. Zeng, S. Garg, L. Chen, H. Tang, Z. Wang, A. Awadallah, E. Horvitz, J. Langford, and
+  D. Papailiopoulos. Memento: Teaching LLMs to manage their own context. https://github.com/
+  microsoft/memento, 2025. Preprint.
+W. Kool, H. Van Hoof, and M. Welling. Stochastic beams and where to find them: The Gumbel-top-k trick for
+ sampling sequences without replacement. In Proceedings of the 36th International Conference on Machine
+ Learning, volume 97, 2019.
+W. Kwon, J. Kim, S. Park, et al. Efficient memory management for large language model serving with
+ pagedattention. arXiv preprint arXiv:2309.06180, 2023.
+A. Łańcucki, K. Staniszewski, P. Nawrot, and E. Ponti. Inference-time hyper-scaling with KV cache compres-
+  sion. In The Thirty-ninth Annual Conference on Neural Information Processing Systems, 2025.
+Y. Li, Y. Huang, B. Yang, B. Venkitesh, A. Locatelli, H. Ye, T. Cai, P. Lewis, and D. Chen. SnapKV: LLM
+  knows what you are looking for before generation. In Advances in Neural Information Processing Systems
+  (NeurIPS), 2024. URL https://arxiv.org/abs/2404.14469.
+F. Lieder and T. L. Griffiths. Resource-rational analysis: Understanding human cognition as the opti-
+   mal use of limited computational resources. Behavioral and Brain Sciences, 43:e1, 2020. doi: 10.1017/
+   S0140525X1900061X.
+A. Liu et al. Deepseek-v3.2: Pushing the frontier of open large language models.              arXiv preprint
+  arXiv:2512.02556, 2025a.
+J. Liu, Y. Li, Y. Fu, J. Wang, Q. Liu, and Z. Jiang. When speed kills stability: Demystifying RL collapse from
+   the training-inference mismatch. blog, 2025b.
+Z. Liu, C. Chen, W. Li, P. Qi, T. Pang, C. Du, W. S. Lee, and M. Lin. Understanding r1-zero-like training: A
+  critical perspective, 2025c. URL https://arxiv.org/abs/2503.20783.
+G. Monea, Y. Feldman, S. Padmanabhan, K. Brantley, and Y. Artzi. Breadcrumbs reasoning: Memory-efficient
+  reasoning with compression beacons, 2025. URL https://arxiv.org/abs/2510.13797.
+J. Mu, X. L. Li, and N. Goodman. Learning to compress prompts with gist tokens. In Advances in Neural
+   Information Processing Systems, volume 36, 2024.
+OpenAI. Learning to reason with llms, 2024. Research blog post, published September 12, 2024.
+J. Pan, X. Li, L. Lian, C. V. Snell, Y. Zhou, A. Yala, T. Darrell, K. Keutzer, and A. Suhr. Learning adaptive
+   parallel reasoning with language models. In Second Conference on Language Modeling, 2025.
+J. Park, D. Jones, M. J. Morse, R. Goel, M. Lee, and C. Lott. KeyDiff: Key similarity-based KV cache eviction
+   for long-context LLM inference in resource-constrained environments. arXiv preprint arXiv:2504.15364,
+   2025.
+G. Poesia, D. Broman, N. Haber, and N. Goodman. Learning formal mathematics from intrinsic motivation.
+  In The Thirty-eighth Annual Conference on Neural Information Processing Systems, 2024.
+
+                                                     17
+S. Russell and E. Wefald. Do the right thing: Studies in limited rationality. MIT Press, 1991.
+N. Sardana, J. Portes, S. Doubov, and J. Frankle. Beyond Chinchilla-optimal: Accounting for inference in
+  language model scaling laws. arXiv preprint arXiv:2401.00448, 2025.
+N. Shazeer, A. Mirhoseini, K. Maziarz, A. Davis, Q. Le, G. Hinton, and J. Dean. Outrageously large neural net-
+  works: The sparsely-gated mixture-of-experts layer. In International Conference on Learning Representations
+  (ICLR), 2017.
+D. Silver and R. S. Sutton. Welcome to the era of experience. https://storage.googleapis.
+  com/deepmind-media/Era-of-Experience%20/The%20Era%20of%20Experience%20Paper.pdf, 2025.
+  Preprint.
+D. Silver, T. Hubert, J. Schrittwieser, I. Antonoglou, M. Lai, A. Guez, M. Lanctot, L. Sifre, D. Kumaran,
+  T. Graepel, T. Lillicrap, K. Simonyan, and D. Hassabis. Mastering chess and shogi by self-play with a
+  general reinforcement learning algorithm, 2017.
+H. A. Simon. A behavioral model of rational choice. The Quarterly Journal of Economics, 69(1):99–118, 1955.
+  ISSN 00335533, 15314650.
+R. S. Sutton. The bitter lesson. http://www.incompleteideas.net/IncIdeas/BitterLesson.html, March
+   2019. Blog post.
+V. Vajipey, A. Tadimeti, J. Shen, B. Prystawski, M. Y. Li, and N. Goodman. Simple, scalable reasoning via
+  iterated summarization. In ICML 2025 Workshop on Long-Context Foundation Models, 2025.
+T. Vieira. Gumbel-max trick and weighted reservoir sampling, 2014. Blog post.
+L. von Werra, Y. Belkada, L. Tunstall, E. Beeching, T. Thrush, N. Lambert, S. Huang, K. Rasul, and Q. Gallouédec.
+   Trl: Transformer reinforcement learning. https://github.com/huggingface/trl, 2020.
+G. Xiao, Y. Tian, B. Chen, S. Han, and M. Lewis. Efficient streaming language models with attention sinks. In
+  International Conference on Learning Representations (ICLR), 2024.
+Q. Yu, Z. Zhang, R. Zhu, Y. Yuan, X. Zuo, Y. Yue, W. Dai, T. Fan, G. Liu, L. Liu, X. Liu, H. Lin, Z. Lin, B. Ma,
+  G. Sheng, Y. Tong, C. Zhang, M. Zhang, W. Zhang, H. Zhu, J. Zhu, J. Chen, J. Chen, C. Wang, H. Yu,
+  Y. Song, X. Wei, H. Zhou, J. Liu, W.-Y. Ma, Y.-Q. Zhang, L. Yan, M. Qiao, Y. Wu, and M. Wang. DAPO: An
+  open-source LLM reinforcement learning system at scale. arXiv preprint arXiv:2503.14476, 2025.
+J. Yuan, H. Gao, D. Dai, J. Luo, L. Zhao, Z. Zhang, Z. Xie, Y. Wei, L. Wang, Z. Xiao, et al. Native sparse
+   attention: Hardware-aligned and natively trainable sparse attention. arXiv preprint arXiv:2502.11089, 2025.
+W. Yuan, R. Y. Pang, K. Cho, X. Li, S. Sukhbaatar, J. Xu, and J. Weston. Self-rewarding language models.
+ arXiv preprint arXiv:2401.10020, 2024.
+E. Zelikman, Y. Wu, J. Mu, and N. D. Goodman. STaR: Bootstrapping reasoning with reasoning. In Advances
+   in Neural Information Processing Systems, 2022.
+E. Zelikman, G. Harik, Y. Shao, V. Jayasiri, N. Haber, and N. D. Goodman. Quiet-STaR: Language models can
+   teach themselves to think before speaking, 2024.
+C. Zheng, S. Liu, M. Li, X.-H. Chen, B. Yu, C. Gao, K. Dang, Y. Liu, R. Men, A. Yang, J. Zhou, and J. Lin. Group
+  sequence policy optimization, 2025.
+A. Zweiger, X. Fu, H. Guo, and Y. Kim. Fast kv compaction via attention matching, 2026.
+
+                                                       18
+A     Appendix
+
+                        Replay attention mask          Token sequence oi
+
+
+                                            πθ (forward pass)
+
+          ∇θ                                                                                 ∇θ
+                                                                                                  on autograd
+                    log πθ poi,t | Ci,t q                        Features pk, hqt                 graph
+
+
+                           Ltoken                               log πθ pσi,t | Hi,t q
+
+
+
+                      Advantage Ai                                     Lmem
+
+Figure 9: Replay masks route gradients through eviction decisions. We perform a forward pass over
+the tokens with πθ using replay attention masks (see Figure 2). Both losses share the same group-normalized
+advantage Ai (purple) but differ in their log-probabilities: Ltoken uses the per-token next-token log-probs,
+while Lmem uses the Gumbel-top-k log-prob of the eviction decisions. Crucially, since the inputs that are
+used to make eviction decisions pk, hqt are collected during this forward pass, they are on the autograd
+graph. Therefore, gradients from Lmem flow back into θ and, as a consequence, eviction decisions are treated
+as a native action of the model that is optimized end-to-end just like tokens in the chain-of-thought.
+
+
+A.1   Hyperparameters
+
+
+                                 Table 1: Countdown training hyperparameters.
+                                      Parameter                                   Value
+                                      Maximum response length                 1024 tokens
+                                      Sampling temperature                        0.9
+                                      Top-k                                       50
+                                      Optimizer                                 AdamW
+                                      Adam parameters pβ1 , β2 q               p0.9, 0.95q
+                                      Adam ϵ                                   1 ˆ 10´15
+                                      Gradient norm clipping                       1.0
+                                      Learning rate scheduler                   Constant
+                                      Learning rate                             5 ˆ 10´6
+                                      KL penalty coefficient                       0.0
+
+Min response length penalty. Completions whose total length Ti “ |prompti | ` |completioni | falls before
+the first eviction round do not participate in an eviction round and thus carry no signal. For the DAPO-17k
+experiments, we found that it can be helpful to set ri “ 0 if the response length Ti ă L. This downgrades
+short rollouts that happened to receive positive reward, preserving the group size G and the natural scale of
+negative rewards while restoring a clean learning signal for the eviction head.
+
+                                                                 19
+                                Table 2: DAPO-17k training hyperparameters.
+                                  Parameter                          Value
+                                  Maximum response length         1050 tokens
+                                  Sampling temperature                 1.0
+                                  Top-k                             disabled
+                                  Optimizer                         AdamW
+                                  Adam parameters pβ1 , β2 q      p0.9, 0.999q
+                                  Adam ϵ                           1 ˆ 10´8
+                                  Weight decay                        0.0
+                                  Gradient norm clipping              1.0
+                                  Learning rate scheduler          Constant
+                                  Learning rate                    5 ˆ 10´6
+                                  KL penalty coefficient              0.0
+
+
+A.2    Cache size converges to a constant under grow-then-evict dynamics
+Proposition 1 (Steady-state maximum cache size under periodic eviction). Consider a cache that undergoes
+periodic eviction as follows: every δ newly generated tokens, an eviction round keeps a p1 ´ εq fraction of the
+current cache entries in each layer and permanently removes the remaining ε fraction, where ε P p0, 1s. Assume
+the prefill length is less than δ.
+Let ct denote the cache size in a single layer immediately before eviction round t. Then the sequence tct u
+converges to the unique fixed point
+                                                           δ
+                                                    c‹ “ .
+                                                           ε
+Therefore, since we keep the same fraction in each layer, the total KV cache size across all L layers immediately
+before an eviction round converges to
+                                                                δ
+                                               C ‹ “ Lc ‹ “ L .
+                                                                ε
+Proof. By construction, immediately after eviction round t, the cache size in a single layer is p1 ´ εqct . Before
+the next eviction round, the model generates δ new tokens, so we have the following recursion
+                                             ct`1 “ p1 ´ εqct ` δ.
+
+Since ε P p0, 1s, we have |1 ´ ε| ă 1, so this recursion is a contraction and therefore converges to a unique
+fixed point. The fixed point condition gives ct`1 “ ct “ c‹
+                                              c‹ “ p1 ´ εqc‹ ` δ.
+Rearranging,
+                                                                   δ
+                                         εc‹ “ δ,      ñ      c‹ “ .
+                                                                   ε
+Since each of the L layers has the same cache size under these dynamics, the total KV cache size immediately
+before eviction is
+                                                          δ
+                                                  C‹ “ L .
+                                                          ε
+as desired.
+
+                                                       20
+A.3    Implementation Details
+We maintain a custom fork of the Huggingface implementation of Qwen2 as well as a custom fork of the
+GRPOTrainer from TRL [von Werra et al., 2020]. We describe some of the key modifications below.
+
+Per-Layer Attention Masks. Because different layers keep different subsets of KV entries after eviction, a
+single attention mask shared across layers is insufficient, for applying the replay mask mechanism described in
+Section 4.5. The standard Huggingface transformers library does not support this. We extend the transformer
+decoder layers to accommodate layer-level attention masks. We store a list of per-layer attention masks
+inside a modified DynamicCache object (attention_mask_list); at each forward pass, we detect whether
+we have a layer level mask and, if so, use it in the appropriate decoder layer.
+
+Reconstructing Replay Attention Masks from Retention Decisions. To re-run the model under fixed
+eviction decisions during the replay pass, we must reconstruct the exact (per-layer level) attention masks
+that would have been in effect at each token position during the original rollout. Given per-layer retention
+             pℓq
+decisions tdr P t0, 1uB ˆ|Ar | uR ´1
+                                r“0 , where B is the batch size, R “ rT {Ls ´ 1 is the number of eviction
+rounds, T is the total sequence length, L is the fixed eviction period (denoted δ in the main text), and Ar
+denotes the alive set at round r, we construct a dense Boolean mask M pℓq P t0, 1uB ˆT ˆT independently for
+each layer ℓ as follows.
+The sequence is partitioned into rT {Ls contiguous blocks, where block r spans global token indices
+rrL, minppr ` 1qL, T qq. Within each block, queries attend causally to earlier tokens in the same block
+via the standard lower-triangular mask. The alive set is initialized as A0 “ block0 and updated after each
+                           pℓq
+eviction round: applying dr to Ar yields the retained set
+                                                ␣           pℓq     (
+                                     keptprℓq “ i P Ar : dr,i “ 1 ,                                     (7)
+                                                               pℓq
+after which the alive set for the next round is Ar`1 “ keptr Y blockr`1 . All queries in block r ` 1 attend
+                         pℓq
+to every token in keptr , in addition to causally attending within block r ` 1 itself. After iterating over all R
+block boundaries, the diagonal of M pℓq is set to 1 to ensure every token attends to itself. The resulting masks
+tM pℓq uℓ are injected into our modified DynamicCache, so that the replay forward pass attends to exactly the
+same context at each layer as existed during the original rollout.
+Note that we need 2D attention masks rather than a broadcastable 1D key-side mask. Standard causal
+masking is compactly representable because visibility is monotonic in query position — once a key becomes
+visible, it stays visible. Eviction breaks this monotonicity: a key evicted at round r is visible to queries before
+round r but invisible to queries after, so visibility is neither a function of key position alone (unlike a padding
+token) nor monotone in query position.
+
+A.4    Compression via Meta-Tokens
+Eviction enables forgetting but does not directly allow for consolidating information. Consider a model
+mid-way through a long arithmetic derivation: in addition to dropping earlier steps, it might be helpful to
+take stock of what has been established before continuing.
+We show a simple way to enable such consolidation within the NGC framework, requiring no additional
+objectives or architecture changes. We illustrate this idea in Figure 10. Immediately before an eviction round,
+we force the model to emit a special meta-token g via constrained decoding; its embedding is initialized
+from the average of the “tl;dr” tokens but is otherwise an ordinary entry in the vocabulary.
+The subtlety is that g is emitted deterministically at inference, so its probability is degenerate and admits
+no sampled log-probability. During training we score g as if it were sampled from the model’s next-token
+
+                                                        21
+                                                                                      queries after g attend
+                                                                                      to g and surviving keys
+            t0         t1        t2         t3         g         t5              t6
+
+
+
+                                                                 ∇θ flows into
+                                                  task reward   gist embedding
+
+
+Figure 10: NGC gives compression meta-tokens for free. Tokens after the summary token g can only
+attend to g and the KV cache entries the model decides to keep. Since g is just a token, it receives a per-token
+policy gradient. This gives the model an incentive, via the RL objective, to pack useful information into g’s
+representation. If all prefix entries before g are evicted, the induced attention mask is exactly that of a gist
+token [Mu et al., 2024].
+
+
+distribution at that position; this gives it a per-token policy gradient. Given this signal, eviction supplies the
+incentive to use g strategically. Once cache entries preceding g are removed, its key–value representation
+becomes a channel through which information from the evicted entries can still influence subsequent
+computation. The optimization pressure, in principle, teaches the model to route useful information about
+the prefix through g—yielding gist-like behavior without a separate compression objective.
+NGC generalizes the gist token construction in Mu et al. [2024]: gist tokens only compress system prompts
+and require a distillation objective to train, while NGC can exhibit the same behavior for free as a consequence
+of learning to reason and can compress both the prefill and generation tokens. More precisely, when all
+entries before g are evicted, the resulting attention mask for tokens after g is equivalent to that of the gist
+attention mask. This approach follows a pattern in which emitting a special token can induce structured
+behavior in an LM [Goyal et al., 2024, Zelikman et al., 2024].
+
+Gist tokens via LogitsProcessors We implement summary tokens using Huggingface’s support for
+logit processors. At the end of each decode step, the model forward pass checks whether the next position
+would trigger eviction. If so, it sets a boolean flag _force_summary_next = True. On the subsequent call
+to generate(), the logits processor intercepts the vocabulary logits, fills them with ´8, and assigns a score
+of 0 to the summary token id, deterministically forcing its emission. The flag is then cleared.
+
+
+
+
+                                                       22
+

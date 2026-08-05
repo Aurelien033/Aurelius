@@ -1,0 +1,24 @@
+{
+  "instance_id": "gym-v0.3/F3/a4464c22460a103f/b30a34da13d5ccb8",
+  "broken_artifact": "def avg_rounded(xs: list[int]) -> int:\n    return sum(xs) // len(xs)\n",
+  "prompt_context": "Repair the broken Python function so the visible test passes.\n\n# Visible test (must pass):\nassert avg_rounded([1,2,2]) == 2\n\n# Broken code:\n# Canary GUID: 97c6dbc9b3ad9017\ndef avg_rounded(xs: list[int]) -> int:\n    return sum(xs) // len(xs)\n\n# Corrected code:\ndef avg_rounded(xs: list[int]) -> int:\n",
+  "verifier": "functional: repaired function + hidden asserts (subprocess rc==0)",
+  "hidden_tests": [
+    "assert avg_rounded([1,2,2]) == 2",
+    "assert avg_rounded([2,5]) == 4"
+  ],
+  "reference_body": "    return round(sum(xs) / len(xs))",
+  "function_header": "def avg_rounded(xs: list[int]) -> int:",
+  "metadata": {
+    "family": "F3_type",
+    "function_name": "avg_rounded",
+    "mutation_operators": [
+      "body_logic_bug"
+    ],
+    "difficulty": "moderate",
+    "contamination_flag": "CLEAN_BY_CONSTRUCTION",
+    "canary_guid": "97c6dbc9b3ad9017",
+    "license": "synthetic-public-domain",
+    "provenance": "synthetic avg_rounded v6"
+  }
+}

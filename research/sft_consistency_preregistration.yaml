@@ -1,0 +1,32 @@
+# sft_consistency_preregistration.yaml
+# Self-consistency training for SFT
+id: CON-SFT-PREREG-v0.1
+status: design_draft
+
+reframed_question: >
+  When a model generates multiple samples for the same prompt, samples
+  that agree are more likely to be correct. Does training with a KL
+  consistency bonus (aligning samples to the consensus distribution)
+  improve single-sample accuracy?
+
+design:
+  base: "Qwen2.5-0.5B (Colab) / Aurelius 1.3B"
+  n_samples_ablations: [3, 5, 10]
+  lambda_ablations: [0.0, 0.1, 0.2, 0.5]
+  module: "src/training/self_consistency_sft.py"
+
+hypotheses:
+  H-CON-0 (accuracy improves): >
+    "Self-consistency training (lambda=0.2) improves single-sample accuracy
+    10-20% on held-out tasks vs standard SFT."
+  H-CON-1 (agreement rises): >
+    "Inter-sample agreement rate (same-prompt consistency) increases 20%+
+    after consistency training."
+  H-CON-2 (temperature robustness): >
+    "Accuracy at temperature=0.8 is closer to temperature=0.0 accuracy
+    after consistency training (gap reduces >50%)."
+
+kill_decision_map:
+  - "H-CON-0 fails: accuracy does not improve. -> Consensus signal may be too weak; try verifier-guided instead of majority-vote consensus."
+  - "H-CON-1 fails: agreement does not increase. -> KL penalty may be too weak; increase lambda."
+  - "CON-KILL: generating N=5 samples per prompt makes training >3x slower without proportional accuracy gain."
