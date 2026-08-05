@@ -44,6 +44,8 @@ wandb/
 # Agent / cycle artifacts
 .aurelius-*.log
 aurelius_loop_v*.json
+.aurelius_index/
+.aurelius_checkpoints/
 .ruff_cache/
 .pytest_cache/
 aurelius.egg-info/
@@ -146,3 +148,4 @@ pyproject.toml.consolidated
 pyproject.toml.pre_consolidation
 tmp_job_test.sh
 docs/training/spike_artifacts/
+aurelius-research-offload-2026-07-15/

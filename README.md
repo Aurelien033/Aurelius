@@ -436,3 +436,17 @@ make ci             # lint + typecheck + security + all tests
 [MIT License](LICENSE) — Copyright © 2025 Aurelius Systems, Inc.
 
 **GitHub:** [https://github.com/S3nna13/Aurelius](https://github.com/S3nna13/Aurelius)
+
+
+---
+
+## Current Research Status — 2026-08-04
+
+Frontier research package vendored in [`research/2026-08-frontier/`](research/2026-08-frontier/README.md):
+
+- **SISA** — Self-Indexed Sparse Attention (training-free KV indexer via the model's own early attention; paper-ready, measured: beats uniform 9/9, oracle-Q 8/9; binding circuit heads {3,11}; window law W≈1.1-1.3×horizon). Paper PDF + battery + circuit probes included.
+- **AEX-KV** — Adaptive Bit-Exact KV compression codec (lossless, decode==encode as uint16, 21 reversible modes). Integration probe PASSED on real Qwen3-1.7B KV: 1.468× capacity, bit-exact on all 56 tensors. Storage tier of the three-tier memory (HOT/WARM/COLD).
+- **MoK** — Mixture of Kittens (attention-routed recurrent processors; distance law CLEARED: state memory survives 512-token gaps at fixed d=128; F1 fast-cell comparison in flight).
+- **Adoption matrix** — GQA ADOPT, MLA EVALUATE, DSA REJECT (SISA replaces), SiTU-GLU NO-ADVANTAGE (measured), DeepSeek-V4-Flash ADOPT as post-training substrate, mid-training ADOPT before RLVR.
+
+All numbers measured and recorded (Obsidian vault is the canonical record); falsification-first discipline throughout.

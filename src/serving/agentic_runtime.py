@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import re
 from collections.abc import Callable
 from dataclasses import replace
@@ -10,6 +12,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import torch
+from src.computer_use.action_verifier import VERIFIER_DENY_LIST, ActionVerifier
+from src.computer_use.action_planner import ActionPlan, ActionPlanner
+from src.computer_use.browser_driver import BrowserDriverError
+from src.computer_use.screen_parser import get_screen_parser
 
 from src.inference.agentic_loop import (
     CALCULATOR_TOOL,
@@ -94,7 +100,7 @@ def _make_default_tool_registry() -> ToolRegistry:
         message = args.get("message", args.get("text", ""))
         return echo(str(message))
 
-    return ToolRegistry(
+    registry = ToolRegistry(
         [
             CALCULATOR_TOOL,
             WORD_COUNT_TOOL,
@@ -109,6 +115,169 @@ def _make_default_tool_registry() -> ToolRegistry:
                 fn=_echo,
             ),
         ]
+    )
+
+    _maybe_register_computer_use_tools(registry)
+    return registry
+
+
+def _is_denylisted(payload: str) -> bool:
+    lowered = payload.lower()
+    return any(pattern in lowered for pattern in VERIFIER_DENY_LIST)
+
+
+def _maybe_register_computer_use_tools(registry: ToolRegistry) -> None:
+    """Conditionally register the CUA adapter tool when the env gate is on."""
+
+    if os.environ.get("AURELIUS_NATIVE_TOOLS_ENABLED", "").lower() != "true":
+        return
+
+    if "computer_use" in registry:
+        return
+
+    action_planner = ActionPlanner()
+    action_verifier = ActionVerifier()
+    screen_parser = get_screen_parser("json_tree")()
+
+    def _denylist_check(value: str) -> str | None:
+        if not value:
+            return None
+        for pattern in VERIFIER_DENY_LIST:
+            if pattern in value.lower():
+                return f"deny_list:{pattern}"
+        return None
+
+    def _computer_use(args: dict) -> str:
+        if not isinstance(args, dict):
+            return "Error: computer_use args must be a mapping"
+
+        action = str(args.get("action") or "plan").strip().lower()
+        payload = json.dumps(args)
+
+        deny_reason = _denylist_check(payload)
+        if deny_reason:
+            return f"Error: action blocked by safety verifier ({deny_reason})"
+
+        try:
+            if action == "plan":
+                plan = action_planner.plan(
+                    goal=str(args.get("goal", "")),
+                    screen_context=args.get("screen_context") or {},
+                )
+                return json.dumps(
+                    {
+                        "ok": True,
+                        "action": "plan",
+                        "steps": [
+                            {
+                                "action_type": step.action_type.value,
+                                "target": step.target,
+                                "params": step.params,
+                                "rationale": step.rationale,
+                            }
+                            for step in plan.steps
+                        ],
+                        "confidence": plan.confidence,
+                    }
+                )
+
+            if action == "verify":
+                target = str(args.get("target", ""))
+                deny_hit = _denylist_check(target) or _denylist_check(
+                    str(args.get("value", ""))
+                )
+                if deny_hit:
+                    return f"Error: action blocked by safety verifier ({deny_hit})"
+
+                from src.computer_use.gui_action import ActionType, GUIAction
+
+                action_type = ActionType(args.get("action_type", "click"))
+                gui_action = GUIAction(
+                    action_type=action_type,
+                    target_selector=target or None,
+                    value=args.get("value"),
+                    coords=tuple(args["coords"]) if "coords" in args else None,
+                    metadata=args.get("metadata") or {},
+                )
+                snapshot = screen_parser.parse(
+                    args.get("snapshot")
+                    or {
+                        "width": 1280,
+                        "height": 800,
+                        "root": {
+                            "role": "application",
+                            "name": "Unknown",
+                            "bbox": [0, 0, 1280, 800],
+                        },
+                    }
+                )
+                ok, reason = action_verifier.verify(gui_action, snapshot)
+                return json.dumps({"ok": ok, "action": "verify", "reason": reason})
+
+            if action == "browser_navigate":
+                url = str(args.get("url", "")).strip()
+                if not url:
+                    return "Error: browser_navigate requires 'url'"
+                if _denylist_check(url):
+                    return "Error: action blocked by safety verifier (deny_list)"
+                from src.computer_use.browser_driver import StubBrowserDriver
+
+                driver = StubBrowserDriver()
+                state = driver.navigate(url)
+                return json.dumps(
+                    {
+                        "ok": True,
+                        "action": "browser_navigate",
+                        "url": state.url,
+                        "title": state.title,
+                        "ready": state.ready,
+                    }
+                )
+
+            if action == "screenshot":
+                screen_context = {
+                    "width": 1280,
+                    "height": 800,
+                    "root": {
+                        "role": "application",
+                        "name": "Unknown",
+                        "bbox": [0, 0, 1280, 800],
+                    },
+                }
+                snapshot = screen_parser.parse(screen_context)
+                return json.dumps(
+                    {
+                        "ok": True,
+                        "action": "screenshot",
+                        "width": snapshot.width,
+                        "height": snapshot.height,
+                        "root_role": snapshot.root_node.role if snapshot.root_node else None,
+                    }
+                )
+
+            if action == "describe_surface":
+                from src.agent.surface_catalog import describe_computer_use_surface
+
+                surface = describe_computer_use_surface()
+                return json.dumps({"ok": True, "action": "describe_surface", "surface": surface})
+
+            return f"Error: unknown computer_use action {action!r}"
+
+        except (BrowserDriverError, ValueError, TypeError, KeyError) as exc:
+            return f"Error: computer_use action {action!r} failed: {exc}"
+        except Exception as exc:  # pragma: no cover - defensive
+            return f"Error: computer_use action {action!r} raised {type(exc).__name__}: {exc}"
+
+    registry.register(
+        Tool(
+            name="computer_use",
+            description=(
+                "Execute computer use actions. Args: {action: str, ...}. "
+                "Actions: plan, verify, browser_navigate, screenshot, describe_surface. "
+                "Safety: DISABLED unless AURELIUS_NATIVE_TOOLS_ENABLED=true."
+            ),
+            fn=_computer_use,
+        )
     )
 
 
