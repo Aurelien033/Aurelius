@@ -184,3 +184,29 @@ with open("/Users/christienantonio/Aurelius_LocalMirror/research/calc_improve_20
                "aex_capacity": {"K": raw_sizes['K']/aex_sizes['K'], "V": raw_sizes['V']/aex_sizes['V']},
                "budget": B, "qid": QID, "n_evict": len(evict_toks)}, f, indent=1)
 print(f"TOTAL {time.time()-t0:.0f}s")
+
+
+# === HONEST ARM (Claude review fix): restore EXACTLY the dropped set ===
+import aexkv as aexkv2
+K_rest, V_rest = {}, {}
+for li in range(nL):
+    Kr, Vr = K[li].clone(), V[li].clone()
+    sub_k = K[li][:, drop_toks, :].cpu().numpy().astype(np.float16)
+    sub_v = V[li][:, drop_toks, :].cpu().numpy().astype(np.float16)
+    bk, _ = aexkv2.encode(sub_k); bv, _ = aexkv2.encode(sub_v)
+    assert aexkv2.verify_exact(sub_k, bk) and aexkv2.verify_exact(sub_v, bv)
+    Kr[:, drop_toks, :] = torch.from_numpy(aexkv2.decode(bk).astype(np.float32))
+    Vr[:, drop_toks, :] = torch.from_numpy(aexkv2.decode(bv).astype(np.float32))
+    K_rest[li], V_rest[li] = Kr, Vr
+all_keep = sorted(set(range(N)) - set(drop_toks)) + sorted(drop_toks)
+logits_restored = fwd_with_kv(ids, K_rest, V_rest)
+
+kl_restore = kl16(logits_full, logits_restored)
+print(f"\nKL(full, evicted)   = {kl_evict:.6f}  <- the loss SISA pays today")
+print(f"KL(full, restored)  = {kl_restore:.6f}  <- AEX-restored DROPPED SET (honest arm)")
+print(f"IMPROVEMENT: {(1 - kl_restore / max(kl_evict, 1e-9)) * 100:.1f}% of eviction loss removed")
+print(f"FALSIFIER (restored << evicted): {'CLEARED' if kl_restore < kl_evict * 0.1 else 'NOT CLEARED'}")
+with open("/Users/christienantonio/Aurelius_LocalMirror/research/calc_improve_2026-08-02/aexkv_stage2_results.json", "w") as f:
+    import json as _json
+    _json.dump({"kl_evicted": kl_evict, "kl_restored": kl_restore, "budget": B, "qid": QID}, f, indent=1)
+print(f"TOTAL {time.time()-t0:.0f}s")

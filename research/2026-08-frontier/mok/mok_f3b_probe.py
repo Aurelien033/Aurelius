@@ -10,7 +10,7 @@ state) with DISTANCE (does a binding survive N tokens). F3b isolates distance:
 
 Fixes vs F3: state d=128 (capacity no longer the bottleneck), gate bias init
 +2 (forget gate starts closed -> slow forgetting; the standard gated-delta
-trick), 6000 steps, linear control retained.
+trick), nomem control included, 2000 steps, linear control retained.
 """
 import math, time, torch, torch.nn as nn, torch.nn.functional as F
 
@@ -27,7 +27,8 @@ def batch(Dgap, B, device=DEV):
     q = keys.gather(1, qidx.unsqueeze(1)).squeeze(1)
     target = vals.gather(1, qidx.unsqueeze(1)).squeeze(1)
     # layout: k1 v1 [gap] k2 v2 [gap] k3 v3 [gap] k4 v4 [gap] q [label]
-    L = 2 * NP * (Dgap + 1) + 2
+    # L must equal the ACTUAL written length: NP*(Dgap+2) + 2
+    L = NP * (Dgap + 2) + 2
     seq = torch.full((B, L), FILL, dtype=torch.long)
     pos = 0
     for p in range(NP):
@@ -72,6 +73,23 @@ class LinearKitten(nn.Module):
         s = torch.cumsum(torch.tanh(self.inp(x)), dim=1)
         return self.out(s)
 
+class NoMem(nn.Module):
+    """No-memory control: full-sequence MLP with NO recurrence and NO
+    attention over positions — the state-less ceiling. Values are random
+    per batch (randint in [NV, NV+NK)), so no fixed key->value mapping can
+    be memorized; ceiling = chance = 1/16."""
+    def __init__(self, d=D):
+        super().__init__()
+        self.d = d
+        self.embed = nn.Linear(VOCAB, d)
+        self.mlp = nn.Sequential(nn.Linear(d, d), nn.Tanh())
+        self.out = nn.Linear(d, NV + NK)
+    def forward(self, x):
+        x = self.embed(x)
+        # mean-pool over the sequence: NO per-position state, NO attention
+        s = torch.tanh(self.mlp(x)).mean(dim=1).unsqueeze(1)
+        return self.out(s.expand(x.shape[0], x.shape[1], self.d))
+
 def run(model, Dgap, steps=2000, lr=1e-3, B=32):
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
     for i in range(steps):
@@ -91,7 +109,7 @@ print(f"MoK F3b | d={D} | 4 pairs | gap-isolated | {time.strftime('%H:%M:%S')}")
 results = {}
 for Dgap in [32, 64, 128, 256, 512]:
     row = {}
-    for name, cls in [("kitten", Kitten), ("linear", LinearKitten)]:
+    for name, cls in [("kitten", Kitten), ("linear", LinearKitten), ("nomem", NoMem)]:
         m = cls()
         n = sum(p.numel() for p in m.parameters())
         acc = run(m, Dgap)
@@ -100,7 +118,7 @@ for Dgap in [32, 64, 128, 256, 512]:
     results[Dgap] = row
 
 print("\n=== F3b VERDICT ===")
-chance = 1 / 32
+chance = 1 / (NV + NK - NV)  # values occupy [NV, NV+NK): 16 classes, not 32
 for Dgap, r in results.items():
     print(f"  gap={Dgap:4d}: kitten={r['kitten']:.3f} linear={r['linear']:.3f} (chance={chance:.3f})")
 k256 = results.get(256, {}).get("kitten", 0)
