@@ -11,7 +11,6 @@ import json
 import operator as _op
 import sys
 from collections.abc import Callable
-from typing import Any
 
 from aurelius_cli.pipeline_processor import Pipeline
 
@@ -22,30 +21,72 @@ from aurelius_cli.pipeline_processor import Pipeline
 # ---------------------------------------------------------------------------
 
 _BINOP_MAP: dict[type, Callable] = {
-    ast.Add: _op.add, ast.Sub: _op.sub, ast.Mult: _op.mul,
-    ast.Div: _op.truediv, ast.FloorDiv: _op.floordiv, ast.Mod: _op.mod,
-    ast.Pow: _op.pow, ast.BitAnd: _op.and_, ast.BitOr: _op.or_,
+    ast.Add: _op.add,
+    ast.Sub: _op.sub,
+    ast.Mult: _op.mul,
+    ast.Div: _op.truediv,
+    ast.FloorDiv: _op.floordiv,
+    ast.Mod: _op.mod,
+    ast.Pow: _op.pow,
+    ast.BitAnd: _op.and_,
+    ast.BitOr: _op.or_,
 }
 _UNARYOP_MAP: dict[type, Callable] = {
-    ast.USub: _op.neg, ast.UAdd: _op.pos, ast.Not: _op.not_,
+    ast.USub: _op.neg,
+    ast.UAdd: _op.pos,
+    ast.Not: _op.not_,
 }
 _CMPOP_MAP: dict[type, Callable] = {
-    ast.Eq: _op.eq, ast.NotEq: _op.ne,
-    ast.Lt: _op.lt, ast.LtE: _op.le,
-    ast.Gt: _op.gt, ast.GtE: _op.ge,
+    ast.Eq: _op.eq,
+    ast.NotEq: _op.ne,
+    ast.Lt: _op.lt,
+    ast.LtE: _op.le,
+    ast.Gt: _op.gt,
+    ast.GtE: _op.ge,
     ast.In: lambda a, b: a in b,
     ast.NotIn: lambda a, b: a not in b,
 }
-_ALLOWED_METHODS = frozenset({
-    "get", "keys", "values", "items", "upper", "lower", "strip", "split",
-    "startswith", "endswith", "replace", "join", "format", "count",
-    "index", "find", "append", "extend", "pop",
-})
+_ALLOWED_METHODS = frozenset(
+    {
+        "get",
+        "keys",
+        "values",
+        "items",
+        "upper",
+        "lower",
+        "strip",
+        "split",
+        "startswith",
+        "endswith",
+        "replace",
+        "join",
+        "format",
+        "count",
+        "index",
+        "find",
+        "append",
+        "extend",
+        "pop",
+    }
+)
 _ALLOWED_BUILTINS = {
-    "len": len, "str": str, "int": int, "float": float, "bool": bool,
-    "list": list, "dict": dict, "set": set, "sum": sum, "min": min,
-    "max": max, "abs": abs, "round": round, "sorted": sorted,
-    "any": any, "all": all, "isinstance": isinstance,
+    "len": len,
+    "str": str,
+    "int": int,
+    "float": float,
+    "bool": bool,
+    "list": list,
+    "dict": dict,
+    "set": set,
+    "sum": sum,
+    "min": min,
+    "max": max,
+    "abs": abs,
+    "round": round,
+    "sorted": sorted,
+    "any": any,
+    "all": all,
+    "isinstance": isinstance,
 }
 
 
@@ -208,6 +249,7 @@ def build_pipeline_parser(subparsers: argparse._SubParsersAction) -> None:
         help='Deduplicate by key expression using "x" (e.g. x["id"])',
     )
     parser.set_defaults(func=handle_pipeline)
+
 
 def handle_pipeline(args: argparse.Namespace) -> int:
     """Read JSON lines from stdin, apply transformations, write JSON lines to stdout."""
