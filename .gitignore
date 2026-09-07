@@ -108,6 +108,10 @@ training_data/
 /docs/eval_card.md
 /docs/harvest_journal.md
 /configs/train_*.yaml
+# Test fixtures (integration suite requires train configs present):
+!/configs/train_2.7b.yaml
+!/configs/train_3b.yaml
+!/configs/train_moe_5b.yaml
 /configs/yarn_finetune.yaml
 /configs/merge_*.yaml
 /configs/curriculum.yaml

@@ -87,6 +87,8 @@ jobs:
             dirs: tests/model/
           - part: inference
             dirs: tests/serving/ tests/tools/ tests/inference/
+          - part: integration
+            dirs: tests/integration/
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -125,9 +127,11 @@ jobs:
             ${{ matrix.dirs }} \
             -q --tb=line --maxfail=20
 
-      - name: Run integration tests (with coverage)
+      - name: Run integration tests with coverage
+        # Coverage artifacts only from the integration partition (avoids
+        # 4x duplication of the full integration suite across matrix jobs).
+        if: matrix.part == 'integration'
         run: |
-          # Full integration suite, but skip slow ones
           timeout 1200 python -m pytest \
             tests/integration/ \
             --cov=src --cov-report=xml --cov-append \

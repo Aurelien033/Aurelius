@@ -36,7 +36,12 @@ class TestAuth:
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
-        assert "apiKey" in data
+        # Register never returns the full key — one-time reveal contract
+        # (apiKeyPrefix + revealToken; revealed flips on the reveal endpoint).
+        assert "apiKeyPrefix" in data
+        assert data["apiKeyPrefix"].startswith("ak-")
+        assert "revealToken" in data
+        assert data["revealed"] is False
 
     def test_register_duplicate(self, api_client: Any, base_url: str) -> None:
         resp = api_client.post(
