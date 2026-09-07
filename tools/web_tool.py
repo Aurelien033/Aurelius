@@ -22,14 +22,16 @@ _MAX_REDIRECTS = 10
 _ALLOWED_SCHEMES = frozenset(["https", "http"])
 
 # Exact-match blocklist — no regex, no anchoring errors.
-_DENY_HOSTS: frozenset[str] = frozenset({
-    "127.0.0.1",
-    "localhost",
-    "0.0.0.0",  # noqa: S104
-    "::1",
-    "169.254.169.254",  # AWS/GCP/Azure IMDS
-    "metadata.google.internal",
-})
+_DENY_HOSTS: frozenset[str] = frozenset(
+    {
+        "127.0.0.1",
+        "localhost",
+        "0.0.0.0",  # noqa: S104
+        "::1",
+        "169.254.169.254",  # AWS/GCP/Azure IMDS
+        "metadata.google.internal",
+    }
+)
 
 
 def _is_private_ip(host: str) -> bool:

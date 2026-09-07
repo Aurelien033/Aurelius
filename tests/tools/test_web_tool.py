@@ -190,26 +190,20 @@ def test_fetch_network_error_mocked(tool):
 def test_redirect_to_imds_denied():
     handler = _SafeRedirectHandler()
     with pytest.raises(urllib.error.URLError, match="unsafe"):
-        handler.redirect_request(
-            MagicMock(), None, 302, "Found", {}, "http://169.254.169.254/"
-        )
+        handler.redirect_request(MagicMock(), None, 302, "Found", {}, "http://169.254.169.254/")
 
 
 def test_redirect_to_loopback_denied():
     handler = _SafeRedirectHandler()
     with pytest.raises(urllib.error.URLError, match="unsafe"):
-        handler.redirect_request(
-            MagicMock(), None, 302, "Found", {}, "http://127.0.0.1/"
-        )
+        handler.redirect_request(MagicMock(), None, 302, "Found", {}, "http://127.0.0.1/")
 
 
 def test_redirect_too_many_rejected():
     handler = _SafeRedirectHandler(max_redirects=2)
     handler._redirect_count = 2
     with pytest.raises(urllib.error.URLError, match="too many redirects"):
-        handler.redirect_request(
-            MagicMock(), None, 302, "Found", {}, "https://example.com/next"
-        )
+        handler.redirect_request(MagicMock(), None, 302, "Found", {}, "https://example.com/next")
 
 
 def test_redirect_safe_public_allowed():

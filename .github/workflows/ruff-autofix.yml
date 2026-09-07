@@ -49,8 +49,13 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
-          commit-message: "style: ruff autofix [skip ci]"
+          # Unique message + per-run branch: prevents the action from trying to
+          # cherry-pick stale historical bot commits (was crashing CI with
+          # "could not apply <sha>... style: ruff autofix [skip ci]").
+          commit-message: "style: ruff autofix (CI)"
           title: "style: ruff autofix"
           body: "Automated ruff format + fix applied by CI."
           branch: automated/ruff-autofix
+          branch-suffix: timestamp
+          delete-branch: true
           base: main

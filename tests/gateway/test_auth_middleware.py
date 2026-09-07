@@ -13,6 +13,7 @@ def _load_app(api_key: str = "test-secret-key"):
     """Import app with a given AURELIUS_API_KEY env value."""
     with patch.dict("os.environ", {"AURELIUS_API_KEY": api_key}, clear=False):
         import gateway.aurelius_api as _mod
+
         importlib.reload(_mod)
         return _mod.app
 
