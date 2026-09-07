@@ -460,10 +460,24 @@ class SoftMoELayer:
         # Dispatch weights: softmax over tokens for each slot
         # Combine weights: softmax over slots for each token
 
-        logits = [[random.gauss(0, 0.1) for _ in range(n_slots_total)] for _ in range(n_tokens)]
+        logits = [
+            [sum(random.gauss(0, 0.1) for _ in range(1)) for _ in range(n_slots_total)]
+            for _ in range(n_tokens)
+        ]
 
-        dispatch = TopKRouter._softmax(logits)  # softmax over tokens handled per-slot
-        combine = TopKRouter._softmax(
+        # softmax over logits (mock implementation — no torch dependency)
+        def _mock_softmax(matrix):
+            import math
+            result = []
+            for row in matrix:
+                max_val = max(row)
+                exps = [math.exp(v - max_val) for v in row]
+                total = sum(exps)
+                result.append([e / total for e in exps])
+            return result
+
+        dispatch = _mock_softmax(logits)  # softmax over tokens handled per-slot
+        combine = _mock_softmax(
             [[logits[t][s] for t in range(n_tokens)] for s in range(n_slots_total)]
         )  # softmax over tokens per-slot, then transposed
 

@@ -1,0 +1,16 @@
+# BASELINE: no AMC SSM layers (all attention) — paper control
+model:
+  name: aurelius-forge-1b-baseline
+  vocab_size: 128000
+  d_model: 1792
+  n_layers: 24
+  n_heads: 16
+  kv_lrank: 64
+  ssm_d_state: 64
+  ssm_expand: 2
+  ssm_headdim: 64
+  d_conv: 4
+  max_seq_len: 4096
+  tie_embeddings: true
+  promotion_temperature: 0.5
+  ssm_layers_at: []

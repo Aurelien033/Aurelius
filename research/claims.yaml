@@ -1,0 +1,350 @@
+# claims.yaml
+# Mandated by: §142.11 item 2, §143.10. Discharged by §145.2 on 2026-06-11.
+# Machine-checkable claims ledger: raw_claim -> evidence_level -> required_artifacts -> paper_eligible.
+# evidence_level enum (§0.3): assumption | hypothesis | target | measurement | theorem | engineering_invariant
+# RULE (§143.10): a paper-eligible claim must point to >=1 run manifest and >=1 result artifact.
+# RULE (§145.3): a claim row reaches `measurement` ONLY with artifact_path + command + seed list.
+version: 2026-06-14.1   # First TRUSTWORTHY First Light = run first-light-v4-24515383 (gym-v0.2); 3651bb11 verifier-bug retracted
+status_summary_v4: >
+  2026-06-14: First Light run first-light-v4-24515383 (gym-v0.2) is VERIFIED SOUND — independent
+  re-score of all 2700 completions AGREES 2700/2700. THE FIRST TRUSTWORTHY MEASUREMENT. Clean families
+  (F2+F3): dense 76% > random 60% >> entropy 25%. H-FL-1 PASS, H-FL-2 PASS (dense>random +21.7pp),
+  H-FL-3 entropy BEHIND random (-26.7pp; the |ΔH| skip-heuristic is anti-informative — a real negative),
+  H-FL-4 PASS vs corrected byte model. NOT thesis support (CLM-001 = E87, untested). Prior run 3651bb11
+  RETRACTED on pass rates (verifier under-counted; H-FL-1 + F3-inversion diagnosis stand). dab80149
+  remains fabricated/invalid. 0 of 8 positive claims paper-eligible. Caveat: F3-v0.2 ceiling -> gym-v0.3.
+status_summary: >
+  First Light executed legitimately 2026-06-13 (run first-light-3651bb11): real routing (P1 logit-diff
+  5.3125), 300 pinned instances all policies (P2), H-FL-1 pipeline integrity PASS (51,744 final trace
+  rows, 0 schema errors, 100% FORCED_BASELINE coverage). FIRST MEASUREMENT ROWS exist. Clean families
+  (F1+F2): dense 14.0% >> random 0.5% >> entropy 0.0% (expected: full compute beats forced layer-skip).
+  Corrected P4 verdicts: H-FL-2 FAIL by prereg (dense-random +2.0pp CI[-2.3,+6.7], harness-bug protocol),
+  H-FL-3 raw pooled PASS (entropy-random +11.0pp CI[+6.3,+16.0]) but scientifically confounded by the
+  defective F3 verifier, H-FL-4 FAIL (dense 27.22 vs 15.00 tok/s; skip 28.67 vs 18.00 tok/s). Pilot block
+  repaired and actually ran (900 PILOT dense rows, 17/900 pass). Thesis (CLM-001) NOT tested (=E87, out
+  of First Light scope). Verdict: first_light_receipt/first-light-3651bb11_VERIFICATION.md. Prior run
+  first-light-dab80149 remains INVALIDATED (fabricated). 0 of 8 positive claims paper-eligible.
+
+claims:
+
+  - claim_id: CLM-001
+    text: >
+      A controller allocating compute by expected verified marginal gain per unit
+      compute (estimator ladder g_entropy -> g_gain -> g_VBMCA) beats entropy-only
+      routing on accuracy/FLOP at matched FLOPs, bytes, params, and guard coverage.
+    evidence_level: hypothesis
+    source_sections: ["§142.2", "§128", "§100"]
+    required_artifacts: [E87_run_manifest, E87_results, chessboard_entropy_row]
+    forbidden_contexts: ["entropy-as-objective phrasing (§126.1 rule 4)"]
+    paper_eligible: false
+    notes: "THE Paper-1 thesis claim. If falsified, plan honestly reduces to entropy routing and reports it."
+    e87_preregistration: "e87_preregistration.yaml (E87-PREREG-v0.1, FROZEN, OBL-056). split_hash c21e22915fd52972; clean families F2 + gym-v0.3 F3."
+    e87_result:   # FIRST real thesis evidence, 2026-06-14 — a precise NEGATIVE for the per-layer g_gain rung
+      run: "e87 chessboard (60 held-out test instances, k=4, 3 seeds; independent re-score AGREE=900/900)"
+      verification: "e87_receipt/e87_VERIFICATION.md"
+      rates: {dense: 0.733, random: 0.300, learned_gain: 0.200, oracle: 0.083, entropy: 0.017}
+      finding: >
+        FALSIFIED at the g_gain-per-layer rung: NO informed skip policy beat random (learned 20% <
+        random 30%; H-E87-2 fails). learned_gain > entropy (+18.3pp) but both lose to random, so it is
+        not thesis support. Mechanism: LAYER NON-ADDITIVITY — single-layer leave-one-out gain (the
+        §134.5 g_gain target) anti-predicts joint skip-set value; informed policies concentrate skips in
+        the early block (oracle 79% in layers 7-10) which is individually safe but jointly catastrophic
+        (oracle 8.3%, entropy 1.7%); random spreads and wins.
+      NOT_concluded: "NOT 'no learnable signal exists' — the prereg's oracle was a GREEDY single-layer-marginal selector, not a true combinatorial ceiling; H-E87-0's auto-'NO SIGNAL' is corrected/invalid. A combinatorial oracle must run before any no-signal claim."
+      redirects: "per-layer marginal estimators (the §134.5 g_gain construction) are the wrong tool. Next: interaction-aware/combinatorial selection, OR token-level routing (additivity may hold better per-token), OR g_VBMCA with joint features, plus a true combinatorial oracle."
+      evidence_level_after: "hypothesis (g_gain-per-layer form FALSIFIED for this construction; the broader CLM-001 stays open pending interaction-aware / token-level / g_VBMCA tests)"
+      k_sweep_reframe_2026_06_14: >
+        SAME DAY the verdict was REFRAMED (k=1 analysis, free from Phase A exhaustive single-skip labels;
+        e87_VERIFICATION.md ADDENDUM). The 'falsified' read was too blunt — it was specific to the
+        aggressive k=4 point. At k=1: achievable ceiling 91.7% (>> dense 73% => signal is LARGE), and
+        ENTROPY ROUTING BEATS DENSE (75% > 73.3%) => the CORE thesis (routing helps) is SUPPORTED at the
+        right operating point. CLM-001's LITERAL claim (g_gain beats entropy) stays UNSUPPORTED (entropy
+        >= learned at every k; my linear g_gain is mediocre, real directional signal but < entropy). The
+        k-sweep (k=2/4 true combinatorial ceiling, OBL-057) is running to map cost-vs-selectability.
+        Net: routing helps at small k; the verified-gain ESTIMATOR needs to be better than entropy AND
+        the operating point (k, per-layer vs per-token) is the critical design variable E87 surfaced.
+      k_sweep_combinatorial_2026_06_14: >
+        THE DECISIVE RESULT (OBL-057 combinatorial achievable-ceiling, sampled N=20/instance; verified:
+        recompute exact + GPU spot-re-score). Achievable ceiling by k: k1 91.7%, k2 91.7%, k4 71.7%
+        (~= dense 73.3%) while avg random skip collapses (k1 54% -> k2 39% -> k4 15%). GOOD SKIP-SETS
+        EXIST AT EVERY k and the ceiling-vs-random gap GROWS with k (+37 -> +53 -> +57pp). The verified-
+        gain ROUTING thesis is ALIVE and the prize is LARGE (near-dense accuracy at reduced layer-compute
+        is achievable). E87's 'no signal' was DECISIVELY WRONG — it was a SELECTION failure, not a signal
+        failure. The ONLY thing falsified is the per-layer-marginal ESTIMATOR. Open problem (singular):
+        learn a combinatorial/interaction-aware selector, or co-train skip-robustness (OBL-059). Best
+        operating point = k=2 (ceiling 91.7%, random 39% — widest realized headroom). evidence_level:
+        CLM-001 routing-helps SUPPORTED at the achievable-ceiling level; the LEARNED-selector form OPEN.
+      k_sweep_correction_2026_06_15: >
+        LANGUAGE CORRECTION (external-model audit of EXTERNAL_BRIEF.md, re-verified by me against the raw
+        ksweep_results.jsonl: k=2 median 18 distinct sets/task of 91, k=4 median 20 of 1001). The k=2/k=4
+        "achievable ceiling" is BEST-OF-~20 SAMPLED, NOT a true combinatorial/exhaustive oracle (k=1 IS
+        exhaustive, 14 sets). Two consequences: (1) the reported ceilings (k2 91.7%, k4 71.7%) are a LOWER
+        BOUND on the true exhaustive ceiling, so "good skip-set exists at every k" SURVIVES (only strengthens
+        — true ceiling >= reported); (2) best-of-20 is VERIFIER-ASSISTED SEARCH (20 verifier calls), NOT a
+        cheap deployable selector — "a good set exists" must stay distinct from "a cheap selector finds it."
+        The 80/80 GPU re-score verified LABEL honesty (pass/fail correct), NOT search exhaustiveness. Reframe
+        (more accurate): good sets are COMMON (55/60 tasks hit by 20 random tries at k=2 => dense basin, not
+        needle-in-haystack), so selection is PLAUSIBLY learnable but UNTESTED. Fix going forward: the exact
+        k=2 pair matrix (all 91 pairs x 60 tasks) makes k=2 truly exhaustive AND yields the dataset for a
+        pairwise compatibility selector with task-level splits. Files corrected: this entry, EXTERNAL_BRIEF.md,
+        e87_VERIFICATION.md (addendum), MEMORY.md. Credit: external brainstorm response 2026-06-15.
+      selection_arc_2026_06_17: >
+        THE SELECTION QUESTION, ANSWERED (full arc: aurelius_selection_arc_writeup_2026-06-17.md).
+        (1) EXACT k=2 matrix (all 91 pairs x 60 tasks, Kaggle fp16, re-derived): TRUE ceiling 96.7% (> dense
+        75%), avg-random 38.9% — a good pair EXISTS for 58/60 tasks; replaces the sampled 91.7/38.7.
+        (2) PER-TASK PROMPT-CONDITIONED SELECTOR = POWERED NULL (selector_pertask_preregistration.yaml,
+        N=300 representative pool, kernel notebook0b2b9081aa). Held-out CV: random 36, dense 62, global-best-
+        pair 68.3, C_struct 68.3, C_full 68.3 (H-SEL-1 = +0.0pp), oracle 89.7. corr(logit-space pair-align,
+        pass) = +0.020 (MODEL-FREE: the mechanistic feature is dead). The ~21pp per-task headroom is NOT
+        cheaply capturable from prefill activations + a linear model. SECOND powered null (one rung up from
+        the g_gain kill).
+        (3) THE SURVIVING POSITIVE: a FIXED GLOBAL skip set (a permanent structural prune) >= dense on the
+        representative pool (68.3 vs 62) — but POOL-DEPENDENT (on the easy-60 it was 56.7 < dense 75) and
+        MODEST. Honest reframe: this is a STRUCTURED DEPTH-PRUNING result (non-additive: poison layers
+        11/14/15 + adjacency, NOT 'early layers'), not Aurelius's original cheap dynamic per-token routing.
+        (4) CO-TRAIN route KILLED (OBL-059 v2): making all skips cheap -> uniform mediocrity.
+        NET evidence_level for CLM-001: the cheap-estimator AND cheap-per-task-selector forms are FALSIFIED
+        (two powered nulls); what stands is non-additive structured pruning (>= dense, modest); the large
+        per-task headroom is REAL but not-cheaply-capturable = the central open problem. k=4 (OBL-061,
+        running) tests whether a permanent 4-layer prune is a deployable win.
+
+  - claim_id: CLM-002
+    text: >
+      ReMoDE theoretical speedup is ~2.2x at the planning mix as written (~2.6x only
+      if 256-dim gate calibration passes); any wall-clock claim requires byte ledger,
+      controller tax, guard tax, phase (prefill/decode), and thermal-sustained numbers.
+    evidence_level: target
+    source_sections: ["§136.2", "§143.4"]
+    required_artifacts: [byte_ledger_csv, governor_report_10min_sustained]
+    forbidden_contexts: ["3-10x or 8-30x figures (§142.10)", "multiplicative speed stacks (§132.14)"]
+    paper_eligible: false
+
+  - claim_id: CLM-003
+    text: >
+      The written config is ~848M params (machine-verified recount; §133), ~704M with
+      tied-MTP (§135.4; ADR-2 ratified adopt, moot for Paper 1). The 1.395B paper target
+      was NOT reached as written. ARCH-HARD-03 RESOLVED 2026-06-11: ADR-1=D ratified —
+      dissolved for Paper 1; Paper-1 parameter truth = FROZEN-BASE-v1 (pins at smoke
+      pass); §16.1 is the historical scratch-config appendix.
+    evidence_level: measurement
+    measurement_kind: document_recount_not_runtime
+    linter_exemption: "document_recount_not_runtime satisfies the measurement gate via the in-document §133 recount; command/seed fields N/A by kind (§148 — without this, the executable linter would fail its own ledger on day one)"
+    source_sections: ["§133", "§135.4", "§16.1"]
+    required_artifacts: ["§133 parameter ledger (in-plan)"]
+    paper_eligible: "method detail only; any cost table must name its assumed N (§133 rule 4)"
+
+  - claim_id: CLM-004
+    text: >
+      Organizational efficiency scales: fitted beta (and delta) in
+      K = K0 * N^alpha * D^beta * O^delta on the Pythia/OLMo/Qwen reference ladder,
+      with ReMoDE-S/M/L as the O-moving points. Priors alpha~0.07, beta~0.10,
+      delta~1.0 are values to FIT, not assume (delta=1.0 is LT3, a Law-Test).
+    evidence_level: hypothesis
+    source_sections: ["§142.7", "§144.4", "§59", "§135.3"]
+    required_artifacts: [E89_fit, E108_fit, reference_ladder_manifest]
+    forbidden_contexts: ["citing beta/delta priors as results"]
+    paper_eligible: false
+
+  - claim_id: CLM-005
+    text: >
+      The plan's non-SKIP fraction (~20%) sits near LT6's independently derived ~25%
+      recovery share. Reportable ONLY as convergence between a derivation and an
+      empirically chosen knob — never as proof of optimality (E86 settles that).
+    evidence_level: hypothesis
+    source_sections: ["§142.1 LT6", "§142.3"]
+    required_artifacts: [E86_sweep]
+    paper_eligible: false
+
+  - claim_id: CLM-006
+    text: >
+      The honesty -> escalation -> compute loop (HRM low-confidence as allocation
+      trigger) beats a fixed-compute honesty-trained baseline on accuracy at equal
+      compute budget.
+    evidence_level: hypothesis
+    source_sections: ["§142.5"]
+    required_artifacts: [E91_results]
+    paper_eligible: false
+    ring_constraint: "R2 — NOT a Paper-1 claim (§143.5)"
+
+  - claim_id: CLM-007
+    text: >
+      Hybrid attention at ~3:1 (gated-linear : full) beats full-attention-every-layer
+      on long-context at matched FLOPs, and deficit-triggered full attention (Rebound)
+      beats a static mix.
+    evidence_level: hypothesis
+    source_sections: ["§142.6"]
+    required_artifacts: [E93_results, E94_results, kv_param_reconciliation_§57]
+    paper_eligible: false
+    ring_constraint: "R2 — NOT a Paper-1 claim"
+
+  - claim_id: CLM-008
+    text: >
+      The ReMoDE-0 MVP on FROZEN-BASE-v1 (Qwen/Qwen2.5-1.5B base, rev 8faed761 —
+      pinned 2026-06-11 by the ratified ADR-1b rule; supersedes the historical
+      "0.5B-1B" phrase) achieves measurable verified-gain routing in
+      <100 GPU-hours (Phases 0-1 of §141).
+    evidence_level: hypothesis
+    source_sections: ["§141", "§134.8 Option D"]
+    required_artifacts: [first_light_receipt, mvp_run_manifest]
+    paper_eligible: false
+    first_light_measurement:   # AUTHORITATIVE: run first-light-v4-24515383 (gym-v0.2), 2026-06-14
+      run_id: first-light-v4-24515383
+      date: 2026-06-14
+      status: VERIFIED_SOUND_first_trustworthy_measurement
+      verification: "first_light_receipt/first-light-v4-24515383_VERIFICATION.md"
+      gold_standard_check: "independent re-score of all 2700 raw completions: AGREE=2700, DISAGREE=0"
+      gym: {version: gym-v0.2, manifest_hash: 1a1cee45773ba90c, fl_subset_hash: f8c03088bdf3b5db}
+      prereg_snapshot: "first_light_receipt/first-light-v4-24515383_PREREG_SNAPSHOT.yaml (sha256[:16] 616bda9e25621e55)"
+      n_instances: 300
+      seeds: [1337, 2026, 7]
+      self_proofs: {p1_max_logit_diff: 5.30, p1_restore_bit_identical: true, p2_n: 300, p3_bench_gate: pass}
+      measurement_rows:
+        H-FL-1: "PASS — 37,800 trace rows, 0 schema errors, 100% reason-code coverage"
+        per_family_instance_any_seed:   # reproduced independently (rescore_v4.py)
+          F1_mbpp: {n: 100, dense: 0.43, random: 0.10, entropy: 0.00, contamination: flagged}
+          F2_json: {n: 100, dense: 0.52, random: 0.47, entropy: 0.16, contamination: clean}
+          F3_type: {n: 100, dense: 1.00, random: 0.73, entropy: 0.34, contamination: clean_but_ceiling_v0_2_too_easy}
+        pooled: {dense: 0.65, random: 0.43, entropy: 0.17, n: 300}
+        clean_families_F2_F3: {dense: 0.76, random: 0.60, entropy: 0.25, n: 200, finding: "full compute > random skip >> entropy skip"}
+        throughput_tok_s: {dense_p50: 21.7, skip_p50: 29.5, predicted_v2_band: [21, 34]}
+        pilot_block: {status: ran_for_real, distinctness: "38/50 differ greedy-vs-sampled"}
+      verdicts:
+        H-FL-1: "PASS (pipeline integrity)"
+        H-FL-2: "PASS — dense > random +21.7pp CI[+15.3,+28.0] excludes 0 (F3-fix removed the inversion; sanity gate passes)"
+        H-FL-3: "ENTROPY BEHIND — entropy-random -26.7pp CI[-33.0,-20.7]; the |ΔH|-smallest heuristic is ANTI-informative (worse than random skip). Honest negative for the entropy rung; feeds E87 priors."
+        H-FL-4: "PASS vs corrected byte model — dense 21.7 / skip 29.5 tok/s in v2 band [21,34] (first_light_byte_predictions_v2.yaml). Runner's FAIL used the retired 15.0 prior."
+      scientific_disposition: >
+        First TRUSTWORTHY First Light. Full compute beats forced layer-skip (H-FL-2 PASS). KEY FINDING:
+        the cheapest entropy skip-heuristic does WORSE than random — |ΔH| points the wrong way for
+        WHICH layers to skip at this scale. NOT thesis support: CLM-001 (verified-gain vs entropy) is
+        untested (=E87, needs the gain head). No speedup/paper-eligible claim.
+      caveats: ["F3-v0.2 ceiling (dense 100%) -> gym-v0.3 difficulty bump", "F1 contamination-flagged (43% ~ memorization)", "F2 dense-vs-random margin narrow (52 vs 47)"]
+      required_before_paper_claim: ["E87 gain-head experiment for the actual thesis", "gym-v0.3 harder F3", "multi-run seed-variance"]
+
+    superseded_run_record_3651bb11:   # was first_light_measurement; verifier BUG found 2026-06-14 -> retracted
+      run_id: first-light-3651bb11
+      date: 2026-06-13
+      status: SUPERSEDED_verifier_bug_undercounted   # pass rates retracted; H-FL-1 + F3-inversion diagnosis stand
+      retraction: >
+        2026-06-14: a byte-identical, manually-confirmed-correct completion (md5 54518527...) is scored
+        FAIL by this run's verifier but PASS by v4 (and by hand, rc=0). 3651bb11's F1/F2 pass rates were
+        UNDER-counted by a verifier defect (beyond the already-known F3 prompt/verifier confound). Its
+        quantitative 'clean-family baseline dense 14%' is RETRACTED. What STANDS: H-FL-1 pipeline
+        integrity, and the qualitative F3-inversion diagnosis that motivated gym-v0.2. Superseded by
+        first-light-v4-24515383.
+      legacy_status: VALID_PILOT_REPAIRED_with_harness_caveats
+      verification: "first_light_receipt/first-light-3651bb11_VERIFICATION.md"
+      receipt_json: "first_light_receipt/first-light-3651bb11/first-light-3651bb11_receipt.json"
+      receipt_yaml: "first_light_receipt/first-light-3651bb11/first-light-3651bb11_receipt.yaml"
+      prereg_hash_frozen_at_run_recorded_before_repair: e84d91c33f4df836
+      prereg_hash_current_on_disk_in_reassembled_receipt: 616bda9e25621e55
+      prereg_hash_caveat: "the frozen prereg file acquired later amendment material; keep frozen-at-run and current-on-disk hashes distinct"
+      gym: {version: gym-v0.1-FL, manifest_hash: 0724aa721c25da55, fl_subset_hash: 2509e4b242e86b3b}
+      n_instances: 300
+      seeds: [1337, 2026, 7]
+      self_proofs: {p1_max_logit_diff: 5.3125, p1_restore_bit_identical: true, p2_id_hash: 2509e4b242e86b3b, p2_n: 300, p3: "9/9", p4: "reassemble_first_light_receipt_corrected.py"}
+      artifacts:
+        checkpoint: "first_light_receipt/first-light-3651bb11/checkpoint.jsonl"
+        completions: "first_light_receipt/first-light-3651bb11/completions/"
+        pilot_completions: "first_light_receipt/first-light-3651bb11/completions/pilot/dense_uniform/"
+        traces: "first_light_receipt/first-light-3651bb11/traces.jsonl"
+        ledger: "first_light_receipt/first-light-3651bb11/ledger.jsonl"
+        primary_throughput_ledger: "first_light_receipt/first-light-3651bb11/ledger_forced_entropy.jsonl"
+        byte_predictions: "first_light_byte_predictions.yaml"
+        rss_sidecar: "first_light_receipt/first-light-3651bb11/rss_sidecar_measurement.json"
+        s1_s2_telemetry: "first_light_receipt/first-light-3651bb11/s1_s2_telemetry.json"
+      measurement_rows:
+        H-FL-1: "PASS — 51,744 final trace rows, 0 schema errors, 100% FORCED_BASELINE coverage"
+        pooled_v0_1_all_families:
+          dense_uniform: {passes: 28, n: 300, rate: 0.093, ci95: [0.060, 0.127]}
+          random_matched_mix: {passes: 22, n: 300, rate: 0.073, ci95: [0.047, 0.103]}
+          heuristic_entropy: {passes: 55, n: 300, rate: 0.183, ci95: [0.140, 0.227]}
+          dense_minus_random_pp: {mean: 2.0, ci95: [-2.3, 6.7]}
+          entropy_minus_random_pp: {mean: 11.0, ci95: [6.3, 16.0], caveat: "raw PASS is F3-confounded"}
+        clean_families_F1_F2:
+          dense_uniform: {passes: 84, n: 600, rate: 0.140}
+          random_matched_mix: {passes: 3, n: 600, rate: 0.005}
+          heuristic_entropy: {passes: 0, n: 600, rate: 0.000}
+          finding: "full compute >> forced layer-skip on repair; identity-skip mechanics verified"
+        per_family_instance_any_seed:
+          F1_mbpp: {n: 100, dense: 0.060, random: 0.000, entropy: 0.000, contamination: flagged}
+          F2_json: {n: 100, dense: 0.220, random: 0.030, entropy: 0.000, contamination: clean}
+          F3_type: {n: 100, dense: 0.000, random: 0.190, entropy: 0.550, contamination: verifier_defective}
+        pilot_block: {rows: 900, passes: 17, rate: 0.0189, status: repaired_and_executed}
+        throughput_tok_s_measured_from_primary_ledger:
+          dense_p50: 27.2246
+          random_p50: 28.8985
+          entropy_p50: 28.4257
+          forced_skip_combined_p50: 28.6701
+          predicted_dense_p50: 15.0
+          predicted_skip_p50: 18.0
+        rss_sidecar:
+          empty_process_current_rss_mb: 292.28
+          total_process_current_rss_mb_after_model_touch: 510.28
+          model_attributable_peak_rss_delta_mb: 218.0
+          mps_driver_allocated_mb_after_touch: 3138.67
+          gates: {total_rss_lt_10gb: true, peak_rss_delta_le_7_5gb: true}
+      corrected_verdicts:
+        H-FL-2: "FAIL by prereg: dense-random +2.0pp CI[-2.3,+6.7] includes 0 -> harness-bug protocol; no science conclusion"
+        H-FL-3: "RAW POOLED PASS: entropy-random +11.0pp CI[+6.3,+16.0], but this is scientifically confounded by F3 verifier defect; not thesis support"
+        H-FL-4: "FAIL — measured dense 27.22 vs predicted 15.00 tok/s (81.5% error); forced skip 28.67 vs predicted 18.00 tok/s (59.3% error); byte-model audit required"
+      amendments_logged: [repair_after_receipt_serialization_failure, pilot_resume_key_repair, analysis_receipt_correction, rss_sidecar_repair]
+      claims_made: "NONE — valid pilot/harness measurement; thesis untested (E87 scope). No paper-eligible claim."
+      required_before_claim: ["gym-v0.2 F3 functional verifier", "fixed-family clean rerun", "byte-model audit", "freeze/prereg hash hygiene before next run"]
+
+    invalidated_run_record:   # run dab80149 — fully fabricated; retained for provenance; NOT a measurement (verification 2026-06-12)
+      run_id: first-light-dab80149
+      date: 2026-06-12
+      status: INVALID
+      verification: "first_light_receipt/first-light-dab80149_VERIFICATION.md"
+      why_invalid: >
+        (1) NO ROUTING WAS APPLIED — select_skip_layers_* defined but never called; all three
+        'policies' ran the identical dense model (the §148-D1 vacuous scenario, in code).
+        (2) DIFFERENT INSTANCE POOLS per policy — dense ran 30 pooled instances, 'forced' rows ran
+        fl_instances[:10] = the F1-only slice; the reported -20pp is an instance-pool artifact.
+        (3) Hypothesis verdicts were HARDCODED into the receipt template before the run
+        (H-FL-2 'PASS dense > random' contradicts the run's own numbers; H-FL-1's 'schema-valid
+        traces' is fabricated — trace_harness.py was never imported, zero traces exist).
+        (4) Smoke gate neutered (3 instances not 10; 0/9 pass; 'PASSED' printed unconditionally).
+        (5) Silent deviation from the FROZEN prereg (300->30, no amendment; pinned fl_subset_ids
+        ignored in favor of a glob).
+        (6) Runner verifiers vacuous vs the gym spec (F2 ignored schema + hidden tests; F3 passes
+        empty files; F1 skipped the pinned signature pipeline). No counterfactual ledger, no
+        byte/RSS/thermal ledger, no pilot block, unpaired bootstrap B=1000.
+      salvageable: "gym-v0.1-FL data layer (manifest + pinned draws + flags) — see OBL-014 caveats"
+
+# ----- FORBIDDEN CLAIMS (register guard; §127, §132.14, §142.12, §144.7) -----
+# CI rule: any draft containing these in a claim context fails the lint.
+
+forbidden_claims:
+  - text: "AGI / brain-like cognition / singularity"
+    source: "§127, §131.2, §132.13, §142.12"
+  - text: "1B ~ 100B / 270x / 10-100x organizational multiplier as fact"
+    source: "§132.14, §142.12, §144.7"
+  - text: "3-10x or 8-30x speedup; multiplicative speed stacks"
+    source: "§132.14, §142.10"
+  - text: "MATHEMATICAL NECESSITY / the research is complete / ready to build / not a gamble"
+    source: "§142.12"
+  - text: "250,000 rounds (or any round-count) as evidence"
+    source: "§144.7"
+  - text: "ungameable / impossible to game / guaranteed improvement"
+    source: "§144.7"
+  - text: "consciousness / qualia / hard-problem / cosmic-endowment claims"
+    source: "§144.7"
+  - text: "active LRSM recall gains in Paper 1"
+    source: "§0.0, §143.5 (R1 shadow only)"
+  - text: "entropy as the objective (it is the cheapest ESTIMATOR)"
+    source: "§126.1 rule 4, §142.2"
+  - text: "T44-T380 cited as theorems (they are conjectures/Law-Tests outside §73)"
+    source: "§144.6, §142.1"
+
+# ----- LINTER RULES (executable form of §143.10) -----
+linter_rules:
+  - "paper_eligible: true requires >=1 run_manifest AND >=1 result artifact_path"
+  - "evidence_level: measurement requires artifact_path + command + seeds UNLESS measurement_kind=document_recount_not_runtime (§133-class static recount; §148)"
+  - "'status: active' in mechanism cross-checks resolves to membership in aurelius_mechanism_registry.yaml active_spine_ids (the status enum has no 'active' value; §148)"
+  - "speed claims require phase + byte ledger + controller tax + guard tax fields"
+  - "a mechanism without a falsifier cannot be status: active (registry cross-check)"
+  - "a Paper-1 claim from a run using R1+ rings fails main-table eligibility (§143.5)"
+  - "any cost/param table keys to FROZEN-BASE-v1 (ADR-1=D ratified 2026-06-11; value pins at smoke pass); historical/scratch tables still name their assumed N (§133)"
+  - "forbidden_claims strings fail any paper/demo/README draft"

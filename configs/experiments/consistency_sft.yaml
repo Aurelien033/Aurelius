@@ -1,0 +1,19 @@
+# Self-Consistency SFT experiment config
+include: sft_base.yaml
+
+experiment:
+  name: self_consistency_sft
+  module: src.training.self_consistency_sft
+  class: SelfConsistencyLoss
+
+consistency:
+  n_samples: 5
+  temperature: 0.8
+  max_new_tokens: 128
+  lambda_consistency: 0.2
+  consensus_method: majority
+  sample_every_n_steps: 50
+
+ablations:
+  n_samples: [3, 5, 10]
+  lambda_values: [0.0, 0.1, 0.2, 0.5]

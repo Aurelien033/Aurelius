@@ -1,0 +1,319 @@
+                                                                   PeLAP-A: Adaptive Latent Pruning
+                                                                 for Lightweight Latent Diffusion Models
+                                                                          Kissa Zahra1 Zaib Un Nisa1
+                                             1
+                                               Department of Computer Science, National University of Computer and Emerging Sciences
+                                                                          kissasium@gmail.com             zaibunnisachd@gmail.com
+
+
+
+
+arXiv:2606.23086v1 [cs.LG] 22 Jun 2026
+                                                                     Abstract                                 contain significant redundancy, since not all channels nec-
+                                                                                                              essarily carry equal information for the denoising task.
+                                                  Latent diffusion models achieve strong genera-                 This raises a natural and underexplored research ques-
+                                              tive performance by operating in a compressed latent            tion: can we identify and selectively suppress redundant
+                                              space produced by a variational autoencoder (VAE).              latent channels without degrading generation quality? Un-
+                                              However, it remains unclear whether all latent chan-            like approaches that compress the diffusion process it-
+                                              nels contribute equally to the diffusion process, or            self [Salimans & Ho, 2022, Song et al., 2023] or prune
+                                              whether significant redundancy exists. We introduce             network weights [Han et al., 2015, Fang et al., 2023], we
+                                              PeLAP-A (Adaptive Latent Pruning for Diffusion), a
+                                                                                                              target the information content of the latent representation,
+                                              lightweight framework that augments a standard la-
+                                                                                                              an orthogonal and largely unstudied direction.
+                                              tent diffusion pipeline with a learnable channel-wise
+                                              importance predictor. A two-layer MLP operating on                 We propose PeLAP-A, which inserts a lightweight im-
+                                              globally pooled latent features produces a soft mask            portance predictor between the VAE encoder and the diffu-
+                                              that suppresses unimportant latent channels before              sion UNet. The predictor outputs a per-channel soft mask
+                                              they enter the denoising UNet. The entire system is             computed dynamically from each input latent via a global-
+                                              trained jointly on CIFAR-10 under a combined diffu-             average-pooling operation followed by a two-layer MLP
+                                              sion, reconstruction, and sparsity loss. Experiments            and sigmoid activation. A sparsity regularizer encourages
+                                              reveal a striking result: under aggressive sparsity regu-       the mask to suppress less-important channels during joint
+                                              larization (λ = 0.01), the importance predictor drives          training. Crucially, the mask is input-adaptive, meaning
+                                              all latent channels to near-zero yet the denoising UNet         different images can activate different channels, providing
+                                              achieves lower diffusion loss (0.0236 vs. 0.0240) and
+                                                                                                              a form of dynamic channel selection that static pruning
+                                              lower VAE reconstruction MSE (22.59 vs. 24.67) com-
+                                                                                                              methods cannot offer.
+                                              pared to the unpruned baseline. We term this the
+                                              sparsity collapse phenomenon and provide an anal-                  Our experiments on CIFAR-10 uncover a surprising phe-
+                                              ysis of why it occurs and what it reveals about the             nomenon we call sparsity collapse: under λ = 0.01, all
+                                              information requirements of latent diffusion models.            latent channels are suppressed to near-zero within the first
+                                              These findings constitute an exploratory study of spar-         two training epochs, yet the denoising UNet continues to
+                                              sity dynamics in latent diffusion training, and demon-          improve and ultimately achieves better quantitative metrics
+                                              strate that denoising UNets can remain remarkably               than the unpruned baseline on diffusion loss and recon-
+                                              robust to latent channel suppression even under ag-             struction MSE. This finding reveals that latent diffusion
+                                              gressive regularization. Code is available at: https:           UNets can learn effective denoising priors over near-zero
+                                              //github.com/kissasium/PeLAP-A.git.                             latent spaces, suggesting that the information requirements
+                                                                                                              of the denoising process are far lower than the dimension-
+                                         1    Introduction                                                    ality of the latent space might suggest.
+                                            Diffusion models [Ho et al., 2020, Song et al., 2021] Contributions.
+                                         have emerged as the dominant paradigm for high-quality
+                                         image synthesis, achieving state-of-the-art results across • A simple, parameter-efficient augmentation of the la-
+                                         image generation, editing, and super-resolution. Latent dif- tent diffusion pipeline with a learnable, input-adaptive
+                                         fusion models [Rombach et al., 2022] further reduce com-     channel-wise importance predictor, a module containing
+                                         putational cost by operating in the compressed latent space  292 parameters.
+                                         of a VAE rather than pixel space, enabling high-resolution • Empirical discovery that the denoising UNet achieves
+                                         synthesis at tractable cost. Despite this efficiency gain,   lower diffusion loss (0.0236 vs. 0.0240) and reconstruc-
+                                         the latent representations produced by VAE encoders may      tion MSE (22.59 vs. 24.67) under full latent channel
+
+
+                                                                                                          1
+    suppression than without pruning.                      A VAE decoder D reconstructs the image from denoised
+• Analysis of the sparsity collapse phenomenon: a sharp latents.
+  phase transition from full to zero channel activity, ex- 3.2 Adaptive Latent Pruning
+  plained by the gradient dynamics of the joint training     We insert a lightweight importance predictor fϕ be-
+  objective.                                               tween the encoder output and the UNet input. Given
+• Identification of residual class-sensitive structure in the z ∈ RC×h×w :
+  importance predictor even after collapse, revealing that
+                                                                         g = GlobalAvgPool(z) ∈ RC ,                         (3)
+  the predictor encodes class-relevant information at sub-
+  threshold mask magnitudes.                                            m = σ(fϕ (g)) ∈ (0, 1)C ,                            (4)
+                                                                        z′ = z ⊙ m↑,                                         (5)
+2      Related Work
+                                                                    where         fϕ      is       a      two-layer        MLP
+Diffusion models. Ho et al. [2020] introduced DDPM,                 (Linear(C, 32)→ReLU→Linear(32, C)), σ is the
+establishing the noise-prediction formulation used in this          sigmoid function, and m↑ ∈ RC×h×w denotes broad-
+work. Song et al. [2021] proposed deterministic DDIM                casting the mask spatially across the height and width
+sampling, enabling high-quality generation with far fewer           dimensions. The pruned latent z′ is passed to the UNet
+reverse steps. Rombach et al. [2022] moved diffusion into           denoiser in place of the original z.
+a compressed VAE latent space, establishing the latent                 The final linear layer bias is initialized to +3.0, so
+diffusion paradigm that PeLAP-A extends.                            σ(3) ≈ 0.95: all channels begin nearly fully open, and
+Efficient diffusion. Efficiency in diffusion models has             the sparsity loss gradually closes unimportant ones during
+been pursued through progressive distillation [Salimans             training. This was intended to prevent premature collapse
+& Ho, 2022], consistency models [Song et al., 2023], and            in early epochs, though as discussed in Section 5 it did not
+structural pruning of the UNet itself [Fang et al., 2023].          prevent collapse at λ = 0.01 in our experiments.
+These methods reduce inference cost by compressing the
+model or the number of steps. Our approach is orthogonal:           3.3    Training Objective
+we target the latent representation rather than the model             The full training objective is:
+architecture, and we do so adaptively per input.                                                            C
+                                                                                                         1 X
+Structured pruning and representation compression.                              L = Lvae + Ldiff + λ ·         mc ,          (6)
+                                                                                                         C c=1
+Han et al. [2015] pioneered weight magnitude pruning for
+neural networks. Molchanov et al. [2017] introduced vari-           where Lvae = ∥x−D(z)∥2 +βKL DKL (q(z|x) ∥ p(z)) com-
+ational dropout to learn sparse representations during train-       bines pixel-space reconstruction loss with KL divergence
+ing. Squeeze-and-Excitation networks [Hu et al., 2018]              regularization, Ldiff is the DDPM noise-prediction MSE,
+apply channel-wise attention to feature maps in discrimi-           and λ m is the sparsity penalty that encourages the mean
+native models; PeLAP-A applies a conceptually related op-           mask value toward zero. All components are optimized
+eration to the latent space of a generative diffusion model,        jointly in a single training pass.
+with an explicit sparsity objective. Information bottleneck
+                                                                    Architecture details. The VAE encoder maps 3×32×
+theory [Tishby & Zaslavsky, 2015] motivates learning com-
+                                                                    32 → 4 × 8 × 8 via two strided convolutional downsam-
+pressed representations that retain task-relevant informa-
+                                                                    pling layers (stride 2) interleaved with GroupNorm residual
+tion, providing theoretical grounding for our approach.
+                                                                    blocks. The decoder mirrors this with transposed convo-
+                                                                    lutions. The UNet has one encoder stage (8×8 → 4×4),
+3      Method                                                       a two-block bottleneck at 4 × 4, and one decoder stage
+3.1     Background: Latent Diffusion                                (4×4 → 8×8) with a skip connection from the encoder; all
+                                                                    blocks use sinusoidal time-step conditioning. Total param-
+    Given an image x ∈ R3×H×W , a VAE encoder E maps
+                                                                    eters: 2,948,539 for both the baseline and ALPD models,
+it to a latent representation z = E(x) ∈ RC×h×w via the
+                                                                    since both instantiate the same VAE and UNet modules
+reparameterization trick [Kingma & Welling, 2013]. The
+                                                                    with identical architecture. The importance predictor mod-
+DDPM forward process gradually corrupts the latent:
+                                                                    ule itself contains 292 additional parameters (two Linear
+                               √
+                                                                    layers, 4×32 + 32 and 32×4 + 4), under 0.01% of the total.
+                                                     
+            q(zt | z0 ) = N ᾱt z0 , (1 − ᾱt )I ,     (1)
+               Qt                                                   In our implementation, both models instantiate this module
+where ᾱt = s=1 (1 − βs ) and {βt }Tt=1 is a linear noise           for code simplicity, but it is bypassed with an identity mask
+schedule. A UNet ϵθ is trained to predict the added noise:          in the baseline, so the parameter count reported in Table 1
+                               h                   i                is the same for both. Linear noise schedule, T = 1000,
+                                                 2
+             Ldiff = Ez0 , t, ϵ ∥ϵ − ϵθ (zt , t)∥ .    (2)          β1 = 10−4 , βT = 0.02.
+
+
+                                                                2
+3.4   Architecture Overview                                       Table 1: Quantitative comparison on CIFAR-10. ↓ lower
+                                                                  is better. Bold indicates best result per metric.
+   Figure 1 illustrates the full PeLAP-A pipeline. The VAE
+encoder compresses the input image into a 4-channel 8×8
+latent tensor. The importance predictor operates on a glob-             Metric                Baseline     ALPD (Ours)
+ally pooled summary of the latent and returns a per-channel             Parameters            2,948,539      2,948,539
+soft mask. The mask is broadcast and applied element-wise               Best val. loss ↓       0.0390         0.0330
+before the latent enters the UNet. The decoder reconstructs             Diffusion loss ↓       0.0240         0.0236
+the final image from the denoised latent.                               VAE recon. MSE ↓        24.67          22.59
+                                                                        FID ↓                   278.1          362.6
+4     Experiments                                                       Inference (s)           0.116          0.103
+                                                                        Active channels          4/4            0/4
+4.1   Setup                                                             Train time (min)         83.7           83.8
+   Dataset. CIFAR-10 [Krizhevsky, 2009]: 50,000 train-
+ing and 10,000 test images at 32 × 32 resolution across
+10 object classes. Images are normalized to [−1, 1] and           presence of an active importance predictor and sparsity
+augmented with random horizontal flips during training.           loss in ALPD.
+   Training. Both models are trained for 100 epochs with             Figure 2 shows the training dynamics. Both models
+batch size 128. Optimizer: AdamW with lr = 2 × 10−4 ,             converge rapidly in the first 10 epochs; ALPD (blue) con-
+weight decay 10−4 , and cosine learning rate annealing            sistently achieves lower validation loss than the baseline
+to 10−5 . KL weight βKL = 10−3 ; gradient clipping at             (gray) from epoch 5 onward. The channel activity plot
+norm 1.0. Baseline: λ = 0 (no importance predictor ac-            (right panel) reveals the sparsity collapse: all four channels
+tive). ALPD: λ = 0.01. Hardware: 2× NVIDIA T4 GPUs                drop from fully active to near-zero within the first two
+(Kaggle), ≈ 84 minutes per model. Random seed 42 for              epochs and remain suppressed for the entire training run.
+reproducibility.
+   Evaluation metrics.                                            4.3    Qualitative Results
+                                                                     Figure 3 shows samples generated after 200 reverse
+• Diffusion loss: validation noise-prediction MSE Ldiff           DDPM steps. The baseline produces recognisable texture
+• VAE recon. MSE: pixel-space reconstruction error on             and color patterns consistent with CIFAR-10 statistics (FID
+  the validation set                                              278.1); the generated images exhibit blob-like structures
+                                                                  and color distributions matching real images despite low
+• FID [Heusel et al., 2017]: Fréchet Inception Distance           resolution. ALPD generates muted, nearly uniform gray
+  computed on 1,000 generated samples using 200 DDPM              outputs (FID 362.6), directly reflecting the collapsed latent
+  reverse steps                                                   space: with all channels suppressed, the UNet operates
+• Inference runtime: wall-clock time to generate a batch          on near-zero tensors and the decoder reconstructs a near-
+  of 8 samples with 50 reverse steps (5 runs averaged)            constant output.
+• Active channels: average number of channels with mask           4.4    Per-Class Channel Analysis
+  value > 0.5 per sample
+                                                                     Despite the global collapse of all mask values to near-
+                                                                  zero (µ ≈ 2 × 10−5 ), analysis of raw mask magni-
+4.2   Quantitative Results
+                                                                  tudes across CIFAR-10 classes reveals a consistent class-
+   Table 1 presents the full comparison. ALPD achieves            dependent ordering. The “automobile” class exhibits the
+lower total validation loss (0.033 vs. 0.039), lower dif-         highest mean mask activation (5.4×10−5 ) while “airplane”
+fusion loss (0.0236 vs. 0.0240), and lower VAE recon-             and “truck” show the lowest (≈ 1.1–1.4 × 10−5 ). This
+struction MSE (22.59 vs. 24.67) than the baseline, despite        ordering is consistent across all four latent channels, sug-
+complete latent channel suppression. FID degrades from            gesting that the importance predictor preserves latent class-
+278.1 to 362.6 because zeroed latents cause the decoder           sensitive structure even in the fully collapsed regime, a
+to produce uniform gray outputs that do not match the             finding that would be invisible from binary active-channel
+real image distribution. We also measured a difference in         counts alone.
+inference runtime (0.116s vs. 0.103s), but as discussed in
+Section 5 this measurement carries high variance on the
+baseline side and should not be read as a reliable speedup,
+                                                            5 Discussion
+since both models share an identical UNet and sampling Why does sparsity collapse occur? The sparsity gra-
+procedure. Both models have identical parameter counts dient ∂(λm)/∂m = (λ/C)1 is constant, non-zero, and
+and training times; the only functional difference is the present from epoch 1. In contrast, the diffusion gradient
+
+
+                                                              3
+Figure 1: PeLAP-A architecture. The VAE encoder maps the input image to a 4×8×8 latent z. The importance
+predictor (GAvgPool → MLP → sigmoid) produces a per-channel mask M ∈ (0, 1)4 , which prunes the latent via
+z′ = z ⊙ M. The pruned latent is denoised by the UNet (T = 1000 steps) and decoded back to image space. The full
+system is trained end-to-end with loss L = Lvae + Ldiff + λ m, where λ = 0.01.
+
+
+∂Ldiff /∂m only becomes meaningful as the UNet begins               divergence between FID (worse for ALPD) and diffusion
+learning to denoise, which takes several epochs. During             loss (better for ALPD) exposes an important limitation:
+this early window, the sparsity gradient dominates, driving         diffusion loss alone is insufficient as a proxy for gener-
+sigmoid activations toward zero. Once the masks saturate            ation quality when the latent space has collapsed. This
+at zero, the UNet receives near-zero latents and adapts its         motivates including perceptual metrics such as FID in any
+weights to denoise in this near-zero space. The collapsed           evaluation of latent pruning methods.
+state becomes a local minimum from which recovery is                Lower VAE reconstruction MSE. ALPD also achieves
+difficult. This analysis suggests that λ = 0.01 is above a          lower VAE MSE (22.59 vs. 24.67). We hypothesize that
+critical threshold for a 4-channel latent space and a ran-          joint training with the sparsity loss regularizes the VAE
+domly initialized joint system. Understanding this critical         encoder to produce lower-magnitude latents, which the
+threshold is an open problem with implications for any              decoder then learns to reconstruct more faithfully. This is
+method that applies sparsity pressure to generative latent          a secondary benefit of the joint training objective.
+spaces.
+                                                             On the inference timing measurement. We measured
+Diffusion robustness. The most striking finding is that      a difference in inference runtime, 0.116 seconds for the
+ALPD achieves lower diffusion loss than the baseline under   baseline versus 0.103 seconds for ALPD, averaged over 5
+complete channel suppression. This demonstrates that the     runs. We do not treat this as a confirmed speedup. Both
+denoising UNet can learn an effective unconditional prior    models use an identical UNet architecture and identical
+over near-zero latent tensors. Intuitively, near-zero latentssampling procedure, and the importance predictor adds
+are simpler to denoise than structured latents: the UNet     only a single negligible forward pass per call, so there is no
+essentially learns to denoise pure Gaussian noise toward     obvious architectural reason for ALPD to run faster. The
+zero, which is a well-defined and learnable target. The      baseline measurement also showed roughly 30 times higher
+baseline, by contrast, must denoise toward a structured      variance than the ALPD measurement (standard deviation
+high-entropy distribution.                                   0.027 versus 0.001 seconds), which is more consistent with
+The FID-diffusion loss divergence. FID measures per- measurement noise than with a real difference. We report
+ceptual similarity between generated and real image distri- both numbers in Table 1 for completeness.
+butions. Since ALPD’s decoder outputs near-constant gray Limitations. The sparsity collapse at λ = 0.01 prevents
+images, FID correctly identifies this as a failure mode. The the intended partial channel pruning. The method as imple-
+
+
+                                                                4
+Figure 2: Training dynamics. Left: total validation loss, where ALPD (blue) converges to a lower value (0.033) than
+the baseline (gray, 0.039). Center: diffusion MSE, where both converge similarly with ALPD achieving marginally
+lower final loss. Right: active channels for ALPD, showing all four channels collapsing to near-zero within the first two
+epochs under λ = 0.01 and remaining suppressed throughout training.
+
+
+                                                               is applied; (2) a top-k straight-through estimator enforc-
+                                                               ing exactly k active channels via a discrete relaxation; (3)
+                                                               training with a frozen pretrained VAE to decouple encoder
+                                                               training from mask learning; (4) application to larger latent
+                                                               spaces (e.g. Stable Diffusion’s 4×64×64) where partial
+                                                               pruning is more likely to emerge naturally; (5) a curriculum
+                                                               that first trains the baseline to convergence, then fine-tunes
+                                                               with the importance predictor.
+
+
+  (a) Baseline (FID: 278.1)       (b) ALPD (FID: 362.6)        6    Conclusion
+Figure 3: Generated samples after 200 reverse DDPM             We presented PeLAP-A, a framework for adaptive
+steps. Baseline (left) produces structured texture and      channel-wise     latent pruning in latent diffusion models.
+colour patterns. ALPD (right) generates uniform gray        By  inserting  a 292-parameter MLP-based importance pre-
+outputs reflecting complete latent suppression.             dictor  into the  standard VAE-UNet pipeline and training
+                                                            jointly on CIFAR-10, we uncovered a sparsity collapse phe-
+                                                            nomenon: aggressive sparsity regularization (λ = 0.01)
+mented does not achieve the goal of selectively retaining a drives all latent channels to near-zero within two epochs,
+subset of informative channels while suppressing others. yet the denoising UNet achieves lower diffusion loss
+The FID degradation (362.6 vs. 278.1) confirms that the (0.0236 vs. 0.0240) and lower reconstruction MSE (22.59
+generation pipeline is compromised despite the improved vs. 24.67) than the unpruned baseline. This demonstrates
+denoising loss.                                             that denoising UNets can remain robust to latent channel
+                                                            suppression and learn effective priors over near-zero latent
+   An ablation over λ ∈ {0.001, 0.005, 0.01, 0.05, 0.1}
+                                                            spaces. While FID degrades sharply due to decoder failure
+was attempted; preliminary results at λ = 0.001 already
+                                                            under collapsed latents (362.6 vs. 278.1), the denoising
+showed complete channel collapse (active channels = 0),
+                                                            pathway itself improves, a finding that motivates care-
+suggesting the critical threshold lies below λ = 0.001
+                                                            ful disentanglement of denoising quality from generative
+for this architecture and dataset. This ablation was not
+                                                            quality in future latent pruning research. Code: https:
+completed in full, so this point should be read as prelim-
+                                                            //github.com/kissasium/PeLAP-A.git.
+inary. Because experiments were conducted on a single
+architecture, dataset, random seed, and sparsity setting,
+the generality of the sparsity collapse phenomenon also References
+remains an open question.
+                                                            J. Ho, A. Jain, and P. Abbeel. Denoising diffusion proba-
+Future work. Several directions could address the col-         bilistic models. NeurIPS, 33:6840–6851, 2020.
+lapse: (1) a λ warm-up schedule starting from zero and
+increasing gradually over training, allowing the UNet to J. Song, C. Meng, and S. Ermon. Denoising diffusion
+establish informative gradients before sparsity pressure       implicit models. ICLR, 2021.
+
+
+                                                           5
+R. Rombach, A. Blattmann, D. Lorenz, P. Esser, and
+  B. Ommer. High-resolution image synthesis with latent
+  diffusion models. CVPR, pages 10684–10695, 2022.
+T. Salimans and J. Ho. Progressive distillation for fast
+   sampling of diffusion models. ICLR, 2022.
+
+Y. Song, P. Dhariwal, M. Chen, and I. Sutskever. Consis-
+   tency models. ICML, 2023.
+G. Fang, X. Ma, and X. Wang. Structural pruning for
+  diffusion models. NeurIPS, 2023.
+
+S. Han, J. Pool, J. Tran, and W. Dally. Learning both
+  weights and connections for efficient neural networks.
+  NeurIPS, pages 1135–1143, 2015.
+D. Molchanov, A. Ashukha, and D. Vetrov. Variational
+  dropout sparsifies deep neural networks. ICML, pages
+  2498–2507, 2017.
+J. Hu, L. Shen, and G. Sun. Squeeze-and-excitation net-
+   works. CVPR, pages 7132–7141, 2018.
+N. Tishby and N. Zaslavsky. Deep learning and the infor-
+  mation bottleneck principle. IEEE ITW, 2015.
+
+D. P. Kingma and M. Welling. Auto-encoding variational
+  Bayes. ICLR, 2014.
+M. Heusel, H. Ramsauer, T. Unterthiner, B. Nessler, and
+ S. Hochreiter. GANs trained by a two time-scale update
+ rule converge to a local Nash equilibrium. NeurIPS,
+ pages 6626–6637, 2017.
+A. Krizhevsky. Learning multiple layers of features from
+  tiny images. Technical report, University of Toronto,
+  2009.
+
+
+
+
+                                                           6
+

@@ -1,0 +1,24 @@
+{
+  "instance_id": "gym-v0.3/F3/d7218336668e856b/4aade1d8004fa95d",
+  "broken_artifact": "def is_palindrome_ci(s: str) -> bool:\n    return s == s[::-1]\n",
+  "prompt_context": "Repair the broken Python function so the visible test passes.\n\n# Visible test (must pass):\nassert is_palindrome_ci(\"Abba\") is True\n\n# Broken code:\n# Canary GUID: c5ca88130748699e\ndef is_palindrome_ci(s: str) -> bool:\n    return s == s[::-1]\n\n# Corrected code:\ndef is_palindrome_ci(s: str) -> bool:\n",
+  "verifier": "functional: repaired function + hidden asserts (subprocess rc==0)",
+  "hidden_tests": [
+    "assert is_palindrome_ci(\"Abba\") is True",
+    "assert is_palindrome_ci(\"abc\") is False"
+  ],
+  "reference_body": "    t = s.lower()\n    return t == t[::-1]",
+  "function_header": "def is_palindrome_ci(s: str) -> bool:",
+  "metadata": {
+    "family": "F3_type",
+    "function_name": "is_palindrome_ci",
+    "mutation_operators": [
+      "body_logic_bug"
+    ],
+    "difficulty": "moderate",
+    "contamination_flag": "CLEAN_BY_CONSTRUCTION",
+    "canary_guid": "c5ca88130748699e",
+    "license": "synthetic-public-domain",
+    "provenance": "synthetic is_palindrome_ci v7"
+  }
+}

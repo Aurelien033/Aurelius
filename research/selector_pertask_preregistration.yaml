@@ -1,0 +1,116 @@
+# selector_pertask_preregistration.yaml — per-task prompt-conditioned k=2 selector (E87 selection follow-up)
+# Written 2026-06-17 BEFORE the run (claim-eligibility). Tests whether cheap PROMPT-CONDITIONED features
+# can pick a better k=2 skip-pair PER TASK than the best GLOBAL pair — capturing the 56.7%->96.7% headroom
+# the exact k=2 matrix exposed (e87_receipt/k2_selector_RESULT.md).
+id: SELECTOR-PERTASK-PREREG-v0.1
+status: design_draft   # awaiting user ratification
+
+motivation: >
+  The exact k=2 matrix (60 tasks x 91 pairs, held-out CV) established: a GLOBAL fixed pair generalizes to
+  56.7% on unseen tasks (>> random 38.9%, < dense 75%), while the PER-TASK oracle is 96.7%. A fixed global
+  shortlist + verification reaches dense (top-3=75%) and beyond (top-5=88%), but that is verifier-assisted
+  best-of-M (M x compute). The open question: is the ~40pp gap between the global single pair (56.7%) and
+  the per-task oracle (96.7%) capturable by a CHEAP, prompt-conditioned selector that picks the right pair
+  for THIS input in a SINGLE pass — or is the per-task signal not present in cheap observables?
+
+core_question: >
+  Do prompt-conditioned features (from ONE dense prefill, no generation) let a selector pick a better
+  k=2 pair per task than the best global pair, on HELD-OUT tasks?
+
+design:
+  base: "FROZEN-BASE-v1 = Qwen/Qwen2.5-1.5B base, rev 8faed761; routable layers [7..20]; k=2; greedy; fp16."
+  gym: "F2 (JSON->schema) + F3 (Python type/logic), functional verifiers (the validated First Light/E87 harness)."
+  labels: "FULL 91-pair pass matrix per task (k2_pair_matrix.py --no_completions), greedy. = the supervision."
+  features_PROMPT_CONDITIONED: >  # all from ONE dense prefill of the prompt; NO generation; NO solution leakage
+    Per routable layer l in [7..20] (h_l = residual into layer l, r_l = F_l(h_l) = layer's residual contribution):
+      - contrib_norm_l   = ||r_l|| / ||h_l||            (how much layer l changes the stream on THIS prompt)
+      - delta_norm_l     = ||h_{l+1} - h_l||
+      - cos_l            = cos(h_l, h_{l+1})
+      - entropy_l        = H(softmax(lm_head(norm(h_{l+1}))))    (the g_entropy readout)
+      - logitlens_KL_l   = KL(readout_l || final_logits)         (how far layer-l's view is from the answer)
+      - mlp_attn_split_l = ||r_l^mlp|| / ||r_l^attn||
+    Per PAIR (i,j) — the NON-ADDITIVE, mechanistically-motivated features:
+      - the two layers' per-layer features above
+      - structural: i, j, |i-j|, adjacent=1[|i-j|=1], early/late-band counts, contains_{11,14,15}
+      - INTERACTION (the key term): project r_i, r_j to logit space (logit lens); pair_align_ij =
+        <proj(r_i), proj(r_j)> / (||proj(r_i)|| ||proj(r_j)||). Mechanistic damage(skip i,j) ~=
+        ||proj(r_i)+proj(r_j)||^2 = ||proj r_i||^2 + ||proj r_j||^2 + 2<.,.>; the cross term IS the
+        non-additivity. Hypothesis: bad pairs = constructive interference of removed residuals in
+        task-relevant logit directions.
+  selectors_ABLATION_LADDER:   # all evaluated with TASK-LEVEL CV (leave-tasks-out); pick 1 pair per held-out task
+    - "A random            : mean over 91 pairs            (floor = 38.9%)"
+    - "B global_best_pair  : structural-only, NO prompt    (the bound to beat = 56.7% held-out)"
+    - "C prompt_selector   : structural + PROMPT features  (the test condition)"
+    - "oracle              : per-task best of 91           (ceiling = 96.7%)"
+  selector_model: "pairwise ranking loss WITHIN task (score good pair > bad pair); start LINEAR/logistic, then GBDT/small-MLP. Heavy regularization (task count is the bottleneck)."
+  eval: "leave-tasks-out CV (nested for model selection). Selector emits 1 pair/held-out task (SINGLE pass) AND best-of-M for M in {2,3}. Independent re-score of the chosen pair's completion (regenerate+verify). Split by TASK only; features from PROMPT only."
+
+powered_single_phase:   # user chose (2026-06-17) to skip the under-powered 60-task pilot and go straight to a powered run
+  data_available: "NO generation needed — disk already has F2: 300 dev + 121 test (421); F3: 249 test; + F2 generate.py. The 60-task E87 split was a small draw from these."
+  N: 300   # balanced 150 F2 + 150 F3; drawn from the existing clean pools, hash-pinned. SUPERSET of the prior 60 (so the k2 result is a nested consistency check). Justified by power (below) AND selector-training data (leave-tasks-out: ~240 train tasks x 91 pairs).
+  power: >
+    Primary effect = held-out C-minus-B, paired per-task (McNemar-like on discordant tasks). At N=300 with
+    B=56.7%, ~80% power to detect a true +6-8pp single-pick gain (assumes ~25-35% discordant tasks). A clean
+    NULL at N=300 is itself decisive (powered 'not cheaply capturable') — which is why skipping the pilot is OK:
+    we commit to a definitive answer either way.
+  matrix_cost: "300 tasks x (91 pairs + dense) = ~27.6k greedy gens; batched fp16 on a GPU = ONE Kaggle commit (~3h on T4, less on L4/A100). k2_pair_matrix.py --no_completions, output = rows.jsonl+summary.json only."
+  reuse: "rebuild the FULL matrix on the 300 (don't try to splice the old 60 — we don't have its rows.jsonl locally, Kaggle API is banned; regenerating all 300 also reproduces the 60 as a built-in consistency check)."
+  early_read: "before training any selector, a CHEAP univariate check: does the mechanistic pair_align_ij feature correlate with pass/fail across the matrix? If |corr|~0 the headline feature is dead — an early, near-free signal within the powered run (not a separate phase)."
+  selector_model: "GBDT (+ logistic baseline) with NESTED leave-tasks-out CV; per-family (F2 vs F3) breakout; feature-ablation for H-SEL-1."
+
+hypotheses:   # pre-stated; all outcomes publishable
+  H-SEL-0 (prompt signal exists): "C (prompt selector) single-pick beats B (global pair, 56.7%) on held-out tasks; paired-per-task CI excludes 0. Falsified if C <= B."
+  H-SEL-1 (it's the PROMPT, not just modeling): "C beats B specifically because of prompt features — verify by feature-ablation (drop prompt features from C -> collapses to B). Isolates prompt conditioning from better structural fitting."
+  H-SEL-2 (cheaper path to ceiling): "prompt-conditioned best-of-M reaches dense/ceiling at SMALLER M than the global shortlist (top-3=75 / top-5=88) — i.e., per-task conditioning makes the few tries smarter."
+  H-SEL-KILL: "C ~= B on held-out (prompt features add nothing) => the per-task headroom is NOT cheaply capturable from these observables. Honest negative; operating point stays global-shortlist + verify. A real, decisive result (mirrors E87's per-layer-marginal kill, one level up)."
+
+primary_endpoint: "held-out single-pick pass rate, C minus B, paired per-task bootstrap CI."
+
+non_claims:   # keep the claim honest
+  - "k=2 single-pair is ~0.93x dense compute — even a positive is a SMALL single-pass saving. The VALUE is the MECHANISM (prompt-conditioned depth routing works) + its extrapolation to larger k (bigger headroom), bigger models, or a real depth-pruned kernel — NOT this operating point's speedup."
+  - "best-of-M stays verifier-assisted (M x compute); not a single-pass speedup."
+  - "one base, F2+F3 gym, k=2 — a positive is an existence proof, not a universal law."
+  - "NOT a Paper-1 generation claim by itself; it's the selectability rung of CLM-001."
+
+decision_map:
+  - "C > B (held-out, CI excludes 0): prompt-conditioned routing is REAL -> scale (larger k, bigger model, real kernel) and/or co-train the selector. The 56.7->96.7 gap is (partly) cheaply recoverable."
+  - "C ~= B: honest KILL -> good pairs are per-task but NOT predictable from cheap features. Operating point = global shortlist (top-3/5) + verify. Clean negative."
+
+artifacts_to_build:
+  - "feat_extract.py: one dense prefill per prompt -> per-layer + logit-lens features -> features.npz"
+  - "selector_train.py: matrix + features -> ablation ladder A/B/C with leave-tasks-out CV -> verdict (extends k2_analysis.py)"
+  - "(phase1) larger gym draw + matrix rebuild via k2_pair_matrix.py"
+
+RESULT_2026_06_17:
+  status: H-SEL-KILL (clean POWERED null on the per-task prompt-conditioned selector)
+  run: "Kaggle kernel notebook0b2b9081aa, fp16, N=300 (150 F2+150 F3, hash 1cf8ba2198acf968). Matrix (k2_pair_matrix.py --split --no_completions) + feat_extract.py + selector_train.py, all smoke-validated."
+  matrix_300: "ceiling 89.7%  avg-random 36.0%  dense 62.0%  (the 300 pool is MORE REPRESENTATIVE/HARDER than the easy 60: dense 62 vs 75, ceiling 90 vs 97)."
+  ablation_heldout_5foldCV: >
+    random 36.0% | B_global_pair 68.3% | C_struct 68.3% | C_full 68.3% | dense 62.0% | oracle 89.7%.
+    H-SEL-0 (C_full-B)=+0.0pp ; H-SEL-1 (C_full-C_struct)=+0.0pp. EARLY READ corr(pair_align,pass)=+0.020.
+  verdict: >
+    H-SEL-KILL CONFIRMED (powered): prompt-conditioned features add NOTHING over the global pair — the
+    selector collapses exactly to B because the prompt features carry no signal (pair_align corr ~0, a
+    MODEL-FREE confirmation). The per-task headroom (oracle 89.7 vs global 68.3 = ~21pp) is NOT cheaply
+    capturable from these cheap activation features (per-layer norms / logit-lens / logit-space pair
+    alignment) with a linear model. This is the honest negative the prereg pre-stated (one level up from
+    E87's per-layer-marginal kill).
+  silver_lining: >
+    REAL positive buried in the null: the GLOBAL best fixed pair (held-out 68.3%) >= dense (62%) by ~+6pp
+    (modest; needs a paired per-task test) and >> random (36%). On the representative pool, organized k=2
+    routing at the GLOBAL level matches-to-beats FULL compute at LESS compute — a fixed 2-layer prune of
+    the frozen base that doesn't hurt (helps) on this task distribution.
+  scope_caveat: "negative for THESE features + LINEAR model — NOT 'no per-task signal exists'. Untested: richer features (attention patterns, multi-token probes), nonlinear model (GBDT), larger k (bigger headroom + value)."
+  verification: "selector_train.py locally smoke-validated; corr(pair_align,pass) is model-free. Independent re-derivation from raw rows.jsonl+features.npz PENDING (Kaggle API re-throttled on downloads; delayed fetch armed -> /tmp/sel_rederive.txt)."
+  next_options: ["accept global-prune operating point (2-layer fixed skip >= dense)", "richer features / GBDT before declaring per-task dead", "move to larger k (more headroom + real compute saving)", "from-scratch skip-native"]
+
+blocks_remaining:
+  - "user ratifies design (N=300, powered single-phase, k=2)"
+  - "draw + hash-pin the 300-task split (150 F2 + 150 F3 from existing pools, superset of the 60)"
+  - "build the 300-task matrix (one Kaggle commit, ~3h) + extract features (300 prefills, minutes)"
+  - "run selector ablation A/B/C with nested leave-tasks-out CV"
+
+open_decisions_for_user:
+  - "N: 300 (recommended — strong power, ~3h matrix) vs 240 (~2.3h, slightly less power) vs 400 (max power, ~4.5h). Data supports up to ~670."
+  - "k: keep k=2 as the clean MECHANISM testbed (this prereg). k=4 has bigger headroom + bigger compute saving (more value) but 1001 4-tuples = far costlier matrix + richer features — a noted FOLLOW-UP if k=2 C>B, not in this run."
+  - "F2/F3 balance: 50/50 recommended (F2 easier @46% random, F3 harder @31%); per-family breakout either way."

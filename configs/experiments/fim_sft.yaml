@@ -1,0 +1,19 @@
+# FIM for Tool Arguments experiment config
+include: sft_base.yaml
+
+experiment:
+  name: fim_tool_sft
+  module: src.training.fim_sft
+  class: FIMConverter
+
+fim:
+  fim_ratio: 0.3
+  fim_tool_ratio: 0.4
+  fim_code_ratio: 0.3
+  strategy: psm
+  fim_prefix_token: <FIM_PREFIX>
+  fim_suffix_token: <FIM_SUFFIX>
+  fim_middle_token: <FIM_MIDDLE>
+
+ablations:
+  fim_ratios: [0.0, 0.3, 0.5]

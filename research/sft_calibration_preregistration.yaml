@@ -1,0 +1,32 @@
+# sft_calibration_preregistration.yaml
+# Calibration-Aware SFT with ECE regularization
+id: CAL-SFT-PREREG-v0.1
+status: design_draft
+
+reframed_question: >
+  Standard SFT optimizes accuracy but ignores confidence calibration.
+  An accurate but overconfident model fails silently on tool/safety tasks.
+  Does adding ECE regularization during SFT improve calibration without
+  sacrificing accuracy?
+
+design:
+  base: "Aurelius 1.3B"
+  n_examples: 500
+  lambda_values: [0.0, 0.01, 0.1, 0.5]
+  module: "src/training/calibrated_sft.py"
+  builds_on: "src/eval/calibration.py"
+
+hypotheses:
+  H-CAL-0 (calibration improves): >
+    "ECE after calibrated SFT (lambda=0.1) is 30-50% lower than standard
+    SFT (lambda=0.0), as measured on held-out eval set."
+  H-CAL-1 (accuracy preserved): >
+    "Accuracy loss is <1pp at lambda=0.1 compared to lambda=0.0."
+  H-CAL-2 (temperature scaling less needed): >
+    "Post-training temperature scaling provides <20% ECE reduction on
+    calibrated SFT model vs >50% ECE reduction on standard SFT model."
+
+kill_decision_map:
+  - "H-CAL-0 fails: ECE does not improve. -> Differentiable ECE approximation may be too noisy; check soft bin temperature."
+  - "H-CAL-1 fails: accuracy drops >2pp. -> Reduce lambda; the ECE regularization is too aggressive."
+  - "CAL-KILL: ECE regularization makes training unstable at any lambda tested."

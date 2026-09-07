@@ -1,0 +1,32 @@
+# sft_progressive_self_preregistration.yaml
+# Progressive Self-SFT with difficulty curriculum
+id: PROG-SFT-PREREG-v0.1
+status: design_draft
+
+reframed_question: >
+  Does staging self-improvement by difficulty — starting with easy teacher
+  data and progressing to hard self-generated data — outperform treating
+  all self-improvement rounds equally?
+
+design:
+  base: "Aurelius 1.3B or Qwen2.5-0.5B"
+  stages: [easy_teacher, medium_self, hard_self, self_critique]
+  comparison: "progressive vs uniform 3-round self-SFT (Experiment A)"
+  module: "src/training/progressive_self_sft.py"
+
+hypotheses:
+  H-PROG-0 (progressive beats uniform): >
+    "Progressive self-SFT achieves 5-10% higher held-out accuracy than
+    uniform 3-round self-SFT at matched total training examples."
+  H-PROG-1 (acceptance curve): >
+    "Acceptance rate increases across stages: easy > medium > hard, but
+    hard-stage accepted examples are higher value (correlate with final
+    accuracy)."
+  H-PROG-2 (critique stage helps): >
+    "The self-critique stage (stage 4) produces the highest-quality examples,
+    improving accuracy 2-5% beyond stage 3 alone."
+
+kill_decision_map:
+  - "H-PROG-0 fails: progressive == uniform. -> Difficulty curriculum does not add value over uniform self-SFT. Report as null result."
+  - "H-PROG-2 fails: critique stage does not help. -> The model cannot reliably critique its own outputs at this scale."
+  - "PROG-KILL: any stage produces 0 accepted examples -> skip stage or lower temperature."

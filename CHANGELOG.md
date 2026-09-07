@@ -2,6 +2,12 @@
 
 All notable changes to Aurelius are documented in this file.
 
+## 2026-09-06
+
+- **Repository hygiene**: username rename S3nna13 → Aurelien033 propagated to all references (README, CODEOWNERS, CONTRIBUTING, ROADMAP, notebooks, runbooks, env files); restores Dependabot assignee resolution.
+- **Research status**: README updated to the Aurelius-9B release campaign (active flagship); prior 2026-08-04 frontier package kept for provenance.
+- **ring1-tranche5**: PR #225 — gateway auth hardening, resilience/observability/training updates, code-review findings + retrospective, new tests.
+
 
 ### Added
 - **Unified sampling processors**: centralized temperature, top-p, and repetition handling in `src/inference/logit_processors.py` and `src/model/logits_processor.py`. Eliminates duplicate logic across inference modules.

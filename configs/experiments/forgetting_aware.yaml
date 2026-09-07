@@ -1,0 +1,34 @@
+# Forgetting-Aware Multi-Task SFT experiment config
+include: sft_base.yaml
+
+experiment:
+  name: forgetting_aware_sft
+  module: src.training.forgetting_tracker
+  class: ForgettingTracker
+
+forgetting:
+  threshold: 0.05
+  replay_proportion: 0.3
+  ema_alpha: 0.3
+  min_measurements: 3
+
+tasks:
+  - name: code
+    n_examples: 500
+    datasets: [princeton-nlp/SWE-bench_Lite, mbpp]
+  - name: tool
+    n_examples: 500
+    datasets: [glaiveai/glaive-function-calling-v2]
+  - name: math
+    n_examples: 500
+    datasets: [meta-math/MetaMathQA, openai/gsm8k]
+  - name: safety
+    n_examples: 250
+    datasets: [rubend18/ChatGPT-Jailbreak-Prompts]
+  - name: long_context
+    n_examples: 250
+    datasets: [zai-org/LongBench]
+
+training:
+  order: [code, tool, math, safety, long_context]
+  eval_after_each_task: true

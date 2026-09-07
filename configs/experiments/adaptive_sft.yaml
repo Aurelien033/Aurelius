@@ -1,0 +1,19 @@
+# Adaptive SFT data selection experiment config
+include: sft_base.yaml
+
+experiment:
+  name: adaptive_sft
+  module: src.training.adaptive_sft
+  class: AdaptiveSFTDataSelector
+
+adaptive:
+  temperature_start: 10.0
+  temperature_end: 1.0
+  total_steps: 1000
+  ema_alpha: 0.3
+  min_weight: 0.01
+  compute_loss_every_n_steps: 100
+
+training:
+  epochs: 3
+  epoch_0_uniform: true

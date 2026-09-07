@@ -1,0 +1,1161 @@
+                                                                          BitNet Text Embeddings
+
+
+                                             Zhen Li1∗ Xin Huang2             Liang Wang2           Nan Yang2   Ting Song2   Yan Xia2     Xun Wu2
+
+                                                           Shaohan Huang2 Huishuai Zhang1 Furu Wei2 Dongyan Zhao1
+                                                                      1
+                                                                        Peking University 2 Microsoft Research
+                                                                            https://aka.ms/GeneralAI
+
+
+
+
+arXiv:2606.25674v1 [cs.CL] 24 Jun 2026
+                                                                                               Abstract
+                                                     LLM-based text embedders have substantially improved retrieval and semantic
+                                                     representation quality, but their deployment remains costly: large backbone models
+                                                     slow down embedding inference, while high-dimensional full-precision embed-
+                                                     dings impose substantial storage and bandwidth overhead on large-scale indexes.
+                                                     In this paper, we present B IT E MBED, an extreme low-bit framework for LLM-
+                                                     based text embedding that jointly targets encoding efficiency and vector storage.
+                                                     B IT E MBED converts pretrained LLM backbones into BitNet-style embedding en-
+                                                     coders with ternary weights, quantized activations, and lightweight normalization
+                                                     refinement. The converted model is adapted to representation learning through
+                                                     continual contrastive pre-training, followed by supervised contrastive fine-tuning
+                                                     with both similarity-distribution distillation and attention-relation distillation from
+                                                     a full-precision teacher. Beyond quantizing the backbone, B IT E MBED further trains
+                                                     output embeddings to support multiple storage precisions meeting different storage
+                                                     needs in various scenarios. Experiments on MMTEB (eng, v2) with Qwen3-0.6B
+                                                     and Gemma3-270M show that B IT E MBED is largely comparable to full precision
+                                                     teacher embedders. Moreover, B IT E MBED flexibly obtains text embeddings of
+                                                     various precisions, achieving a trade-off between performance and storage cost.
+
+
+                                         1     Introduction
+                                         Text embeddings have become a core interface between natural language and large-scale information
+                                         systems. Modern retrieval [51], retrieval-augmented generation [77], recommendation [79], and
+                                         question answering [7] pipelines all rely on embedding models to map text into dense vectors whose
+                                         geometry reflects semantic relevance [54, 25, 20, 47]. Pre-trained bidirectional encoder architectures
+                                         such as BERT [15] have been widely adopted as backbone models for text embedding [24, 71, 78].
+                                         With recent advances in large language models, LLM-based embedders utilize foundation LLMs as
+                                         the backbone and adapt them with large-scale contrastive learning objectives [33, 57, 41, 29, 46]. With
+                                         the richer world knowledge and text understanding abilities inherent in LLMs, LLM-based embedders
+                                         have achieved strong performance across semantic representation tasks. However, despite these
+                                         advances, LLM-based embedders still inherit the critical deployment challenges: high embedding
+                                         inference latency and substantial storage costs.
+                                         Encoding queries and documents with LLM backbones is considerably more expensive than with
+                                         conventional encoder-only models. Meanwhile, the produced embeddings must be stored, transferred,
+                                         and searched at massive scale. A production retrieval system may maintain vectors for millions
+                                         or billions of documents where high-dimensional and high-precision embeddings can dominate
+                                         memory footprint and data movement even when the encoder itself is optimized. These costs become
+                                         more pronounced as LLM-based embedders are adopted in online retrieval services and storage-
+                                             ∗ Work done during internship at Microsoft Research.
+
+
+
+
+                                         Preprint.
+constrained scenarios, making efficient inference and representation central requirements for practical
+deployment.
+Extreme low-bit LLMs provide a promising path toward reducing inference cost [14, 35, 23, 21, 5, 68].
+BitNet-style models employ low-precision ternary weights and quantized activations, enabling sub-
+stantial memory savings and faster inference on suitable hardware while maintaining high precision
+for the optimizer states and gradients during training [62, 39, 40]. BitNet Distillation further shows
+that full-precision LLMs can be transformed into 1.58-bit task models through architectural stabiliza-
+tion, continued training, and distillation [69]. Inspired by these findings, we explore whether similar
+low-bit principles can be specialized for text embedding.
+In this paper, we introduce BitNet Text Embeddings, abbreviated as B IT E MBED, a framework
+for extreme low-bit LLM-based text embedding. B IT E MBED converts pre-trained LLM backbones
+into BitNet-style embedders, together with normalization modules that stabilize training under
+quantization. To adapt the quantized backbone to representation learning, B IT E MBED first performs
+continual contrastive pre-training on large-scale text pairs and then conducts supervised fine-tuning
+with in-batch and hard negatives. Meanwhile, a full-precision fp16 embedding model is tuned as a
+teacher model, where the quantized embedder is trained not only with contrastive supervision but
+also to match the teacher’s batchwise cosine-similarity distribution and attention relations through
+distillation. Beyond quantizing the backbone, B IT E MBED also trains the output embeddings to support
+multiple storage precisions. Inspired by Matryoshka-style representation and quantization [26, 58, 50],
+we quantize each embedding dimension to multiple precisions during training and optimize the
+average loss across these precisions. This design encourages a single embedder to produce vectors
+that remain effective under different memory budgets, allowing practitioners to trade storage for
+quality without retraining separate models.
+We evaluate B IT E MBED on the Massive Multilingual Text Embedding Benchmark (MMTEB) [17].
+Our B IT E MBED approaches the performance of full-precision teachers while improving inference
+efficiency. Furthermore, B IT E MBED also enables the trade-off between storage cost and performance
+with multi-precision embedding quantization.
+Specifically, our contributions are summarized as follows:
+
+      1. We present, to the best of our knowledge, the first systematic study of extreme low-bit
+         quantization for LLM-based text embedding, targeting both encoder inference and vector-
+         index storage.
+
+      2. We propose an effective BitNet-style training framework that combines contrastive continual
+         pre-training, supervised fine-tuning, similarity distribution and attention relation distillation.
+
+      3. We introduce multi-precision embedding training and verify that B IT E MBED can approach
+         full-precision teacher performance while supporting efficient multi-precision embedding
+         representations.
+
+
+2     Related Work
+
+2.1   LLM-based Text Embedders
+
+Text embedders are increasingly moving from encoder-only Transformer models [54, 25, 20, 63, 34]
+toward decoder-only LLM backbones [47, 33, 64, 30, 58]. Recently, LLM-based text embedders have
+further explored instruction-following, multilinguality, multi-task generalization capabilities [29, 28,
+8, 22]. INSTRUCTOR [57] trains embeddings to follow natural-language task instructions, enabling
+task-specific representations through prompts. Recent models also rely on more sophisticated training
+recipes [11, 56, 49, 3, 80]. Qwen3-Embedding [76] uses LLMs to synthesize large-scale high-quality
+data for multi-stage contrastive training. These studies focus primarily on improving embedding
+quality and generalization. In contrast, B IT E MBED studies how to make LLM-based embedders
+practical under strict inference and storage budgets by combining extreme low-bit quantization with
+multi-precision output embeddings.
+
+
+                                                    2
+2.2   Quantization for LLMs
+
+Quantization techniques are crucial for deploying Large Language Models (LLMs) under computa-
+tional and storage constraints. A common strategy is Post-Training Quantization (PTQ) [14, 75, 70],
+encompassing methods like GPTQ [19] and AWQ [36]. PTQ is highly efficient as it applies low-bit
+quantization using only a small set of calibration data. While PTQ methods offer rapid compression,
+they typically suffer from significant performance degradation at ultra-low bitwidths below 4 bits. To
+overcome this, Quantization-Aware Training (QAT) [16, 38, 72, 9] integrates quantization directly
+into the optimization loop, significantly raising the performance ceiling for low-bit models. Recently,
+QAT has been pushed to extreme limits with 1.58-bit (ternary) architectures like BitNet [62, 39, 40].
+Inspired by Bitnet distllation [69], we introduce the 1.58-bit LLM-based text embedder, bridging
+ternary QAT and representation distillation.
+
+3     Method
+
+B IT E MBED is an extreme low-bit LLM-based text embedder which follows a three-stage training
+pipeline. Firstly, we convert a pretrained LLM into a BitNet-style embedding encoder. Then we
+adapt the converted encoder with continual contrastive pre-training on large-scale text pairs. Finally
+we fine-tune the low-bit encoder on supervised training data using contrastive learning with teacher-
+guided distillation from a FP16 embedding teacher. Additionally, we expose output embeddings to
+multiple storage precisions, enabling a single B IT E MBED checkpoint to support different memory
+budgets.
+
+3.1   LLM-based Text Embedding Formulation
+
+Given the input sequence X = {x1 , x2 , ..., xn } where xi represents the i-th token in the sequence,
+the decoder-only LLM M processes this sequence to produce a contextualized representation for
+each token, denoted as H(X) = {h1 , h2 , ..., hn }, where hi is the output hidden state for each
+token. A pooling function converts these hidden states into a single representation followed by ℓ2
+normalization : hX = norm(Pool(Hθ (X))). The pooling function can be last-token pooling [31],
+mean pooling [49], or architecture-specific strategy [28]. In this work, we append an [EOS] token to
+each input and use the hidden state of the final token as the text embedding.
+
+3.2   Low-bit Embedding Backbone
+
+B IT E MBED is built by applying BitNet-style quantization to the pretrained LLM backbone. Following
+the BitNet line of work [62, 40], we quantize linear weights in transformer blocks to ternary values.
+For a full-precision weight matrix W , the quantized weight is:
+                                                           W
+                           Qw (W ) = ∆w · RoundClip(             , −1, 1),                         (1)
+                                                          ∆w + ϵ
+where ∆w = mean(|W |), RoundClip(X, a, b) = max(a, min(b, round(X))). This maps weights
+to scaled values in {−∆w , 0, ∆w }, yielding the 1.58-bit parameterization.
+For the activations entering each BitLinear layer, we apply token-wise 8-bit quantization. Given an
+activation tensor X, we compute γx = max |X| for each token and apply:
+                                    γx              127
+                         Qx (X) =       RoundClip(        X, −128, 127)                            (2)
+                                    127            γx + ϵ
+The quantizers in Equations 1 and 2 contain non-differentiable operations, such as rounding and
+clipping. Following prior low-bit Transformer training practice [62, 39], we employ the straight-
+through estimator (STE) [2] to approximate the gradients of these quantization operators during
+back-propagation.
+Quantizing both weights and activations makes the transformer more sensitive to activation outliers
+and scale drift [39]. Following prior works [40, 69], we perform model refinement by inserting
+sub-layer normalization (SubLN) modules inside each transformer block. Concretely, let Aℓ be the
+concatenated multi-head attention output before the output projection at layer ℓ, and let Fℓ be the
+
+
+                                                  3
+intermediate feed-forward representation before the down projection. We refine the residual updates
+as
+      Yℓ = Xℓ + BitLinearo,ℓ (SubLN(Aℓ )) , Xℓ+1         = Yℓ + BitLineard,ℓ (SubLN(Fℓ )) , (3)
+where Xℓ denotes the input hidden states of layer ℓ, Yℓ denotes the intermediate state after the
+attention residual update, and BitLinear denotes a linear projection computed with the quantized
+weights and activations above. By normalizing these intermediate states locally, the quantized
+projections receive inputs with more consistent scales, which makes optimization less sensitive to
+low-bit numerical noise.
+
+3.3   Continual Contrastive Pre-training
+
+Extreme quantization can distort the pretrained representation space and weaken the semantic
+knowledge encoded in the original LLM. With such an extreme quantization constraint, relying only
+on supervised fine-tuning data is insufficient for the model to rebuild a reliable semantic representation.
+We therefore introduce continual contrastive pre-training on large-scale text pairs, which exposes the
+quantized model to broad semantic co-occurrence and relevance signals before supervised training on
+the downstream task. Given a training batch B = {(qi , p+       N             +
+                                                           i )}i=1 , where pi is a positive text for query
+qi , we feed them into the embedder to obtain embedding hqi and hp+ respectively. Then we employ
+                                                                         i
+the standard InfoNCE [53] loss for optimization utilizing in-batch negatives:
+
+                                        N        exp(sθ (hqi , hp+ )/τ )
+                                     1 X
+                          Lcpt = −         log PN                 i
+                                                                              .                        (4)
+                                     N i=1      j=1 exp(s θ (h qi
+                                                                  , hp+ )/τ )
+                                                                        j
+
+where s() measures the cosine similarity between two embedding vectors and τ is the temperature
+coefficient. This stage provides broad contrastive adaptation and initializes a semantic embedding
+space before supervised fine-tuning.
+
+3.4   Distillation-based Supervised Fine-tuning
+
+After continual pre-training, we train the low-bit embedder on high-quality supervised data. A
+                                                     − K
+fine-tuning batch is organized as {(Ii , qi , p+                N
+                                               i , {pi,k }k=1 )}i=1 , where the query qi is formatted with
+                                      − K
+its task instruction Ii and p+
+                             i and {pi,k }k=1 represent the positive passage and K hard negatives.
+We optimize an InfoNCE loss with both in-batch and mined hard negatives. For each query qi , the
+                                     −
+candidate set is Ci = {p+    N                             N
+                          j }j=1 ∪ {pi,k , 1 ≤ k ≤ K}i=1 . Given this candidate set, the supervised
+contrastive loss is
+                                         N            exp(sθ (hqi , hp+ )/τ )
+                                    1 X
+                           Lctr = −           log P                     i
+                                                                                     .                 (5)
+                                    N i=1             c∈Ci exp(s θ (h q i , hc )/τ )
+
+To further compensate for the representation loss introduced by extreme low-bit quantization, we
+augment supervised fine-tuning with teacher-guided distillation. The full-precision teacher model is
+trained beforehand from the original LLM backbone on the supervised fine-tuning data, and is then
+fixed to provide distillation signals. We introduce two complementary distillation losses on top of the
+supervised contrastive objective.
+
+Similarity-distribution distillation. In addition to the hard supervision used in the contrastive loss,
+we distill the teacher’s soft similarity distribution over the candidate set. This distribution provides
+fine-grained relative preference signals among positives and negatives candidates encoded by the
+teacher. For M ∈ {T, S}, where T is the teacher and S is the low-bit embedder, define
+                                                     exp(sM (qi , c)/τ )
+                               PM (c | qi ) = P                        ′
+                                                                             .                       (6)
+                                                 c ∈Ci exp(sM (qi , c )/τ )
+                                                   ′
+
+The score-level distillation loss minimizes the KL divergence from the teacher distribution to the
+low-bit student model distribution:
+                                           N
+                                       1 X
+                            Lscore =           DKL (PT (· | qi ) ∥ PS (· | qi )) .                   (7)
+                                       N i=1
+This encourages the embedding model to capture nuanced differences between the positive and
+negative learning from teacher model.
+
+
+                                                    4
+Attention relation distillation. Score distillation aligns the final embedding similarities, but it does
+not directly constrain how the low-bit encoder organizes token-level interactions before pooling. We
+therefore adopt a multi-head attention distillation objective inspired by MiniLM [66, 67].
+For a selected set of layers Ω and projection types Φ = {Q, K, V }, let AM     ℓ,ϕ,a ∈ R
+                                                                                        L×dh
+                                                                                             denote the
+normalized projected states of head a from model M ∈ {T, S}, where L is the sequence length and
+dh is the hidden dimension. T is the full-precision teacher, S is the low-bit embedder, and Nh is the
+number of heads. For token position t ∈ [1, L], we compute its relation distribution to all positions as
+                                                                           !
+                                                                         ⊤
+                              M
+                                                   AM          M
+                                                     ℓ,ϕ,a,t (Aℓ,ϕ,a,t )
+                             Rℓ,ϕ,a,t = softmax            √                 ,                       (8)
+                                                              dh
+The attention distillation loss averages the KL divergence between teacher and low-bit relation
+distributions:
+                                       Nh X L
+                             1 XX 1 X               T          S
+                                                                       
+                 Lattn =                       DKL Rℓ,ϕ,a,t ∥ Rℓ,ϕ,a,t   .                           (9)
+                           |Ω||Φ| Nh L a=1 t=1
+                                  ℓ∈Ω ϕ∈Φ
+
+Following MiniLM [66, 67], we perform attention relation distillation at only one layer. This distil-
+lation objective encourages the low-bit student model to retain the teacher’s fine-grained structural
+dependencies.
+Finally, the distillation-based supervised objective is: Ldistill = Lctr + λs Lscore + λa Lattn , where
+λs and λa are hyperparameters which balance score-level and attention-level distillation.
+
+3.5   Multi-precision Embedding Quantization
+
+In addition to quantizing the backbone, we train the output embeddings to remain robust under
+multiple storage precisions during the supervised fine-tuning, which enables deployment under
+different memory budgets. Let e ∈ Rd denote the fp16 embedding produced by B IT E MBED, and
+let R = {1, 2, 4, 8, 16}denote the set of supported output bitwidths. We use per-vector absmax
+scaling, α(e) = maxj |ej |, with a small lower bound for numerical stability. The 16-bit branch
+returns the original embedding unchanged, while lower-bit settings store compact codes and use their
+reconstructed values for similarity computation during training. For 1-bit embeddings, we use scaled
+binary quantization:
+                                     (1)
+                                    zj     = sgn+ (ej ) ∈ {−1, +1}                                  (10)
+        (1)          (1)
+where ẽj = α(e)zj , sgn+ (0) = 1. For b ∈ {2, 4, 8}, we use all 2b uniformly spaced levels in
+[−α(e), α(e)]. Let mb = 2b − 1. Each dimension is quantized and dequantized as
+                                                                 
+                         (b)                ej /α(e) + 1
+                       zj = clip round                   mb , 0, mb                       (11)
+                                                  2
+              (b)     
+        (b)     2zj
+where ẽj = mb − 1 α(e). Here z (b) is the discrete code stored together with the scale α(e),
+while ẽ(b) is the reconstructed vector used to compute similarities. We use STE during training.
+Inspired by Matryoshka-style multi-precision training [50], we optimize the B IT E MBED across all
+supported output embedding precisions. The final multi-precision objective is
+                                 1 X  (b)                  
+                        Lmp =              Lctr + λs L(b)
+                                                       score + λa Lattn .                    (12)
+                                |R|
+                                         b∈R
+
+
+4     Experiments
+4.1   Experimental Setup
+
+Backbones. We evaluate two LLM backbones: Qwen3-0.6B [73] and Gemma3-270M [59] which
+differ in scales and architectures, to examine whether extreme low-bit training can preserve the
+representation quality across different LLM-based embedders.
+
+
+                                                   5
+Table 1: Main results on MMTEB (eng, v2). We compare B IT E MBED with full-precision teacher.
+Cls., Clust., PairCls., Rerank, Retr., STS, Summ., and Avg. denote classification, clustering, pair
+classification, reranking, retrieval, semantic textual similarity, summarization, and the overall average
+across all tasks, respectively. “speed" denotes the token throughput of models on CPU with 8 threads.
+
+  Model            Cls.    Clust.   PairCls.    Rerank     Retr.    STS     Summ.      Avg.     Speed
+  Backbone: Qwen3-0.6B
+  FP16 teacher 86.37 55.48           82.56       43.89     55.34    81.15    31.87     67.95    364.36
+  B IT E MBED  86.49 55.42           82.30       43.41     54.03    81.15    32.06     67.60    830.50
+  Backbone: Gemma3-270M
+  FP16 teacher 86.54 53.85           80.67       43.38     52.97    80.57    28.36     66.71    1181.28
+  B IT E MBED  85.25 53.07           80.47       42.14     51.47    81.09    32.97     66.10    2055.47
+
+
+
+Training data. For continual pre-training, following Multilingual E5 [65], we train B IT E MBED
+on 1B text pairs. For supervised fine-tuning, we train B IT E MBED on the publicly available training
+data provided by BGE-en-ICL [31]. More details on training data are available in Appendix A.
+Specifically, during supervised fine-tuning, the training data are organized in a retrieval-style format,
+where each instance contains a query, a corresponding task instruction, a positive passage, and mined
+hard negatives. To enable instruction-aware embedding learning, we prepend the task instruction
+to the query side following the instruction-aware training protocol commonly used by LLM-based
+embedders:
+                     qinst = 〈Instruct〉 {task definition} 〈query〉 {q}                                (13)
+
+Evaluation. We evaluate B IT E MBED on Massive Multilingual Text Embedding Benchmark
+(MMTEB) (eng, v2) [17], which is an optimized version of MTEB [48]. MMTEB covers di-
+verse embedding tasks, including classification, clustering, pair classification, reranking, retrieval,
+semantic textual similarity (STS), and summarization. Following the official metrics, we use accuracy
+for classification, V-measure for clustering, average precision for pair classification, mean average
+precision (MAP) for reranking, nDCG@10 for retrieval, and Spearman correlation for STS and
+summarization. Meanwhile we also evaluate the runtime efficiency of models which reports the token
+throughput (tokens per second) on CPU with 8 threads. The evaluation instructions are provided in
+Appendix B. Since our goal is to study performance-preserving quantization for LLM-based text
+embedding, we compare our B IT E MBED with an FP16 model based on the same backbone which is
+fine-tuned directly on the same supervised fine-tuning data, rather than comparing against unrelated
+large-scale embedding systems.
+
+Implementation details. We use a batch size of 128 for supervised fine-tuning, and set τ in Eq 4,
+5 and 6 as 0.02. The number of hard negatives in supervised fine-tuning data is set as 7. For each
+backbone, the full-precision teacher is trained on the supervised data using a learning rate of 5e-6,
+and for B IT E MBED, the learning rate of distillation-based supervised fine-tuning is set as 3e-5. The
+coefficient of similarity-distribution distillation is set to λs = 0.2, and the coefficient of multi-head
+attention distillation is set to λa = 104 . Following MiniLM-style distillation [66], we distill attention
+relations from a single transformer layer, where we use layer 18 in the Qwen3-0.6B and layer 10 in
+the Gemma3 270M.
+
+4.2   Main Results
+
+Overall performance. We compare B IT E MBED with the full precision teacher baselines on Qwen3-
+0.6B and Gemma3-270M, and report the average score for each MMTEB (eng, v2) task category
+and the overall average score across all tasks in Table 1. The detailed results on individual tasks
+are provided in the Appendix C.1. Furthermore, for the multilingual scenarios, we also conduct
+experiments and evaluate on multilingual MMTEB. The experiment details are provided in Ap-
+pendix C.2. Table 1 shows that despite using an extreme low-bit embedding backbone, B IT E MBED
+remains largely comparable to the full-precision teacher across both backbones. On Qwen3-0.6B,
+B IT E MBED achieves 67.60, only 0.35 points lower than the FP16 teacher. On Gemma3-270M,
+B IT E MBED obtains 66.10, closely matching the teacher score of 66.71. These small gaps indicate
+
+
+                                                    6
+                                               68                                                     67.55           67.60
+                                                                                           67.45
+
+
+
+
+                 MMTEB (eng, v2) performance
+                                               67
+
+                                                                                                      66.11           66.10
+                                                                                           65.96
+                                               66
+
+                                                                       64.90
+                                               65
+                                                      64.43
+
+
+                                               64
+                                                                                                      Qwen3-0.6B
+                                                                                                      Gemma3-270M
+                                                                                                      Qwen3 FP16 teacher
+                                               63
+                                                                       63.24                          Gemma3 FP16 teacher
+                                                      63.01
+
+                                                       1                2                   4          8               16
+                                                                       Output embedding precision (bits)
+
+Figure 1: Performance-precision trade-off of B IT E MBED on Qwen3-0.6B and Gemma3-270M. We
+report the average MMTEB (eng, v2) performance of 1-, 2-, 4-, 8-, and 16-bit output embeddings of
+B IT E MBED.
+
+Table 2: Ablation study on Qwen3-0.6B with 16-bit output embeddings. CPT, SD, and AD denote con-
+tinual pre-training, similarity-distribution distillation, and attention-relation distillation, respectively.
+BitNet SFT denotes supervised fine-tuning after BitNet conversion, without continual pre-training
+and distillation.
+
+  Variant                                           Cls.      Clust.        PairCls.       Rerank    Retr.    STS        Summ.      Avg.
+  B IT E MBED                                       86.49     55.42            82.30         43.41   54.03    81.15         32.06   67.60
+  w/o. SubLN                                        85.31     52.80            79.90         41.16   51.01    79.57         31.34   65.48
+  w/o. AD                                           85.70     53.21            82.56         41.85   52.89    80.50         30.19   66.49
+  w/o. SD                                           86.12     52.95            82.53         42.23   51.40    81.40         29.97   66.37
+  w/o. SD & AD                                      85.17     52.20            79.48         42.23   49.42    78.88         29.07   64.76
+  w/o. CPT                                          84.99     52.84            79.02         41.31   48.00    80.26         30.84   64.77
+  BitNet SFT                                        77.72     48.79            72.77         40.39   39.73    75.35         29.13   58.92
+
+
+
+that BitNet-style backbone conversion, when coupled with contrastive adaptation and teacher-guided
+distillation, can recover most of the semantic representation quality required by text embedding tasks.
+Meanwhile, B IT E MBED substantially improves inference efficiency. On CPU with 8 threads, BITEM-
+BED improves token throughput from 364.36 to 830.50 tokens/s on Qwen3-0.6B and from 1181.28
+to 2055.47 tokens/s on Gemma3-270M, achieving approximately 2× higher CPU token throughput
+on both backbones. These results show that the practical utility of B IT E MBED in computationally
+limited scenarios.
+
+Multi-precision embedding performance. Figure 1 further demonstrates the effect of output
+embedding precision. With multi-precision training, a single B IT E MBED checkpoint supports
+multiple output embedding storage precisions and therefore offers a controllable trade-off between
+embedding quality and vector-index cost. The 8-bit and 4-bit embeddings are nearly lossless compared
+with the 16-bit branch on both backbones. These results show that moderate output quantization can
+substantially reduce storage without materially changing downstream embedding quality. Under more
+aggressive compression, the 1-bit and 2-bit output embeddings still preserve usable performance,
+achieving 64.43 and 64.90 on Qwen3-0.6B and 63.01 and 63.24 on Gemma3-270M. Although these
+settings introduce larger quantization noise, they reduce the storage by roughly 16× and 8× compared
+with full precision, making them attractive for storage-constrained retrieval scenarios. Overall, the
+multi-precision training strategy enables practitioners to select an embedding precision according
+to deployment constraints while retaining most of the semantic utility of the original embedding.
+Detailed experiments results for different embedding precisions are provided in Appendix C.3.
+
+
+                                                                                       7
+                                        Qwen3-0.6B                                          Gemma3-270M
+
+                 Cls.   -0.80   -0.72    -0.30   -0.30        +0.12         -1.42   -1.34     -0.26   +0.01        -1.29    4
+
+
+              Clust.    -2.47   -2.17    -0.18   -0.02         -0.06        -1.92   -1.82     -0.84   0.00         -0.78    2
+
+
+
+
+                                                                                                                                 Signed difference
+             PairCls.   -1.59   -1.42    -0.10   0.00          -0.26        -1.11   -0.83     +0.44   0.00         -0.20    0
+
+
+
+ Task type
+             Rerank     -2.43   -1.80    -0.22   +0.05         -0.48        -1.59   -0.95     +0.03   +0.11        -1.24    −2
+
+
+                Retr.   -8.18   -6.86    -0.17   0.00          -1.31        -8.94   -8.25     -0.36   +0.03        -1.50    −4
+
+
+                STS     -1.40   -1.23    -0.03   +0.01         0.00         -0.04   -0.21     +0.07   0.00        +0.52     −6
+
+
+             Summ.      -0.17   -0.24    +0.05   +0.09        +0.19         -3.13   -2.67     -0.42   -0.01       +4.61     −8
+
+                         1       2        4       8          BITEMBED        1       2         4       8         BITEMBED
+                                Embedding precision (bits)                          Embedding precision (bits)
+
+
+Figure 2: Task-type sensitivity on MMTEB (eng, v2). Columns 1, 2, 4, and 8 report the performance
+differences relative to the 16-bit embedding obtained from B IT E MBED under lower precision. The
+B IT E MBED column reports performance differences between B IT E MBED and the full-precision
+teacher.
+
+
+4.3              Ablation Study
+
+We conduct ablations on Qwen3-0.6B to quantify the contribution of each component. Table 2
+reports results with 16-bit output embeddings on MMTEB (eng, v2). As shown, removing SubLN
+reduces the average score from 67.60 to 65.48, showing that the additional normalization modules
+are important for stabilizing extreme low-bit embedding training. Meanwhile, distillation also plays a
+critical role. Removing attention-relation and similarity-distribution distillation respectively reduces
+the average score to 66.49 and 66.37, and removing both causes a larger drop to 64.76, indicating
+that teacher guidance is important for recovering the representation quality of the low-bit embedder.
+Continual contrastive pre-training is similarly critical. Without it, the performance of B IT E MBED
+drops to 64.77, which demonstrates that continual pre-training rebuilds a broad semantic space after
+extreme quantization. Finally, directly fine-tuning the converted BitNet-style backbone without
+continual pre-training and distillation achieves only 58.92 average score, indicating that extreme
+low-bit conversion substantially disrupts the embedding space and cannot be recovered by supervised
+fine-tuning alone.
+
+4.4              Analysis
+
+Task-type sensitivity to quantization. To understand the task-level sensitivity of the extreme low-
+bit B IT E MBED, we compare B IT E MBED with the full-precision teacher across different task types.
+As shown in the right column of Figure 2, the B IT E MBED remains close to the teacher on most task
+types, and even improves on some categories such as classification and summarization. The remaining
+gaps are more substantial on retrieval, which is typically harder with encoding longer documents
+and further embedding matching. Nevertheless, B IT E MBED still maintains strong performance,
+suggesting that BitNet-style backbone quantization preserves most of the semantic structure needed
+by LLM-based embedders.
+Then we analyze the sensitivity introduced by quantizing output embeddings of B IT E MBED. The
+1-, 2-, 4-, and 8-bit columns in Figure 2 report differences relative to the original 16-bit embedding
+obtained from B IT E MBED. Retrieval is again the most sensitive task type. In contrast, classification,
+pair classification, and STS are more stable. This suggests that extreme low-bit output embeddings
+may mainly affect the fine-grained information required by retrieval, while still retaining sufficient
+semantic for tasks that rely on broader semantic separation. Overall, B IT E MBED preserves overall
+semantic structure even at very low precision; with moderate low-bit quantization, it can retain
+performance across all task types while substantially reducing embedding storage cost.
+
+Effect of attention-relation distillation layer We further study the strategies for selecting the
+attention-relation distillation layer. Figure 3 reports the average MMTEB (eng, v2) performance
+when distilling attention relations from different layers. For Qwen3-0.6B, performance improves
+substantially from earlier layers to the middle-later layers and peaks at layer 18. For Gemma3-270M,
+
+
+                                                                        8
+                                                                                                                                                                                       68      BITEMBED                                                           67.60
+                                                                                                     67.60                                                                                                                        67.45           67.55
+                                                                                                                     67.47                                                                     MRL                                                                        67.30
+
+
+
+
+                                                                                                                                                         MMTEB (eng, v2) performance
+                              67.5                                                   67.33
+                                                                                                             67.49                                                                                                                                        66.83
+                                                                                                                             67.44   67.16                                             67
+
+
+
+
+MMTEB (eng, v2) performance
+                                                                                             67.40
+
+                              67.0                                                                                                                                                                                                        66.18
+
+                                                                     66.60                                                                                                             66
+                                     66.48
+                              66.5                   66.34                                                                                                                                                                65.34
+                                                                                                                                             66.59
+                                                             66.44           66.46
+                                                                     66.10                                                                                                                                        64.90
+                                             66.27                                           66.01                                                                                     65
+                              66.0                                           66.10
+                                                                                                                                                                                              64.43
+                                                                                     66.08
+                                                                                                     66.03
+
+
+                                                                                                                                                                                       64
+                              65.5
+                                             65.20                                                                                                                                                    63.35
+
+                                                             65.28
+                              65.0                                                                                              Qwen3-0.6B                                             63
+                                     65.04
+                                                                                                                                Gemma3-270M
+                                                     64.88
+
+                                      2       4       6       8       10      12      14      16      18      20      22      24      26      28                                                 1/16                1/8             1/4             1/2              1
+                                                                     Attention-relation distillation layer                                                                                                    Storage budget relative to original embedding
+
+
+Figure 3: Effect of the attention-relation distilla-                                                                                                     Figure 4: Comparison between B IT E MBED and
+tion layer selection. Qwen3-0.6B is evaluated on                                                                                                         MRL. The 1/X means that the storage budget
+even layers from 2 to 28, while Gemma3-270M                                                                                                              is 1/X of the original output embedding. The
+is evaluated on even layers from 2 to 18.                                                                                                                corresponding B IT E MBED precisions are 1, 2,
+                                                                                                                                                         4, 8, and 16 bits, while the corresponding MRL
+                                                                                                                                                         dimensions are 64, 128, 256, 512, and 1024.
+
+
+Table 3: Effect of multi-precision embedding training on Qwen3-0.6B. “Post” denotes post-hoc
+embedding quantization without multi-precision training.
+                                                                                     Bits              B IT E MBED                           Post            Retr.B IT E MBED                                       Retr.Post
+                                                                                     1                        64.43                          63.71                                          45.85                         43.21
+                                                                                     2                        64.90                          64.03                                          47.17                         44.07
+                                                                                     4                        67.45                          66.31                                          53.86                         53.05
+                                                                                     8                        67.55                          67.29                                          54.03                         53.58
+                                                                                     16                       67.60                          67.31                                          54.03                         53.55
+
+
+
+the best results are obtained around layers 10 and 12, while earlier layers are consistently weaker.
+This trend is consistent across the two backbones: middle-to-later layers provide more effective
+distillation signals. One possible explanation is that compared to earlier layers which mainly encode
+local lexical or syntactic patterns, middle-to-later layers better capture the semantic interactions that
+determine the final embedding space. Very late layers do not always improve performance further,
+suggesting that the most useful relation information for embedding distillation lies in the semantically
+rich but not overly specialized part of the network.
+
+Effect of Multi-precision Embedding Training To explore the effect of multi-precision embed-
+ding training, we further compare multi-precision embedding training with a post-hoc quantization
+baseline that directly quantizes embeddings without exposing the model to multiple precisions during
+training. Table 3 reports results on Qwen3-0.6B, and detailed results are provided in Appendix C.4.
+Multi-precision training consistently improves performance, with larger gains at 1-, 2-, and 4-bit
+settings. The improvement is particularly visible on retrieval, where our method improves 1-bit and
+2-bit embeddings by 2.64 and 3.10 points, respectively. The comparison shows that by exposing
+B IT E MBED to multiple embedding precisions during optimization, B IT E MBED learns embeddings
+whose similarity structure is more robust.
+
+Comparison with Matryoshka Representation Learning We further compare B IT E MBED with
+Matryoshka Representation Learning (MRL) [26], which supports flexible storage by training nested
+prefix dimensions of the output embedding representation. We conduct experiments on Qwen3-0.6B,
+whose output embedding dimension is 1024, and we set the MRL dimensions to 64, 128, 256, 512,
+and 1024, matching the storage costs of the 1-, 2-, 4-, 8-, and 16-bit output embeddings of B IT E MBED
+respectively for a fair comparison under the same embedding storage budgets. As shown in Figure 4,
+B IT E MBED achieves better performance under all other storage budgets. Although MRL is better at
+the 1/8 storage setting, outperforming BITEMBED by 0.44, at the 1/16, 1/4, 1/2, and full-storage
+settings, B IT E MBED improves the average MMTEB score over MRL by 1.08, 1.27, 0.72, and 0.30
+points. These results suggest that compared with MRL, B IT E MBED can keep the complete embedding
+space and learns to make it robust under low-bit reconstruction, allowing more semantic factors
+to participate in similarity computation even when the storage budget is small. Therefore, under
+
+
+                                                                                                                                                     9
+the same storage budgets, our proposed multi-precision embedding quantization provides a more
+effective trade-off between embedding quality and storage efficiency.
+
+5   Conclusion
+In this paper, we presented B IT E MBED, an extreme low-bit framework for LLM-based text em-
+beddings that jointly addresses encoding efficiency and embedding storage. B IT E MBED converts
+pretrained LLM backbones into BitNet-style embedders, adapting with continual contrastive pre-
+training, and improves representation capabilities through supervised contrastive learning with
+similarity-distribution and attention-relation distillation. Furthermore B IT E MBED supports multi-
+precision output embeddings, enabling a single model to serve different storage budgets. Experiments
+on MMTEB (eng, v2) show that B IT E MBED remains close to full-precision teachers, suggesting that
+extreme low-bit training is a promising direction for efficient semantic representation.
+
+References
+ [1] Eneko Agirre, Daniel Cer, Mona Diab, and Aitor Gonzalez-Agirre. Semeval-2012 task 6: A
+     pilot on semantic textual similarity. in* sem 2012: The first joint conference on lexical and
+     computational semantics–volume 1: Proceedings of the main conference and the shared task,
+     and volume 2: Proceedings of the sixth international workshop on semantic evaluation (semeval
+     2012). In Proceedings of the Sixth International Workshop on Semantic Evaluation (SemEval
+     2012), Montréal, QC, Canada, pages 7–8, 2012.
+ [2] Yoshua Bengio, Nicholas Léonard, and Aaron Courville. Estimating or propagating gradients
+     through stochastic neurons for conditional computation. arXiv preprint arXiv:1308.3432, 2013.
+ [3] Fengyu Cai, Tong Chen, Xinran Zhao, Sihao Chen, Hongming Zhang, Sherry Tongshuang Wu,
+     Iryna Gurevych, and Heinz Koeppl. Revela: Dense retriever learning via language modeling.
+     arXiv preprint arXiv:2506.16552, 2025.
+ [4] Iñigo Casanueva, Tadas Temčinas, Daniela Gerz, Matthew Henderson, and Ivan Vulić. Efficient
+     intent detection with dual sentence encoders. arXiv preprint arXiv:2003.04807, 2020.
+ [5] Roberto Castro, Andrei Panferov, Rush Tabesh, Oliver Sieberling, Jiale Chen, Mahdi Nikdan,
+     Saleh Ashkboos, and Dan Alistarh. Quartet: Native fp4 training can be optimal for large
+     language models. Advances in Neural Information Processing Systems, 38:43552–43572, 2026.
+ [6] Daniel Cer, Mona Diab, Eneko Agirre, Inigo Lopez-Gazpio, and Lucia Specia. Semeval-2017
+     task 1: Semantic textual similarity-multilingual and cross-lingual focused evaluation. arXiv
+     preprint arXiv:1708.00055, 2017.
+ [7] Danqi Chen and Wen-tau Yih. Open-domain question answering. In Proceedings of the 58th
+     annual meeting of the association for computational linguistics: tutorial abstracts, pages 34–37,
+     2020.
+ [8] Haonan Chen, Liang Wang, Nan Yang, Yutao Zhu, Ziliang Zhao, Furu Wei, and Zhicheng Dou.
+     mme5: Improving multimodal multilingual embeddings via high-quality synthetic data. In
+     Findings of the Association for Computational Linguistics: ACL 2025, pages 8254–8275, 2025.
+ [9] Mengzhao Chen, Wenqi Shao, Peng Xu, Jiahao Wang, Peng Gao, Kaipeng Zhang, and Ping Luo.
+     Efficientqat: Efficient quantization-aware training for large language models. In Proceedings of
+     the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long
+     Papers), pages 10081–10100, 2025.
+[10] Xi Chen, Ali Zeynali, Chico Camargo, Fabian Flöck, Devin Gaffney, Przemyslaw Grabowicz,
+     Scott A Hale, David Jurgens, and Mattia Samory. Semeval-2022 task 8: Multilingual news
+     article similarity. In Proceedings of the 16th International Workshop on Semantic Evaluation
+     (SemEval-2022), pages 1094–1106, 2022.
+[11] Chanyeol Choi, Junseong Kim, Seolhwa Lee, Jihoon Kwon, Sangmo Gu, Yejin Kim, Minkyung
+     Cho, and Jy-yong Sohn. Linq-embed-mistral technical report. arXiv preprint arXiv:2412.03223,
+     2024.
+
+
+                                                 10
+[12] Arman Cohan, Sergey Feldman, Iz Beltagy, Doug Downey, and Daniel S Weld. Specter:
+     Document-level representation learning using citation-informed transformers. arXiv preprint
+     arXiv:2004.07180, 2020.
+[13] DataCanary, hilfialkaff, Lili Jiang, Meg Risdal, Nikhil Dandekar, and tomtung. Quora question
+     pairs. https://kaggle.com/competitions/quora-question-pairs, 2017. Kaggle.
+[14] Tim Dettmers, Mike Lewis, Younes Belkada, and Luke Zettlemoyer. Gpt3. int8 (): 8-bit matrix
+     multiplication for transformers at scale. Advances in neural information processing systems, 35:
+     30318–30332, 2022.
+[15] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. BERT: Pre-training of
+     deep bidirectional transformers for language understanding. In Jill Burstein, Christy Doran, and
+     Thamar Solorio, editors, Proceedings of the 2019 Conference of the North American Chapter
+     of the Association for Computational Linguistics: Human Language Technologies, Volume 1
+     (Long and Short Papers), pages 4171–4186, Minneapolis, Minnesota, June 2019. Association
+     for Computational Linguistics. doi: 10.18653/v1/N19-1423. URL https://aclanthology.
+     org/N19-1423/.
+[16] Dayou Du, Yijia Zhang, Shijie Cao, Jiaqi Guo, Ting Cao, Xiaowen Chu, and Ningyi Xu.
+     Bitdistiller: Unleashing the potential of sub-4-bit llms via self-distillation. In Proceedings of
+     the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long
+     Papers), pages 102–116, 2024.
+[17] Kenneth Enevoldsen, Isaac Chung, Imene Kerboua, Márton Kardos, Ashwin Mathur, David
+     Stap, Jay Gala, Wissam Siblini, Dominik Krzemiński, Genta Indra Winata, et al. Mmteb:
+     Massive multilingual text embedding benchmark. arXiv preprint arXiv:2502.13595, 2025.
+[18] Angela Fan, Yacine Jernite, Ethan Perez, David Grangier, Jason Weston, and Michael Auli.
+     Eli5: Long form question answering. arXiv preprint arXiv:1907.09190, 2019.
+[19] Elias Frantar, Saleh Ashkboos, Torsten Hoefler, and Dan Alistarh. Gptq: Accurate post-training
+     quantization for generative pre-trained transformers. arXiv preprint arXiv:2210.17323, 2022.
+[20] Tianyu Gao, Xingcheng Yao, and Danqi Chen. Simcse: Simple contrastive learning of sentence
+     embeddings. arXiv preprint arXiv:2104.08821, 2021.
+[21] Ruihao Gong, Yifu Ding, Zining Wang, Chengtao Lv, Xingyu Zheng, Jinyang Du, Yang Yong,
+     Shiqiao Gu, Haotong Qin, Jinyang Guo, et al. A survey of low-bit large language models:
+     Basics, systems, and algorithms. Neural networks, page 107856, 2025.
+[22] Fei Huang, Fan Wu, Zeqing Zhang, Qihao Wang, Long Zhang, Grant Michael Boquet, and
+     Hongyang Chen. Geogpt. rag technical report. arXiv preprint arXiv:2509.09686, 2025.
+[23] Hong Huang and Dapeng Wu. Quaff: Quantized parameter-efficient fine-tuning under outlier
+     spatial stability hypothesis. In Proceedings of the 63rd Annual Meeting of the Association for
+     Computational Linguistics (Volume 1: Long Papers), pages 6481–6496, 2025.
+[24] Vladimir Karpukhin, Barlas Oguz, Sewon Min, Patrick SH Lewis, Ledell Wu, Sergey Edunov,
+     Danqi Chen, and Wen-tau Yih. Dense passage retrieval for open-domain question answering.
+     In EMNLP (1), pages 6769–6781, 2020.
+[25] Omar Khattab and Matei Zaharia. Colbert: Efficient and effective passage search via contextual-
+     ized late interaction over bert. In Proceedings of the 43rd International ACM SIGIR conference
+     on research and development in Information Retrieval, pages 39–48, 2020.
+[26] Aditya Kusupati, Gantavya Bhatt, Aniket Rege, Matthew Wallingford, Aditya Sinha, Vivek
+     Ramanujan, William Howard-Snyder, Kaifeng Chen, Sham Kakade, Prateek Jain, et al. Ma-
+     tryoshka representation learning. Advances in Neural Information Processing Systems, 35:
+     30233–30249, 2022.
+[27] Ken Lang. Newsweeder: Learning to filter netnews. In Machine learning proceedings 1995,
+     pages 331–339. Elsevier, 1995.
+
+
+                                                 11
+[28] Chankyu Lee, Rajarshi Roy, Mengyao Xu, Jonathan Raiman, Mohammad Shoeybi, Bryan
+     Catanzaro, and Wei Ping. Nv-embed: Improved techniques for training llms as generalist
+     embedding models. arXiv preprint arXiv:2405.17428, 2024.
+[29] Jinhyuk Lee, Zhuyun Dai, Xiaoqi Ren, Blair Chen, Daniel Cer, Jeremy R Cole, Kai Hui,
+     Michael Boratko, Rajvi Kapadia, Wen Ding, et al. Gecko: Versatile text embeddings distilled
+     from large language models. arXiv preprint arXiv:2403.20327, 2024.
+[30] Chaofan Li, Zheng Liu, Shitao Xiao, Yingxia Shao, and Defu Lian. Llama2vec: Unsupervised
+     adaptation of large language models for dense retrieval. In Proceedings of the 62nd Annual
+     Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages
+     3490–3500, 2024.
+[31] Chaofan Li, MingHao Qin, Shitao Xiao, Jianlyu Chen, Kun Luo, Yingxia Shao, Defu Lian, and
+     Zheng Liu. Making text embedders few-shot learners. arXiv preprint arXiv:2409.15700, 2024.
+[32] Haoran Li, Abhinav Arora, Shuohui Chen, Anchit Gupta, Sonal Gupta, and Yashar Mehdad.
+     Mtop: A comprehensive multilingual task-oriented semantic parsing benchmark. arXiv preprint
+     arXiv:2008.09335, 2020.
+[33] Zehan Li, Xin Zhang, Yanzhao Zhang, Dingkun Long, Pengjun Xie, and Meishan Zhang.
+     Towards general text embeddings with multi-stage contrastive learning. arXiv preprint
+     arXiv:2308.03281, 2023.
+[34] Zhen Li, Chongyang Tao, Jiazhan Feng, Tao Shen, Dongyan Zhao, Xiubo Geng, and Daxin
+     Jiang. FAA: Fine-grained attention alignment for cascade document ranking. In Anna Rogers,
+     Jordan Boyd-Graber, and Naoaki Okazaki, editors, Proceedings of the 61st Annual Meeting
+     of the Association for Computational Linguistics (Volume 1: Long Papers), pages 1688–1700,
+     Toronto, Canada, July 2023. Association for Computational Linguistics. doi: 10.18653/v1/2023.
+     acl-long.94. URL https://aclanthology.org/2023.acl-long.94/.
+[35] Zhen Li, Yupeng Su, Runming Yang, Congkai Xie, Zheng Wang, Zhongwei Xie, Ngai Wong, and
+     Hongxia Yang. Quantization meets reasoning: Exploring llm low-bit quantization degradation
+     for mathematical reasoning. arXiv preprint arXiv:2501.03035, 2025.
+[36] Ji Lin, Jiaming Tang, Haotian Tang, Shang Yang, Wei-Ming Chen, Wei-Chen Wang, Guangxuan
+     Xiao, Xingyu Dang, Chuang Gan, and Song Han. Awq: Activation-aware weight quantization
+     for on-device llm compression and acceleration. Proceedings of machine learning and systems,
+     6:87–100, 2024.
+[37] Xueqing Liu, Chi Wang, Yue Leng, and ChengXiang Zhai. Linkso: a dataset for learning to
+     retrieve similar question answer pairs on software development forums. In Proceedings of the
+     4th ACM SIGSOFT International Workshop on NLP for Software Engineering, pages 2–5, 2018.
+[38] Zechun Liu, Barlas Oguz, Changsheng Zhao, Ernie Chang, Pierre Stock, Yashar Mehdad,
+     Yangyang Shi, Raghuraman Krishnamoorthi, and Vikas Chandra. Llm-qat: Data-free quantiza-
+     tion aware training for large language models. In Findings of the Association for Computational
+     Linguistics: ACL 2024, pages 467–484, 2024.
+[39] Shuming Ma, Hongyu Wang, Lingxiao Ma, Lei Wang, Wenhui Wang, Shaohan Huang, Li Dong,
+     Ruiping Wang, Jilong Xue, and Furu Wei. The era of 1-bit llms: All large language models are
+     in 1.58 bits. arXiv preprint arXiv:2402.17764, 2024.
+[40] Shuming Ma, Hongyu Wang, Shaohan Huang, Xingxing Zhang, Ying Hu, Ting Song, Yan Xia,
+     and Furu Wei. Bitnet b1. 58 2b4t technical report. arXiv preprint arXiv:2504.12285, 2025.
+[41] Xueguang Ma, Liang Wang, Nan Yang, Furu Wei, and Jimmy Lin. Fine-tuning llama for
+     multi-stage text retrieval. In Proceedings of the 47th International ACM SIGIR Conference on
+     Research and Development in Information Retrieval, pages 2421–2425, 2024.
+[42] Andrew Maas, Raymond E Daly, Peter T Pham, Dan Huang, Andrew Y Ng, and Christopher
+     Potts. Learning word vectors for sentiment analysis. In Proceedings of the 49th annual meeting
+     of the association for computational linguistics: Human language technologies, pages 142–150,
+     2011.
+
+
+                                                12
+[43] Maggie, Phil Culliton, and Wei Chen. Tweet sentiment extraction. https://kaggle.com/
+     competitions/tweet-sentiment-extraction, 2020. Kaggle.
+[44] Macedo Maia, Siegfried Handschuh, André Freitas, Brian Davis, Ross McDermott, Manel
+     Zarrouk, and Alexandra Balahur. Www’18 open challenge: financial opinion mining and
+     question answering. In Companion proceedings of the the web conference 2018, pages 1941–
+     1942, 2018.
+[45] Julian McAuley and Jure Leskovec. Hidden factors and hidden topics: understanding rating
+     dimensions with review text. In Proceedings of the 7th ACM conference on Recommender
+     systems, pages 165–172, 2013.
+[46] Rui Meng, Ye Liu, Shafiq Rayhan Joty, Caiming Xiong, Yingbo Zhou, and Semih Yavuz.
+     Sfrembedding-mistral: enhance text retrieval with transfer learning. Salesforce AI Research
+     Blog, 3:6, 2024.
+[47] Niklas Muennighoff. Sgpt: Gpt sentence embeddings for semantic search. arXiv preprint
+     arXiv:2202.08904, 2022.
+[48] Niklas Muennighoff, Nouamane Tazi, Loic Magne, and Nils Reimers. MTEB: Massive text
+     embedding benchmark. In Andreas Vlachos and Isabelle Augenstein, editors, Proceedings
+     of the 17th Conference of the European Chapter of the Association for Computational Lin-
+     guistics, pages 2014–2037, Dubrovnik, Croatia, May 2023. Association for Computational
+     Linguistics. doi: 10.18653/v1/2023.eacl-main.148. URL https://aclanthology.org/
+     2023.eacl-main.148/.
+[49] Niklas Muennighoff, Hongjin Su, Liang Wang, Nan Yang, Furu Wei, Tao Yu, Amanpreet Singh,
+     and Douwe Kiela. Generative representational instruction tuning. In International Conference
+     on Learning Representations, volume 2025, pages 45544–45613, 2025.
+[50] Pranav Nair, Puranjay Datta, Jeff Dean, Prateek Jain, and Aditya Kusupati. Matryoshka
+     quantization. arXiv preprint arXiv:2502.06786, 2025.
+[51] Tri Nguyen, Mir Rosenberg, Xia Song, Jianfeng Gao, Saurabh Tiwary, Rangan Majumder, and
+     Li Deng. Ms marco: A human-generated machine reading comprehension dataset. 2016.
+[52] James O’Neill, Polina Rozenshtein, Ryuichi Kiryo, Motoko Kubota, and Danushka Bollegala. I
+     wish i would have loved this one, but i didn’t–a multilingual dataset for counterfactual detection
+     in product reviews. arXiv preprint arXiv:2104.06893, 2021.
+[53] Aaron van den Oord, Yazhe Li, and Oriol Vinyals. Representation learning with contrastive
+     predictive coding. arXiv preprint arXiv:1807.03748, 2018.
+[54] Nils Reimers and Iryna Gurevych. Sentence-bert: Sentence embeddings using siamese bert-
+     networks. In Proceedings of the 2019 conference on empirical methods in natural language
+     processing and the 9th international joint conference on natural language processing (EMNLP-
+     IJCNLP), pages 3982–3992, 2019.
+[55] Elvis Saravia, Hsien-Chi Toby Liu, Yen-Hao Huang, Junlin Wu, and Yi-Shin Chen. Carer:
+     Contextualized affect representations for emotion recognition. In Proceedings of the 2018
+     conference on empirical methods in natural language processing, pages 3687–3697, 2018.
+[56] Artyom Sorokin, Nazar Buzun, Alexander Anokhin, Oleg Inozemcev, Egor Vedernikov, Petr
+     Anokhin, Mikhail Burtsev, Trushkov Alexey, Yin Wenshuai, and Evgeny Burnaev. Q-rag: Long
+     context multi-step retrieval via value-based embedder training. arXiv preprint arXiv:2511.07328,
+     2025.
+[57] Hongjin Su, Weijia Shi, Jungo Kasai, Yizhong Wang, Yushi Hu, Mari Ostendorf, Wen-tau
+     Yih, Noah A. Smith, Luke Zettlemoyer, and Tao Yu. One embedder, any task: Instruction-
+     finetuned text embeddings. In Anna Rogers, Jordan Boyd-Graber, and Naoaki Okazaki, editors,
+     Findings of the Association for Computational Linguistics: ACL 2023, pages 1102–1121,
+     Toronto, Canada, July 2023. Association for Computational Linguistics. doi: 10.18653/v1/2023.
+     findings-acl.71. URL https://aclanthology.org/2023.findings-acl.71/.
+
+
+                                                  13
+[58] Chongyang Tao, Tao Shen, Shen Gao, Junshuo Zhang, Zhen Li, Kai Hua, Wenpeng Hu,
+     Zhengwei Tao, and Shuai Ma. Llms are also effective embedding models: An in-depth overview.
+     arXiv preprint arXiv:2412.12591, 2024.
+[59] Gemma Team, Aishwarya Kamath, Johan Ferret, Shreya Pathak, Nino Vieillard, Ramona Merhej,
+     Sarah Perrin, Tatiana Matejovicova, Alexandre Ramé, Morgane Rivière, Louis Rouillard,
+     Thomas Mesnard, Geoffrey Cideron, Jean bastien Grill, Sabela Ramos, Edouard Yvinec,
+     Michelle Casbon, Etienne Pot, Ivo Penchev, Gaël Liu, Francesco Visin, Kathleen Kenealy,
+     Lucas Beyer, Xiaohai Zhai, Anton Tsitsulin, Robert Busa-Fekete, Alex Feng, Noveen Sachdeva,
+     Benjamin Coleman, Yi Gao, Basil Mustafa, Iain Barr, Emilio Parisotto, David Tian, Matan
+     Eyal, Colin Cherry, Jan-Thorsten Peter, Danila Sinopalnikov, Surya Bhupatiraju, Rishabh
+     Agarwal, Mehran Kazemi, Dan Malkin, Ravin Kumar, David Vilar, Idan Brusilovsky, Jiaming
+     Luo, Andreas Steiner, Abe Friesen, Abhanshu Sharma, Abheesht Sharma, Adi Mayrav Gilady,
+     Adrian Goedeckemeyer, Alaa Saade, Alex Feng, Alexander Kolesnikov, Alexei Bendebury,
+     Alvin Abdagic, Amit Vadi, András György, André Susano Pinto, Anil Das, Ankur Bapna,
+     Antoine Miech, Antoine Yang, Antonia Paterson, Ashish Shenoy, Ayan Chakrabarti, Bilal
+     Piot, Bo Wu, Bobak Shahriari, Bryce Petrini, Charlie Chen, Charline Le Lan, Christopher A.
+     Choquette-Choo, CJ Carey, Cormac Brick, Daniel Deutsch, Danielle Eisenbud, Dee Cattle,
+     Derek Cheng, Dimitris Paparas, Divyashree Shivakumar Sreepathihalli, Doug Reid, Dustin
+     Tran, Dustin Zelle, Eric Noland, Erwin Huizenga, Eugene Kharitonov, Frederick Liu, Gagik
+     Amirkhanyan, Glenn Cameron, Hadi Hashemi, Hanna Klimczak-Plucińska, Harman Singh,
+     Harsh Mehta, Harshal Tushar Lehri, Hussein Hazimeh, Ian Ballantyne, Idan Szpektor, Ivan
+     Nardini, Jean Pouget-Abadie, Jetha Chan, Joe Stanton, John Wieting, Jonathan Lai, Jordi
+     Orbay, Joseph Fernandez, Josh Newlan, Ju yeong Ji, Jyotinder Singh, Kat Black, Kathy Yu,
+     Kevin Hui, Kiran Vodrahalli, Klaus Greff, Linhai Qiu, Marcella Valentine, Marina Coelho,
+     Marvin Ritter, Matt Hoffman, Matthew Watson, Mayank Chaturvedi, Michael Moynihan, Min
+     Ma, Nabila Babar, Natasha Noy, Nathan Byrd, Nick Roy, Nikola Momchev, Nilay Chauhan,
+     Noveen Sachdeva, Oskar Bunyan, Pankil Botarda, Paul Caron, Paul Kishan Rubenstein, Phil
+     Culliton, Philipp Schmid, Pier Giuseppe Sessa, Pingmei Xu, Piotr Stanczyk, Pouya Tafti,
+     Rakesh Shivanna, Renjie Wu, Renke Pan, Reza Rokni, Rob Willoughby, Rohith Vallu, Ryan
+     Mullins, Sammy Jerome, Sara Smoot, Sertan Girgin, Shariq Iqbal, Shashir Reddy, Shruti Sheth,
+     Siim Põder, Sijal Bhatnagar, Sindhu Raghuram Panyam, Sivan Eiger, Susan Zhang, Tianqi Liu,
+     Trevor Yacovone, Tyler Liechty, Uday Kalra, Utku Evci, Vedant Misra, Vincent Roseberry, Vlad
+     Feinberg, Vlad Kolesnikov, Woohyun Han, Woosuk Kwon, Xi Chen, Yinlam Chow, Yuvein
+     Zhu, Zichuan Wei, Zoltan Egyed, Victor Cotruta, Minh Giang, Phoebe Kirk, Anand Rao, Kat
+     Black, Nabila Babar, Jessica Lo, Erica Moreira, Luiz Gustavo Martins, Omar Sanseviero, Lucas
+     Gonzalez, Zach Gleicher, Tris Warkentin, Vahab Mirrokni, Evan Senter, Eli Collins, Joelle
+     Barral, Zoubin Ghahramani, Raia Hadsell, Yossi Matias, D. Sculley, Slav Petrov, Noah Fiedel,
+     Noam Shazeer, Oriol Vinyals, Jeff Dean, Demis Hassabis, Koray Kavukcuoglu, Clement Farabet,
+     Elena Buchatskaya, Jean-Baptiste Alayrac, Rohan Anil, Dmitry, Lepikhin, Sebastian Borgeaud,
+     Olivier Bachem, Armand Joulin, Alek Andreev, Cassidy Hardin, Robert Dadashi, and Léonard
+     Hussenot. Gemma 3 technical report, 2025. URL https://arxiv.org/abs/2503.19786.
+[60] James Thorne, Andreas Vlachos, Christos Christodoulopoulos, and Arpit Mittal. Fever: a
+     large-scale dataset for fact extraction and verification. arXiv preprint arXiv:1803.05355, 2018.
+[61] Henning Wachsmuth, Shahbaz Syed, and Benno Stein. Retrieval of the best counterargument
+     without prior topic knowledge. In Proceedings of the 56th Annual Meeting of the Association
+     for Computational Linguistics (Volume 1: Long Papers), pages 241–251, 2018.
+[62] Hongyu Wang, Shuming Ma, Li Dong, Shaohan Huang, Huaijie Wang, Lingxiao Ma, Fan Yang,
+     Ruiping Wang, Yi Wu, and Furu Wei. Bitnet: Scaling 1-bit transformers for large language
+     models. arXiv preprint arXiv:2310.11453, 2023.
+[63] Liang Wang, Nan Yang, Xiaolong Huang, Binxing Jiao, Linjun Yang, Daxin Jiang, Rangan
+     Majumder, and Furu Wei. Text embeddings by weakly-supervised contrastive pre-training.
+     arXiv preprint arXiv:2212.03533, 2022.
+[64] Liang Wang, Nan Yang, Xiaolong Huang, Linjun Yang, Rangan Majumder, and Furu Wei.
+     Improving text embeddings with large language models. In Lun-Wei Ku, Andre Martins,
+     and Vivek Srikumar, editors, Proceedings of the 62nd Annual Meeting of the Association for
+
+
+                                                 14
+     Computational Linguistics (Volume 1: Long Papers), pages 11897–11916, Bangkok, Thailand,
+     August 2024. Association for Computational Linguistics. doi: 10.18653/v1/2024.acl-long.642.
+     URL https://aclanthology.org/2024.acl-long.642/.
+[65] Liang Wang, Nan Yang, Xiaolong Huang, Linjun Yang, Rangan Majumder, and Furu Wei.
+     Multilingual e5 text embeddings: A technical report. arXiv preprint arXiv:2402.05672, 2024.
+[66] Wenhui Wang, Furu Wei, Li Dong, Hangbo Bao, Nan Yang, and Ming Zhou. Minilm: Deep
+     self-attention distillation for task-agnostic compression of pre-trained transformers. Advances
+     in neural information processing systems, 33:5776–5788, 2020.
+[67] Wenhui Wang, Hangbo Bao, Shaohan Huang, Li Dong, and Furu Wei. Minilmv2: Multi-head
+     self-attention relation distillation for compressing pretrained transformers. In Findings of the
+     Association for Computational Linguistics: ACL-IJCNLP 2021, pages 2140–2151, 2021.
+[68] Yutong Wang, Haiyu Wang, and Sai Qian Zhang. Qsvd: Efficient low-rank approximation for
+     unified query-key-value weight compression in low-precision vision-language models. Advances
+     in Neural Information Processing Systems, 38:1789–1820, 2026.
+[69] Xun Wu, Shaohan Huang, Wenhui Wang, Ting Song, Li Dong, Yan Xia, and Furu Wei. Bitnet
+     distillation. arXiv preprint arXiv:2510.13998, 2025.
+[70] Guangxuan Xiao, Ji Lin, Mickael Seznec, Hao Wu, Julien Demouth, and Song Han.
+     Smoothquant: Accurate and efficient post-training quantization for large language models.
+     In International conference on machine learning, pages 38087–38099. PMLR, 2023.
+[71] Lee Xiong, Chenyan Xiong, Ye Li, Kwok-Fung Tang, Jialin Liu, Paul Bennett, Junaid Ahmed,
+     and Arnold Overwijk. Approximate nearest neighbor negative contrastive learning for dense
+     text retrieval. arXiv preprint arXiv:2007.00808, 2020.
+[72] Yuzhuang Xu, Xu Han, Zonghan Yang, Shuo Wang, Qingfu Zhu, Zhiyuan Liu, Weidong Liu,
+     and Wanxiang Che. Onebit: Towards extremely low-bit large language models. Advances in
+     Neural Information Processing Systems, 37:66357–66382, 2024.
+[73] An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu,
+     Chang Gao, Chengen Huang, Chenxu Lv, Chujie Zheng, Dayiheng Liu, Fan Zhou, Fei Huang,
+     Feng Hu, Hao Ge, Haoran Wei, Huan Lin, Jialong Tang, Jian Yang, Jianhong Tu, Jianwei Zhang,
+     Jianxin Yang, Jiaxi Yang, Jing Zhou, Jingren Zhou, Junyang Lin, Kai Dang, Keqin Bao, Kexin
+     Yang, Le Yu, Lianghao Deng, Mei Li, Mingfeng Xue, Mingze Li, Pei Zhang, Peng Wang, Qin
+     Zhu, Rui Men, Ruize Gao, Shixuan Liu, Shuang Luo, Tianhao Li, Tianyi Tang, Wenbiao Yin,
+     Xingzhang Ren, Xinyu Wang, Xinyu Zhang, Xuancheng Ren, Yang Fan, Yang Su, Yichang
+     Zhang, Yinger Zhang, Yu Wan, Yuqiong Liu, Zekun Wang, Zeyu Cui, Zhenru Zhang, Zhipeng
+     Zhou, and Zihan Qiu. Qwen3 technical report. arXiv preprint arXiv:2505.09388, 2025.
+[74] Zhilin Yang, Peng Qi, Saizheng Zhang, Yoshua Bengio, William W Cohen, Ruslan Salakhut-
+     dinov, and Christopher D Manning. Hotpotqa: A dataset for diverse, explainable multi-hop
+     question answering. arXiv preprint arXiv:1809.09600, 2018.
+[75] Zhihang Yuan, Lin Niu, Jiawei Liu, Wenyu Liu, Xinggang Wang, Yuzhang Shang, Guangyu
+     Sun, Qiang Wu, Jiaxiang Wu, and Bingzhe Wu. Rptq: Reorder-based post-training quantization
+     for large language models. arXiv preprint arXiv:2304.01089, 2023.
+[76] Yanzhao Zhang, Mingxin Li, Dingkun Long, Xin Zhang, Huan Lin, Baosong Yang, Pengjun
+     Xie, An Yang, Dayiheng Liu, Junyang Lin, et al. Qwen3 embedding: Advancing text embedding
+     and reranking through foundation models. arXiv preprint arXiv:2506.05176, 2025.
+[77] Penghao Zhao, Hailin Zhang, Qinhan Yu, Zhengren Wang, Yunteng Geng, Fangcheng Fu, Ling
+     Yang, Wentao Zhang, Jie Jiang, and Bin Cui. Retrieval-augmented generation for ai-generated
+     content: A survey. arXiv preprint arXiv:2402.19473, 2024.
+[78] Wayne Xin Zhao, Jing Liu, Ruiyang Ren, and Ji-Rong Wen. Dense text retrieval based on
+     pretrained language models: A survey. ACM Transactions on Information Systems, 42(4):1–60,
+     2024.
+
+
+                                                 15
+[79] Xiangyu Zhao, Maolin Wang, Xinjian Zhao, Jiansheng Li, Shucheng Zhou, Dawei Yin, Qing
+     Li, Jiliang Tang, and Ruocheng Guo. Embedding in recommender systems: A survey. arXiv
+     preprint arXiv:2310.18608, 2023.
+[80] Xinping Zhao, Xinshuo Hu, Zifei Shan, Shouzheng Huang, Yao Zhou, Xin Zhang, Zetian
+     Sun, Zhenyu Liu, Dongfang Li, Xinyuan Wei, et al. Kalm-embedding-v2: Superior training
+     techniques and data inspire a versatile embedding model. arXiv preprint arXiv:2506.20923,
+     2025.
+
+
+A      Training Data
+Following BGE-en-ICL [31], our training data contains retrieval, reranking, classification, clustering,
+and STS tasks:
+
+         • Retrieval: ELI5[18], HotpotQA[74], FEVER[60], MSMARCO passage and document
+           ranking[51], NQ[24], NLI[20], SQuAD[24], TriviaQA[24], Quora Duplicate Questions[13],
+           Arguana[61], FiQA[44].
+         • Reranking: SciDocsRR [12], StackOverFlowDupQuestions [37].
+         • Classification: AmazonReviewsClassification [45], AmazonCounterfactualClassifica-
+           tion [52], Banking77Classification [4], EmotionClassification [55], TweetSentimentEx-
+           tractionClassification [43], MTOPIntentClassification [32], IMDBClassification [42], Toxic-
+           ConversationsClassification [17].
+         • Clustering: Arxiv / Biorxiv / Medrxiv / Reddit / StackExchange Clustering S2S/P2P,
+           TwentyNewsgroupsClustering [27].
+         • STS: STS12 [1], STS22 [10], STS-Benchmark [6].
+
+The total training set includes 2.1 million samples.
+
+B     Evaluation Details
+The instruction for evaluation on MMTEB (eng, v2) is shown in Table 4.
+
+C      Performance on MMTEB
+C.1     Performance Details on MMTEB (eng, v2)
+
+The experiments results of B IT E MBED and teacher models based on Qwen3-0.6B and Gemma3-270M
+across all tasks on MMTEB (eng, v2) are available in Table 5.
+
+C.2     Performance on Multilingual MMTEB
+
+We demonstrate the performance on multilingual MMTEB of B IT E MBED based on Qwen3-0.6B and
+Gemma3-270M in Table 6. In multilingual scenarios, we conduct BitNet-style quantization based on
+the backbone models, and conduct continual pre-training following multilingual E5 [65]. Then we
+conduct distillation-based superivised fine-tuning utilizing the traning data same as harrier-oss-v12 .
+
+C.3     Multi-precision embedding performance on MMTEB (eng, v2)
+
+We demonstrate the performance on MMTEB (eng, v2) of B IT E MBED with multi-precision output
+embeddings in Table 7.
+
+C.4     Performance of post-hoc quantization baselines on MMTEB (eng, v2)
+
+We demonstrate the performance on MMTEB (eng, v2) of post-hoc quantization baseline with
+multi-precision output embeddings in Table 8.
+    2 https://huggingface.co/microsoft/harrier-oss-v1-0.6b
+
+
+
+
+                                                             16
+Task Name                                Instruction Template
+ArguAna                                  Given a claim, find documents that refute the claim.
+CQADupstackGamingRetrieval               Given a question, retrieve detailed question descriptions from Stackexchange that are
+                                         duplicates to the given question.
+CQADupstackUnixRetrieval                 Given a question, retrieve detailed question descriptions from Stackexchange that are
+                                         duplicates to the given question.
+ClimateFEVER                             Given a claim about climate change, retrieve documents that support or refute the claim.
+FEVERHardNegatives                       Given a claim, retrieve documents that support or refute the claim
+FiQA2018                                 Given a financial question, retrieve user replies that best answer the question.
+HotpotQAHardNegatives                    Given a multi-hop question, retrieve documents that can help answer the question
+SCIDOCS                                  Given a scientific paper title, retrieve paper abstracts that are cited by the given paper.
+TRECCOVID                                Given a query on COVID-19, retrieve documents that answer the query.
+Touche2020Retrieval.v3                   Given a question, retrieve detailed and persuasive arguments that answer the question
+STS*                                     Retrieve semantically similar text.
+SummEvalSummarization.v2                 Given a news summary, retrieve other semantically similar summaries.
+AmazonCounterfactualClassification       Classify a given Amazon customer review text as either counterfactual or not-
+                                         counterfactual.
+Banking77Classification                  Given a online banking query, find the corresponding intents.
+ImdbClassification                       Classify the sentiment expressed in the given movie review text from the IMDB dataset.
+MTOPDomainClassification                 Classify the intent domain of the given utterance in task-oriented conversation.
+MassiveIntentClassification              Given a user utterance as query, find the user intents.
+MassiveScenarioClassification            Given a user utterance as query, find the user scenarios.
+ToxicConversationsClassification         Classify the given comments as either toxic or not toxic.
+TweetSentimentExtractionClassification   Classify the sentiment of a given tweet as either positive, negative, or neutral.
+ArXivHierarchicalClusteringP2P           Identify the main and secondary category of Arxiv papers based on the titles and abstracts.
+ArXivHierarchicalClusteringS2S           Identify the main and secondary category of Arxiv papers based on the titles.
+BiorxivClusteringP2P.v2                  Identify the main category of Biorxiv papers based on the titles and abstracts.
+MedrxivClusteringP2P.v2                  Identify the main category of Medrxiv papers based on the titles and abstracts.
+MedrxivClusteringS2S.v2                  Identify the main category of Medrxiv papers based on the titles.
+StackExchangeClustering.v2               Identify the topic or theme of StackExchange posts based on the titles.
+StackExchangeClusteringP2P.v2            Identify the topic or theme of StackExchange posts based on the given paragraphs.
+TwentyNewsgroupsClustering.v2            Identify the topic or theme of the given news articles
+SprintDuplicateQuestions                 Retrieve duplicate questions from Sprint forum.
+TwitterSemEval2015                       Retrieve tweets that are semantically similar to the given tweet.
+TwitterURLCorpus                         Retrieve tweets that are semantically similar to the given tweet.
+AskUbuntuDupQuestions                    Retrieve duplicate questions from AskUbuntu forum.
+MindSmallReranking                       Retrieve relevant news articles based on user browsing history.
+
+                                     Table 4: Task instructions for MMTEB.
+
+
+
+
+                                                              17
+ Dataset                                  BITEMBEDQwen3 TeacherQwen3 BITEMBEDgemma3 Teachergemma3
+ AmazonCounterfactualClassification               92.19           92.53            91.55             91.80
+ ArXivHierarchicalClusteringP2P                   64.10           64.43            61.56             61.99
+ ArXivHierarchicalClusteringS2S                   59.97           62.10            58.89             58.97
+ ArguAna                                          62.81           66.14            54.77             64.51
+ AskUbuntuDupQuestions                            58.72           58.32            56.40             59.09
+ BIOSSES                                          85.50           86.78            83.42             81.82
+ Banking77Classification                          89.13           88.24            85.25             89.64
+ BiorxivClusteringP2P.v2                          50.62           50.46            49.35             47.47
+ CQADupstackGamingRetrieval                       54.94           54.90            47.80             52.19
+ CQADupstackUnixRetrieval                         37.19           41.83            30.39             37.37
+ ClimateFEVERHardNegatives                        42.38           41.61            38.00             41.74
+ FEVERHardNegatives                               88.78           89.35            89.41             88.45
+ FiQA2018                                         39.63           44.37            37.14             38.31
+ HotpotQAHardNegatives                            70.84           73.24            71.71             73.84
+ ImdbClassification                               95.07           95.22            94.79             94.49
+ MTOPDomainClassification                         97.11           96.84            95.56             97.60
+ MassiveIntentClassification                      73.90           73.75            71.52             73.98
+ MassiveScenarioClassification                    77.62           76.72            74.02             78.04
+ MedrxivClusteringP2P.v2                          47.42           46.79            44.80             45.04
+ MedrxivClusteringS2S.v2                          44.70           44.25            40.44             40.80
+ MindSmallReranking                               28.09           29.47            27.87             27.69
+ SCIDOCS                                          21.33           23.28            20.27             22.00
+ SICK-R                                           80.66           80.46            80.63             79.94
+ STS12                                            78.15           74.39            77.00             76.75
+ STS13                                            81.38           82.25            81.16             80.50
+ STS14                                            78.60           79.33            78.70             78.33
+ STS15                                            87.28           86.72            87.18             85.97
+ STS17                                            89.23           90.01            89.59             89.99
+ STS22.V2                                         65.78           66.04            67.70             67.37
+ STSBenchmark                                     83.80           84.47            84.12             84.42
+ SprintDuplicateQuestions                         96.71           95.89            94.97             92.88
+ StackExchangeClustering.v2                       71.55           73.78            68.82             70.44
+ StackExchangeClusteringP2P.v2                    45.40           44.39            45.85             46.98
+ SummEvalSummarization.v2                         32.06           31.87            32.97             28.36
+ TRECCOVID                                        67.65           65.13            73.22             57.57
+ Touche2020Retrieval.v3                           54.74           53.87            52.02             53.72
+ ToxicConversationsClassification                 89.17           90.62            91.69             90.69
+ TweetSentimentExtractionClassification           77.64           77.06            77.64             76.10
+ TwentyNewsgroupsClustering.v2                    59.57           57.07            54.83             59.11
+ TwitterSemEval2015                               66.91           66.54            62.52             64.81
+ TwitterURLCorpus                                 84.30           85.26            83.91             84.30
+ avg                                              67.60           67.95            66.10             66.71
+
+                              Table 5: Detail results in MMTEB (eng, v2).
+
+
+
+
+ Model                        Bitext      Cls.       Clust.    PairCls.   Rerank     Retr.   STS        Avg.
+ Backbone: Qwen3-0.6B
+ FP16 teacher                  82.85      73.88      54.00      82.07     63.16      70.15   77.09      69.00
+ B IT E MBEDmultilingual       81.47      72.65      53.06      80.47     62.12      68.33   74.97      67.49
+ Backbone: Gemma3-270M
+ FP16 teacher            81.54            71.84      52.51      80.12     61.90      66.38   75.35      66.55
+ B IT E MBEDmultilingual 80.47            71.09      52.37      79.72     60.50      66.71   74.35      66.26
+
+Table 6: Performance of B IT E MBED on multilingual MMTEB based on Qwen3-0.6B and Gemma3-
+270M.
+
+
+
+
+                                                          18
+  Model                 Cls.   Clust.     PairCls.      Rerank     Retr.     STS    Summ.    Avg.
+  Backbone: Qwen3-0.6B
+  B IT E MBED-1bit  85.69      52.95       80.71        40.98      45.85    79.75    31.89   64.43
+  B IT E MBED-2bit  85.77      53.25       80.88        41.61      47.17    79.92    31.82    64.9
+  B IT E MBED-4bit  86.19      55.24        82.2        43.19      53.86    81.12    32.11   67.45
+  B IT E MBED-8bit  86.19       55.4       82.3         43.46      54.03    81.16    32.15   67.55
+  B IT E MBED-16bit 86.49      55.42       82.30        43.41      54.03    81.15    32.06   67.60
+  Backbone: Gemma3-270M
+  B IT E MBED-1bit  83.83      51.15       79.36        40.55      42.53    81.05    29.84   63.01
+  B IT E MBED-2bit  83.91      51.25       79.64        41.19      43.22    80.88    30.30   63.24
+  B IT E MBED-4bit  84.99      52.23       80.91        42.17      51.11    81.16    32.55   65.96
+  B IT E MBED-8bit  85.26      53.07       80.47        42.25      51.50    81.09    32.96   66.11
+  B IT E MBED-16bit 85.25      53.07       80.47        42.14      51.47    81.09    32.97   66.10
+
+Table 7: Performance on MMTEB (eng, v2) across multi-precision output embeddings of B IT E MBED.
+The “-bbit" denotes the output embeddings of B IT E MBED are stored and scored at b-bit precision.
+
+
+
+
+  Model          Cls.     Clust.    PairCls.       Rerank        Retr.     STS      Summ.    Avg.
+  Post-1bit     85.37      52.91        81.3         39.24       43.21     79.93    32.19    63.71
+  Post-2bit     85.52      53.12        81.26        39.94       44.07     80.11    30.63    64.03
+  Post-4bit     85.15      54.45        82.43        42.69       53.05     80.88    29.71    66.31
+  Post-8bit     86.46      54.86        82.52        42.73       53.58     80.94    30.95    67.29
+  Post-16bit    86.46      55.06        82.52        42.68       53.55     80.94    30.93    67.31
+
+Table 8: Performance on MMTEB (eng, v2) across multi-precision output embeddings of post-
+hoc quantization baseline whose baskbone model is Qwen3-0.6B. The “-bbit" denotes the output
+embeddings of baseline are stored and scored at b-bit precision.
+
+
+
+
+                                                   19
+

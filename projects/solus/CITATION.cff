@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use Solus, please cite this work."
+title: "Solus: A Family of Open Large Language Models"
+authors:
+  - family-names: "Aurelius Research"
+    email: "research@aurelius.ai"
+    organization: "Aurelius Research"
+type: software
+license: Apache-2.0
+repository-code: "https://github.com/NousResearch/Hermes"
+url: "https://aurelius.ai"
+references:
+  - type: software
+    title: "Solus-7B Dense"
+    version: "0.1.0"
+    authors:
+      - family-names: "Aurelius Research"
+        email: "research@aurelius.ai"
+    year: "2026"
+    notes: "6.868B-parameter dense Transformer; trained at Aurelius Research"
+  - type: software
+    title: "Solus-MoE-8B"
+    version: "0.1.0"
+    authors:
+      - family-names: "Aurelius Research"
+        email: "research@aurelius.ai"
+    year: "2026"
+    notes: "8.025B-parameter mixture-of-experts model; 8 experts × top-2 routing; trained at Aurelius Research"

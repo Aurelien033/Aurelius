@@ -1,0 +1,38 @@
+# sft_fim_tools_preregistration.yaml
+# Fill-in-the-Middle training for tool arguments and code
+id: FIM-SFT-PREREG-v0.1
+status: design_draft
+
+reframed_question: >
+  Does converting a fraction of SFT examples to Fill-in-the-Middle format
+  (prefix + suffix -> middle) improve structured output generation for
+  tool calls and code, compared to standard next-token-prediction SFT?
+
+motivation: >
+  FIM is proven for code generation (CodeLlama, StarCoder). The mechanism
+  should transfer to structured tool calls: when the model sees both the
+  leading context (partial call) and the expected output structure (suffix),
+  it should generate better middle arguments.
+
+design:
+  base: "Aurelius 1.3B or Qwen2.5-0.5B"
+  fim_ratios: [0.0, 0.3, 0.5]
+  data:
+    tool: glaiveai/glaive-function-calling-v2
+    code: mbpp, humaneval
+  module: "src/training/fim_sft.py"
+
+hypotheses:
+  H-FIM-0 (tool improvement): >
+    "FIM ratio=0.3 improves tool argument accuracy 5-10% over standard SFT
+    (FIM=0.0) on held-out function-calling tasks."
+  H-FIM-1 (code improvement): >
+    "FIM ratio=0.3 improves code pass rate 5-10% over standard SFT."
+  H-FIM-2 (no fluency penalty): >
+    "Free-form generation perplexity does not degrade more than 2% under
+    FIM training vs standard SFT."
+
+kill_decision_map:
+  - "H-FIM-0 fails: FIM does not improve tool accuracy. -> FIM does not transfer to tool calls; may be specific to code."
+  - "H-FIM-2 fails: fluency degrades. -> Reduce FIM ratio or keep FIM for code only."
+  - "FIM-KILL: FIM conversion adds >50% preprocessing time without accuracy gain."

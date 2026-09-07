@@ -31,6 +31,10 @@ export const config = {
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
   allowPublicRegistration: process.env.ALLOW_PUBLIC_REGISTRATION === 'true' ? true : false,
   serviceApiKey: process.env.AURELIUS_SERVICE_KEY || process.env.AURELIUS_API_KEY || '',
+  // H-25 (CSV): BFF persistence — ephemeral mode (in-memory) when no DATABASE_URL
+  // is configured, SQLite-backed when set. Fail-safe: default ephemeral.
+  ephemeralMode: !process.env.DATABASE_URL,
+  databaseUrl: process.env.DATABASE_URL || 'sqlite:data/bff.db',
 }
 
 export function validateConfig(cfg: typeof config): void {

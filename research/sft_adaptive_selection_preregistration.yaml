@@ -1,0 +1,33 @@
+# sft_adaptive_selection_preregistration.yaml
+# Adaptive data selection by model uncertainty for SFT
+id: ADAPT-SFT-PREREG-v0.1
+status: design_draft
+
+reframed_question: >
+  Not all SFT examples contribute equally. Examples with moderate model
+  uncertainty (loss 2-4 nats) carry the most learning signal. Can adaptive
+  sampling by per-example loss improve SFT sample efficiency?
+
+design:
+  base: "Aurelius 1.3B"
+  n_examples: 500
+  temperature_schedule: [10.0 -> 1.0]
+  ablations: [uniform, adaptive_full, adaptive_half_epochs]
+  module: "src/training/adaptive_sft.py"
+  builds_on: "src/data/importance_sampler.py"
+
+hypotheses:
+  H-ADAPT-0 (efficiency): >
+    "Adaptive sampling reaches the same held-out accuracy in 30% fewer
+    steps compared to uniform sampling."
+  H-ADAPT-1 (signal focus): >
+    "The weight distribution across examples in later epochs is concentrated
+    on examples with loss in [2, 4] nats range."
+  H-ADAPT-2 (no instability): >
+    "Adaptive sampling does not cause training instability (loss spikes,
+    gradient norm explosions) compared to uniform sampling."
+
+kill_decision_map:
+  - "H-ADAPT-0 fails: no efficiency gain. -> The benefit of importance sampling may be dataset-dependent; try different temperature schedules."
+  - "H-ADAPT-2 fails: instability. -> Lower temperature_end to 2.0 (less aggressive selection)."
+  - "ADAPT-KILL: adaptive overhead (loss computation + resampling) exceeds 20% of training time without speedup."

@@ -1,0 +1,1721 @@
+                                                S2-CAR: Segmentation-Supervised Complexity-Adaptive
+                                                                 Recommendation
+                                                 Linjiang Guoa , Nitin Bishta , Shiqing Wub , Xianzhi Wanga , Guandong Xuc,∗
+                                                       a
+                                                     University of Technology Sydney, 15 Broadway, Ultimo, 2007, NSW, Australia
+                                                   b
+                                                  City University of Macau, Avenida Padre Tomás Pereira, Taipa, Macau SAR, China
+                                           c
+                                             The Education University of Hong Kong, 10 Lo Ping Road, Tai Po, New Territories, Hong Kong
+                                                                                    SAR, China
+
+
+
+
+                                         Abstract
+
+
+
+
+arXiv:2606.25415v1 [cs.IR] 24 Jun 2026
+                                         Sequential recommendation aims to predict user preferences from interaction histories,
+                                         yet existing models often struggle when behavior patterns become complex and hetero-
+                                         geneous. A key reason is that interaction histories are rarely uniform: users’ interests
+                                         shift in a latent way over time, yet existing models either treat the full sequence as
+                                         a homogeneous context or rely on rigid time-window segmentation that misaligns with
+                                         true intent boundaries. This mis-segmentation not only introduces cross-intent inter-
+                                         ference at intermediate sequence positions but also leads to over-reliance on short-term
+                                         interest signals. To address this, we propose S2-CAR, a segmentation-supervised and
+                                         complexity-adaptive framework for sequential recommendation that models user intent
+                                         as a continuous latent energy state. Specifically, it uses the Context-Aware Soft Tem-
+                                         poral Point Process (Soft-TPP) to segment boundaries triggered by the natural decay
+                                         of latent-state energy rather than fixed intervals, enabling intent segmentation without
+                                         fixed time-gap rules. Next, upon this segmentation, a Segment-Count-Adaptive Multi-
+                                         Intent Extraction module hierarchically aggregates intent-coherent segments into a com-
+                                         pact set of multi-interest representations. Extensive experiments on 3 representative
+                                         public benchmark datasets spanning movie, e-commerce, and gaming domains across 13
+                                         baselines demonstrate that S2-CAR consistently outperforms state-of-the-art methods
+                                         across all datasets and metrics. Further analysis shows that the proposed energy-based
+                                         segmentation serves as a plug-and-play module, yielding consistent improvements when
+                                         integrated into existing sequential recommendation backbones.
+                                         Keywords: Sequential Recommendation; Temporal Point Process; Intent Segmentation;
+                                         Contrastive Learning
+
+
+                                         1. Introduction
+                                            Sequential recommendation aims to predict a user’s next interaction by modeling their
+                                         behavior history (Fang et al., 2020; Li et al., 2021; Peng et al., 2025). Modeling long be-
+                                         havior sequences has become increasingly important for capturing both recent interests
+                                         and long-range preferences, given the rapid growth of user activity on modern plat-
+                                         forms. Existing sequential recommendation models, such as recurrent architectures (e.g.,
+                                         GRU4Rec (Hidasi et al., 2015)) and self-attention-based methods (e.g., SASRec (Kang
+
+                                           ∗
+                                               Corresponding author. Email: gdxu@eduhk.hk
+                                               Email address: gdxu@eduhk.hk (Guandong Xu)
+and McAuley, 2018) and BERT4Rec (Sun et al., 2019)), have achieved strong performance
+by learning item-transition patterns from historical interactions. Despite their effective-
+ness, they often struggle when sequences become long and behavior patterns become
+increasingly complex. As illustrated in Figure 1a, a key reason is that long interaction
+histories are rarely homogeneous, with users’ interests often shifting rapidly, leading to a
+noisy collaborative signal. Conversely, user preferences sometimes persist across temporal
+sessions, resulting in context dilution. Under such scenarios, existing models can blur the
+distinction between genuine recent intent and irrelevant or repeated historical signals.
+     To empirically validate this problem, we conduct an empirical study using SASRec as
+a representative sequential backbone, in which we randomly remove half of the items from
+either the last segment (as a proxy for short-term interest) or the middle segment (as a
+proxy for long-term interest) of each user’s interaction history, and evaluate the resulting
+change in sequential recommendation performance in terms of recommendation metric,
+i.e., Recall@10. Interestingly, as illustrated in Figure 1b, two key observations emerge.
+First, for a subset of users, deleting items from the middle segment does not degrade
+performance; instead, it even improves it. This observation suggests a phenomenon:
+existing models are insensitive to middle-segment content, and this insensitivity becomes
+more pronounced as sequence length increases. Whether this stems from cross-intent noise
+accumulated in the middle portion, or from boundary definition errors inherent in the
+fixed segmentation used to construct the experiment, both explanations converge on the
+same underlying failure: existing models systematically under-utilize interaction signals
+embedded in the middle of long sequences. We later revisit this protocol in Section 4.10
+to evaluate whether the proposed model resolves this limitation. Second, deleting items
+from the last segment results in consistent, increasingly severe performance degradation
+as sequence length increases, indicating that existing models remain heavily reliant on
+short-term signals. Together, these findings suggest that the core challenge in sequential
+recommendation is not merely the attenuation of early interactions over time, but the
+absence of a principled mechanism for identifying genuine intent boundaries, without
+which models cannot reliably distinguish informative historical signals from irrelevant or
+redundant ones.
+     Recently, some papers have tried to mitigate this issue. Hierarchical methods (Quad-
+rana et al., 2017; Sharma et al., 2024; Zhang et al., 2025) attempt to partition the in-
+teraction sequence into sub-sessions before modeling. Similarly, segmentation strategies
+typically rely on fixed (e.g., 30-minute) gap-based (Ludewig and Jannach, 2018; Wang
+et al., 2021), token-similarity-based fragment reorganization (Li et al., 2024), or multi-
+intent projection (Choi et al., 2024) and aggregation mechanisms (Long et al., 2025).
+However, these approaches share a common limitation: their segmentation criteria are
+largely heuristic and are defined independently of the user’s actual behavioral dynamics.
+In the real world, such strategies frequently fail because they conflate temporal distance
+with co-occurrence divergence, causing asynchronous intent shifts to be mishandled. For
+example, a user may revisit the same intent after a long pause or switch interests within
+a short session. Additionally, existing multi-interest modules usually allocate a uniform
+slot capacity to all segments, ignoring that segments can differ substantially in temporal
+span and internal uncertainty.
+     To solve this, we propose our novel framework: Segmentation-Supervised Hierarchical
+Multi-Intent Network with Complexity-Adaptive Regularization S2-CAR. However, we
+face the following technical challenges: (1) how to infer intent boundaries from behavioral
+dynamics rather than fixed temporal-window rules; (2) how to compactly represent re-
+
+
+                                             2
+                                                                                                                                                 5 H P R Y D O  L Q  / D V W  V H J P H Q W             5 H P R Y D O  L Q  0 L G G O H  V H J P H Q W
+                                  Category Change within fixed Interval
+                                                                                                                              
+
+
+
+                                                                                                             5 H F D O O #  
+   User Interest:      H10            H10             H11      Category       H11          H12
+  Non-persistent    [Appliance]    [Appliance]     [Appliance] Transition [Electronics][Electronics]
+
+                                                 Fixed Temporal Segment
+
+
+                                                    Single Continuous Interest
+                                    Segment N                                     Segment N+1
+
+
+                                                                                                                                                                                       
+                                                                                                                                                                                                   
+                                                                                                                                                                                                                  
+                                                                                                                                                                                                                       
+                                                                                                                                                                                                                                      
+                                                                                                                                                                                                                                           
+                                                                                                                                                                                                                                                         
+                                                                                                                                                                                                                                                              
+  User Interest:        H10            H12             H13                  H70              H70                                                                                                                                 
+                    [Apparel]       [Apparel]        [Apparel]          [Apparel]        [Apparel]
+    Persistent                                                                                                                                                6 H T X H Q F H  / H Q J W K  * U R X S    V K R U W    O R Q J 
+
+(a) Two toy failure modes of fixed temporal segmentation:                                                  (b) Performance impact of random item deletion from the
+missed intent transitions within a segment and artificial split-                                           last segment (short-term interest proxy) and middle segment
+ting of a persistent interest across segments. H denotes the                                               (long-term interest proxy) across sequence length groups,
+timestamp of interactions (in hours).                                                                      measured by ∆ Recall@10 (deleted sequence minus original
+                                                                                                           sequence; positive values indicate improvement after dele-
+                                                                                                           tion, and negative values indicate degradation).
+
+                    Figure 1: Limitations of fixed temporal segmentation in sequential recommendation.
+
+
+curring and heterogeneous interests without allocating redundant capacity; and (3) how
+to regularize sequential representations with segment-level structure without sacrificing
+inference-time causal fidelity. To answer this, we first partition the continuous interaction
+stream into behaviorally coherent segments. We introduce a Context-Aware Soft Tempo-
+ral Point Process that models the user’s latent intent as a continuous-time energy state
+decaying between interactions. A segment boundary is triggered only when the energy
+retention ratio falls below a dataset-specific threshold, resulting in task-specific intent
+segments without manually annotated boundary labels. Next, to compress K intent seg-
+ments into a compact set of interest slots that adapts to segment complexity, we propose
+a Segment-Count-Adaptive Multi-Intent Extraction module, where a compression ratio
+ρ consolidates cross-segment redundancy caused by periodic behavioral recurrence and
+prevents capacity waste in the interest representation. Finally, to bridge the structural
+gap between fine-grained sequential representations and globally balanced multi-interest
+representations, we design a Hierarchical Interest Encoder that serves as a contrastive
+supervision path, aligning the two complementary views via a contrastive loss without
+degrading inference-time sequential fidelity.
+    The main contributions of this paper are summarized as follows:
+
+       • We propose a Context-Aware Soft-TPP for unsupervised energy-based intent seg-
+         mentation. The resulting boundary flags guide downstream modules without requir-
+         ing manually annotated boundary labels, replacing rigid fixed-window partitioning
+         strategies while remaining fully compatible with end-to-end training pipelines.
+
+       • We introduce a Segment-Count-Adaptive Multi-Intent Extraction mechanism that
+         adaptively gates the number of active interest slots according to segment count and
+         consolidates periodic cross-segment redundancy using a validation-selected com-
+         pression ratio ρ.
+
+       • We further design a decoupled Hierarchical Interest Encoder that provides struc-
+         turally balanced supervision during training and regularizes the Sequential Inference
+         Encoder via contrastive loss.
+
+       • We conduct extensive experiments on three representative public benchmark datasets
+         (movie, e-commerce, and gaming domains) against 13 baselines, demonstrating that
+
+
+                                                                                                       3
+      S2-CAR consistently achieves state-of-the-art performance, with particularly signif-
+      icant gains for users with long and complex interaction histories.
+
+2. Related Work
+2.1. Sequential Recommendation
+    Sequential recommendation aims to model the dynamic evolution of user preferences
+by leveraging chronologically ordered interaction histories to predict the next item of
+interest (Wang et al., 2021). Early work in this area employed recurrent neural networks
+to capture temporal dependencies: GRU4Rec (Hidasi et al., 2015) introduced session-
+parallel mini-batching with gated recurrent units, while Caser (Tang and Wang, 2018)
+reframed the problem as image recognition by applying convolutional filters over a sliding
+window of recent item embeddings to capture short-range transition patterns. The advent
+of the Transformer architecture brought a significant paradigm shift. SASRec (Kang and
+McAuley, 2018) demonstrated that a lightweight unidirectional self-attention mechanism
+could outperform recurrent models by adaptively attending to relevant items across the
+full sequence. BERT4Rec (Sun et al., 2019) extended this line by adopting bidirectional
+attention with a cloze-style masked item prediction objective, enriching item representa-
+tions with both left- and right-context signals.
+    Despite their strong empirical performance on standard benchmarks, these methods
+share a weakness when applied to long interaction sequences. The autoregressive ag-
+gregation chain inherent to both recurrent and attention-based encoders progressively
+attenuates the influence of early interactions, causing relevant historical interactions to
+be buried in the middle of long sequences. This issue is analogous to the ’Lost-in-the-
+Middle’ phenomenon observed in large language models (Liu et al., 2024; Zhang et al.,
+2024), where critical context positioned in the middle of a long input tends to be system-
+atically under-utilized by autoregressive decoders.
+    To alleviate the resulting noise and intent ambiguity in long interaction sequences,
+several methods introduce session-based segmentation as a preprocessing step. TL-
+SRec (Chen et al., 2022) adopts a fixed time-gap threshold to split sequences into sub-
+sessions, while other approaches apply sliding windows of fixed length (Tang and Wang,
+2018; Qin et al., 2024; Wang et al., 2025). However, these segmentation criteria are defined
+independently of the user’s actual behavioral dynamics: fixed windows are insensitive to
+asynchronous intent shifts, and raw time-gap thresholds conflate temporal distance with
+co-occurrence divergence, as a user may revisit the same intent after a prolonged pause
+or transition to a new interest within a single short session.
+
+2.2. Multi-Interest Recommendation
+    A single vector representation is often insufficient to capture the heterogeneous and
+evolving nature of user preferences, motivating a line of research on multi-interest model-
+ing (Deng and Hu, 2024; Li et al., 2025; Lv et al., 2025). Early work in this direction, such
+as MIND (Li et al., 2019) and ComiRec (Cen et al., 2020), introduced capsule routing and
+multi-head attention mechanisms, respectively, to extract a fixed set of interest vectors
+from the full interaction history, where each vector encodes a stable, recurring preference
+pattern of the user. SINE (Tan et al., 2021) further improved scalability by sparsely
+activating only a subset of conceptual prototypes for each user, reducing the redundancy
+inherent in dense multi-interest representations. DSSRec (Ma et al., 2020) introduces
+latent self-supervision to disentangle multiple behavioral factors from the interaction
+
+                                             4
+sequence, enabling the model to separately represent and recombine independent user
+motivations. MiaSRec (Choi et al., 2024) augments the standard Transformer encoder
+with a multi-intent module that routes each item to several latent embeddings, allowing
+concurrent tracking of multiple evolving interests within a unified architecture.
+    A related but distinct line of work focuses on modeling short-term user intent, i.e., the
+immediate behavioral goal driving a specific interaction session, rather than long-term
+interest patterns. NOVA (Liu et al., 2021a) introduces non-invasive self-supervised sig-
+nals to capture intent-level transitions without modifying the primary sequence encoder.
+ICSRec (Qin et al., 2024) decomposes interaction histories into intent-homogeneous sub-
+sequences through item clustering and applies contrastive learning at the intent level to
+explicitly align representations of sequences sharing the same underlying user purpose.
+    Despite operating at different granularities, these approaches share two common lim-
+itations. First, they allocate a uniform number of interest slots across all users and
+sessions, ignoring the substantial variability in temporal span and behavioral complex-
+ity across different interaction phases. Next, they do not account for periodic intent
+recurrence, wherein the same short-term goal manifests repeatedly across non-adjacent
+sessions; without explicit consolidation, the same underlying interest is wastefully re-
+allocated to multiple redundant slots rather than being unified into a single compact
+representation.
+
+2.3. Temporal Point Process
+    Temporal Point Processes (TPPs) provide a principled probabilistic framework for
+modeling the occurrence of discrete events in continuous time (Daley and Vere-Jones,
+2003). Classical TPP models, including the Hawkes process (Hawkes, 1971) and its vari-
+ants, such as the self-correcting process (Isham and Westcott, 1979) and the mutually ex-
+citing multivariate Hawkes process, capture self-exciting or inhibitory dynamics through
+parametric intensity kernels, but rely on functional forms that limit their expressiveness
+in complex real-world settings.
+    Neural TPP models overcome this limitation by parameterizing the intensity function
+with recurrent or attention-based architectures. RMTPP (Du et al., 2016) first demon-
+strated that a recurrent neural network could jointly model event types and inter-event
+times by encoding the full event history into a continuous hidden state. NHP (Mei and
+Eisner, 2017) extended this line with a continuous-time LSTM that evolves the hidden
+state between events according to an exponential decay, enabling more faithful model-
+ing of the inter-event dynamics. Recent work further replaced recurrence with Neural
+TPP models, achieving strong performance on event streams such as financial transac-
+tions (Du et al., 2016), social network activities (Zhao et al., 2015), and electronic health
+records (Mei and Eisner, 2017).
+    In the context of user behavior modeling, TPPs have been applied primarily to next-
+event time prediction, estimating when a user will next interact with the system. Coe-
+volving method (Wang et al., 2016) models the co-evolution of user and item states in
+continuous time using coupled point processes, capturing the mutual influence between
+user engagement and item popularity dynamics. THRNN (Vassøy et al., 2019) introduces
+a joint hierarchical RNN and a point process model that jointly models session-level and
+event-level dynamics, providing a closer connection to the session structure inherent in
+recommendation settings. TLSRec (Chen et al., 2022) incorporates inter-event intervals
+as auxiliary signals to modulate attention weights in a sequential encoder, improving
+sensitivity to temporal irregularity. However, it treats temporal information purely as
+
+
+                                             5
+                          Prediction                                  ={                       }
+
+
+                                                                                                                             ...
+                     Contrastive Loss                          0.04        0.07         0.01       0.04   0.09                          0.03
+
+                                                                                Number of
+          SIE                                  HIE
+                                                                                Interest
+
+
+
+                                                                                                                                   Max & Mean
+       Transformer                       Multi-interest
+         Encoder                          Extraction
+                                                                ...                                       ...
+                                           Additive                                Cross
+        MS-RoPE                                                                   Attention
+                                          Attention
+                                                              Segment
+                                                              Representation
+
+                                                              Temporal            ...
+                                               ...
+             <sin, cos>
+     Item     Rotate                   Context-Aware                             MLE                                   ...
+   Embedding Embedding                   Soft-TPP                              Training
+
+
+                                       ...                    Category            ...                           Split Point
+
+
+
+Figure 2: Overview of our proposed framework. A frozen Soft-TPP model produces binary boundary
+flags from the raw interaction sequence. The Sequential Inference Encoder uses a boundary-aware causal
+Transformer with MS-RoPE to produce the user embedding ufor next-item scoring. The Hierarchical
+Interest Encoder builds segment-level multi-interest representations and provides a contrastive regular-
+ization signal.
+
+
+a feature rather than exploiting it as a generative mechanism for inferring latent in-
+tent structure. Our proposed method S2-CAR introduces a Soft-TPP that models the
+user’s latent intent as a scalar retention ratio governed by a context-adaptive ordinary
+differential equation; a segment boundary is triggered when the energy retention ratio
+drops below a dataset-specific threshold, yielding task-specific intent segments without
+manually annotated boundary labels or fixed time-gap rules.
+
+3. Methodology
+    In this section, we introduce our novel framework (S2-CAR), a Segmentation-Supervised
+Hierarchical Multi-Intent Network with Complexity-Adaptive Regularization. We begin
+by introducing the notations used in the paper, which are summarized in Table 1. Let U
+and V denote the sets of users and items, respectively. For a user u, the interaction his-
+tory is a chronologically ordered sequence S = {(v1 , c1 , t1 ), (v2 , c2 , t2 ), . . . , (vN , cN , tN )},
+where vi ∈ V is the interacted item, ci is its category, and ti is the timestamp. The task
+is to predict the next item vN +1 given the sequence S.
+
+3.1. Framework Overview
+    A challenge in sequential recommendation is that a user’s intent is not static, as
+it shifts across different temporal phases of their interaction history. Existing methods
+either ignore these shifts entirely or rely on heuristic-selected fixed-length windows or raw
+time-gaps to partition the sequences (Chen et al., 2022; Qin et al., 2024). While fixed
+windows are insensitive to actual behavioral transitions, raw time-gaps are a poor proxy
+for intent boundaries (i.e., a user may return to the same interest after a long pause, or
+shift to an entirely different one within a single short session).
+    To solve this, we treat intent as a continuous latent state that decays between interac-
+tions. A boundary is considered when the residual energy of the latent state drops below
+
+                                                          6
+a threshold, indicating a genuine intent transition. This segmentation is learned using a
+temporal point process objective and then frozen, such that downstream modules always
+receive behaviorally coherent segments rather than arbitrary chunks. The overall frame-
+work (as illustrated in Figure 2) contains a Sequential Inference Encoder and a Hierarchi-
+cal Interest Encoder branch that share the same boundary-aware token representations
+but serve distinct roles. Firstly, a Context-Aware Soft Temporal Point Process (abbrevi-
+ated as Soft-TPP hereafter) model is pretrained to capture the continuous-time dynamics
+of user intent. After pretraining, it is frozen and used to produce binary boundary flags
+(Section 3.2). The Sequential Inference Encoder (Section 3.3) consists of a boundary-
+aware causal Transformer with Multi-Scale Rotary Position Embedding (MS-RoPE) that
+encodes the full item sequence and extracts the user embedding ufrom the last valid
+position. This embedding is directly used for next-item scoring. The Hierarchical Inter-
+est Encoder (Section 3.4) is an auxiliary training branch built on top of the SIE hidden
+states: it uses the frozen TPP boundary flags to aggregate token-level representations
+into segment-level representations, extracts multi-interest vectors via cross-attention, and
+provides a contrastive supervision signal during training.
+
+3.2. Context-Aware Soft-TPP
+3.2.1. Continuous-Time Intent Dynamics
+    To capture how user intent evolves between consecutive interactions, we model the
+latent intent as a d-dimensional energy vector e(t) ∈ Rd . The scalar event intensity λ(t) is
+defined as the squared ℓ2 norm of this vector, i.e., λ(t) = |e(t)|22 . For boundary detection,
+we further derive a scalar retention ratio ri by averaging the per-dimension exponential
+retention values. Intuitively, e(t) reflects how strongly the current intent remains active
+over time. We define the latent state as:
+
+                                  e(t) = exp(−δ i (t − ti )) ,                            (1)
+
+where δ i ∈ Rd+ is the dimension-wise decay rate, and the exponential is applied element-
+wise. At each event position i, the energy vector is reset to an all-ones vector e(ti ) = 1d ,
+modeling the assumption that a new interaction fully reactivates the current intent state
+before it begins to decay. Equivalently, e(t) satisfies the following ordinary differential
+equation:
+                           de(t)
+                                  = −δ i ⊙ e(t), t ∈ (ti , ti+1 ),                        (2)
+                             dt
+3.2.2. Context-Adaptive Decay
+    A key challenge in modeling real-world interaction sequences is that user intent does
+not shift at a uniform rate. Interactions exhibiting strong co-occurrence patterns should
+sustain the current latent state, whereas categorical divergence should accelerate its dis-
+sipation. A fixed decay rate cannot capture this variability. Moreover, the same local
+category transition may carry different semantic weight depending on the user’s long-
+term behavioral profile: a shift from Electronics to Appliances signals a stronger intent
+boundary for a user whose history is concentrated in a single domain than for one who
+habitually browses across diverse categories. We therefore introduce a Context-Adaptive
+Decay mechanism, where the dimension-wise decay rate δ i is conditioned on the local cat-
+egory transition (ci−1 , ci ) and a user-level context vector h̄ci that summarizes the user’s
+
+
+
+
+                                               7
+historical category distribution up to position i:
+
+                              δ i = φ fδ hci ∥ hci−1 ∥ h̄ci
+                                                           
+                                                                + ϵ,
+                                          i
+                                      1   X                                                (3)
+                               h̄ci =           hcj ,
+                                        i j=1
+
+where hci , hci−1 ∈ Rd are the category embeddings of the i-th and (i−1)-th interactions
+obtained from category embeddings EC . For the first position, we set hc0 = 0 so that
+the initial transition context is well-defined without using any future information. h̄ci is
+the causal running mean of category embeddings up to position i, [ · ∥ · ] denotes vector
+concatenation. φ is the Softplus activation. fδ : R3d → Rd is a MLP, and ϵ = 10−6 ensures
+strict positivity. The local transition pair (hci−1 , hci ) provides a sharp, position-specific
+signal of categorical divergence, while h̄ci serves as a user-level modulator encoding the
+user’s long-term category distribution.
+
+3.2.3. Soft-TPP Formulation
+    We initialize the Temporal Point Process framework with two design choices tailored
+to intent modeling. The event intensity is defined as the aggregate squared residual
+energy across all latent dimensions:
+                                                  d
+                                                  X
+                                        λ(t) =          e−2δi,k (t−ti )                    (4)
+                                                  k=1
+
+where the per-dimension energy at time t is ek (t) = e−δi,k (t−ti ) (Eq. (1)), and δi,k denotes
+the k-thPelement of the decay vector δ i . The intensity can equivalently be written as
+λ(t) = dk=1 ek (t)2 , i.e., the squared ℓ2 norm of the latent energy vector. This choice
+is motivated by two considerations. First, the quadratic       decay rate makes λ(t) more
+sensitive to energy dissipation than a linear sum k ek (t) would be, producing sharper
+                                                   P
+boundary signals when the latent state approaches exhaustion. Second, it results in a
+compensator that enables efficient computation without numerical approximation:
+                               Z ti+1              d
+                                                  X    1
+                                                            1 − e−2δi,k ∆ti ,              (5)
+                                                                           
+                        Λi =            λ(t) dt =
+                                ti                k=1
+                                                      2δi,k
+
+    This formulation encodes the intuition that a high-energy latent state indicates an
+active intent, making future interactions more likely, while a decayed state signals intent
+exhaustion. However, not all transitions should contribute equally to the likelihood: a
+cross-category jump reflects an intent shift rather than a continuation of the current tra-
+jectory. We therefore introduce a soft co-occurrence weight w(ci , ci+1 ) ∈ (0, 1] that scales
+each event’s complete log-likelihood contribution according to categorical relatedness:
+                                    (
+                                     1                      if ci = ci+1
+                    w(ci , ci+1 ) =                                                        (6)
+                                     σ α · cos(hi , hi+1 ) otherwise
+                                                c    c
+                                                          
+
+
+where α is a scaling factor and σ(·) is the sigmoid function. This weighted objective
+can be viewed as a likelihood reweighting scheme that adjusts the contribution of each
+observed transition while preserving the TPP likelihood structure (Ogata, 1978; Hu and
+Zidek, 2002). Intuitively, wi controls how much each observed transition contributes to
+
+                                                        8
+the weighted likelihood, while the direction of the update for δ i is still determined by
+the TPP likelihood and the context-adaptive decay network. The learned decay rates,
+together with the elapsed time ∆ti , determine the energy retention ratio ri used for
+boundary detection. Substituting Eq. (6) into the standard MLE objective gives the
+Soft-TPP loss:
+                                         "                d
+                                                                                   #
+                     1  X                                X    1
+                                                                   1 − e−2δi,k ∆ti ,  (7)
+                                                                                  
+         LTPP = −           w(ci , ci+1 ) log λ(ti+1 ) −
+                    |P| i∈P                              k=1
+                                                             2δi,k
+
+where P denotes valid (non-padding) positions, ∆ti = ti+1 − ti , λ(ti+1 ) = k e−2δi,k ∆ti ,
+                                                                           P
+and the second term in the bracket is the compensator Λi defined in Eq. (5).
+
+3.2.4. Scale-Invariant Boundary Detection
+    After the Soft-TPP module is trained and frozen, it serves purely as a boundary
+detector. Since the latent intent state e(t) ∈ Rd is a vector with per-dimension decay
+rates δ i ∈ Rd , we define the Energy Retention Ratio as the mean of per-dimension
+exponential decay:
+                                       d
+                                    1X
+                               ri =       exp(−δi,k · ∆ti ),                       (8)
+                                    d k=1
+where ∆ti = ti+1 − ti . A boundary is inserted before vi+1 when ri < τ , where τ ∈ (0, 1) is
+a threshold hyperparameter. A lower τ requires more severe energy loss before declaring
+a new segment, yielding coarser segmentation, while a higher τ is more sensitive to minor
+intent shifts.
+
+3.2.5. Two-Stage Decoupled Training
+    The TPP is trained in a fully unsupervised manner via maximum likelihood estimation
+(MLE) on the raw interaction history, without any manually annotated segment bound-
+aries. All Soft-TPP parameters are frozen in their entirety before main model training
+begins. The recommendation model maintains its own item embedding table and does
+not share trainable parameters with the frozen Soft-TPP module. The TPP-derived
+boundary flags are used as fixed structural inputs, but no gradient from the downstream
+recommendation objective is propagated back to the Soft-TPP. This parameter and gra-
+dient isolation prevents the segmentation criterion from being directly optimized toward
+the next-item loss during main training, since the two objectives can conflict.
+
+3.3. Sequential Inference Encoder (SIE)
+    This path processes the full item sequence through a causal Transformer to produce
+the user embedding u used at inference. Boundary flags from the frozen TPP are injected
+as type embeddings, making the encoder structurally aware of intent transitions from the
+first layer without any architectural modifications to the attention mechanism.
+
+Boundary Type Embedding. The frozen Soft-TPP produces a binary boundary flag bi ∈
+{0, 1} for each position i, where bi = 1 marks the start of a new intent segment and bi = 0
+otherwise. These flags are fused into the item representation via a learnable boundary
+type embedding table EB ∈ R2×d :
+
+                                    h̃i = hvi + EB (bi ),                               (9)
+
+
+                                             9
+where hvi = EV (vi ) ∈ Rd is the embedding of item vi looked up from the item embedding
+table EV ∈ R|V|×d , and EB (bi ) ∈ Rd is the corresponding boundary type vector, indicating
+whether the position is the boundary of the segment or not. This allows the encoder to
+be structurally aware of intent transitions from the first layer without any modification
+to the attention mechanism.
+Multi-Scale Rotary Position Embedding. The sequence {h̃i }N     i=1 is processed by a stack
+                                                                (j)       (j)            (j)
+of L1 Transformer blocks, where at each block the query qi , key ki , and value vi
+vectors for head j are obtained via standard linear projections of h̃i , each using multi-
+head self-attention with Multi-Scale Rotary Position Embedding. Since user interaction
+sequences exhibit dependencies over varying time scales, from short-term co-occurrence
+patterns to long-term preference drift, a single frequency scale is insufficient to capture
+positional relationships across all granularities. For attention head j, the base frequency
+is scaled by sj = 10(j−1)/(H−1) drawn from a log-uniform grid over [1, 10]:
+                              (j)   1    1
+                             θk =     · 2k/d ,      k = 1, . . . , dh /2,                    (10)
+                                    sj b h
+where b is the Rotary Position Embedding base and dh = d/H is the per-head dimen-
+sion. Rather than adding position embeddings to the input, MS-RoPE implicitly encodes
+positional information by rotating the query and key vectors inside each attention head,
+which guarantees their inner product only depends on the relative distance rather than
+absolute positions, thereby eliminating the positional bias in attention score computa-
+tion (Su et al., 2024). The sequence {h̃i }N   i=1 , stacked as X ∈ R           , is processed by
+                                                                           N ×d
+
+Transformer blocks. The attention output for head j is:
+                                          (j) (j) ⊤    (j) (j) 
+                                                                         !
+                                        R i  q i      R    k      + C il
+              Attn(j) (X) = softmax                   √l l                 V(j) ,
+                                                       dh
+                                                      !                                      (11)
+                                    (j)           (j)           
+           (j)              cos pθk − sin pθk          x2k−1
+           Rp x 2k−1:2k =           (j)          (j)              , k = 1, . . . , dh /2,
+                              sin pθk    cos pθk           x2k
+                                                                                              (j)
+where Cil = −∞ if i < l is the causal mask. By assigning a distinct frequency grid {θ k }
+to each head, MS-RoPE allows different heads to specialize in positional dependencies at
+different granularities from fine-grained short-term co-occurrence to coarse-grained long-
+term preference drift. Each block further applies a standard residual connection and
+position-wise feed-forward network. The layer-normalized output of the final block is
+H = [h1 , . . . , hN ] ∈ RN ×d , shared by all downstream modules. The hidden state at the
+last position is taken as the user’s sequential preference representation: u = hN .
+
+3.4. Hierarchical Interest Encoder (HIE)
+    The Sequential Inference Encoder’s causal readout at the last position hN captures
+fine-grained sequential dependencies but carries a structural bias: early segments exert
+progressively attenuated influence through the autoregressive aggregation chain. The
+Hierarchical Interest Encoder addresses this complementary weakness by constructing a
+segment-level representation in which each intent phase contributes equally, independent
+of its temporal distance from the current position. Crucially, the Hierarchical Interest
+Encoder’s output z serves as a structurally balanced supervision signal to regularize the
+representational geometry of u, and is discarded at inference to preserve the fine-grained
+sequential fidelity of the Sequential Inference Encoder.
+
+                                               10
+Hierarchical Segment Representation. Given P boundary flags, items are assigned to seg-
+ments via cumulative summation: seg(i) = j≤i bj , yielding K segments {s1 , . . . , sK }.
+Each segment sk is summarized by a learned additive attention:
+                                                          √
+                          X                    exp(w⊤ hi / d)
+                     pk =      αi hi , αi = P                √ ,                    (12)
+                                                        ⊤
+                          i∈sk                j∈sk exp(w hj / d)
+
+
+where w ∈ Rd is a learned query vector. This pooling step deliberately discards intra-
+segment sequential order, producing a segment matrix P = [p1 , . . . , pK ] ∈ RK×d in
+which every segment occupies a structurally equivalent slot. P is then passed through L2
+Transformer blocks with MS-RoPE and a causal mask, capturing the temporal evolution
+of intent across segments and producing refined representations P′ ∈ RK×d .
+Segment-Count-Adaptive Multi-Intent Extraction. User behavior within a session is rarely
+driven by a single motive. We extract Umax interest-specific summaries from P′ via cross-
+attention with Umax orthogonally-initialized learnable interest queries Q = [q1 , . . . , qUmax ] ∈
+RUmax ×d :
+                       mr = CrossAttn(qr , P′ ), r = 1, . . . , Umax                        (13)
+    Each interest query attends to all K segment representations, allowing the aggregated
+multi-interest vector to integrate evidence from the full interaction history and thereby
+serve as a globally-informed teacher signal for the causal Sequential Inference Encoder.
+Since the number of segments K reflects the diversity of behavioral phases, it provides
+a natural upper bound on the number of distinct user interests. However, K tends to
+overestimate the true number of interest types, as the same intent can recur periodically
+across non-adjacent segments. We therefore gate the number of active interest slots by a
+compression ratio ρ ∈ (0, 1]:
+
+                                  Ueff = min(⌈ρK⌉ , Umax ) ,                                (14)
+
+where ρ controls the degree of slot compression relative to segment count. Setting ρ = 1
+allocates one slot per segment; smaller values consolidate capacity when periodic interest
+recurrence is expected. Given Ueff , we select the most activated slots from the Umax
+candidates rather than retaining them by index order.
+    Intuitively, an interest vector with a larger ℓ2 norm has attended more selectively
+to specific segments, whereas a near-zero norm indicates that the corresponding query
+failed to aggregate any coherent behavioral signal and should be suppressed. We select
+the Ueff slots with the largest ℓ2 norms, i.e., A = {r : ∥mr ∥2 ranks in top-Ueff }. A
+compact interest-level user representation is obtained by combining element-wise max-
+pooling and mean-pooling over the active slots, where max-pooling captures the most
+salient interest signal in each dimension across slots and mean-pooling retains the overall
+interest distribution:
+                                                       1 X
+                             z = MaxPoolelem
+                                         r∈A (m r ) +          mr                     (15)
+                                                      Ueff r∈A
+
+where [MaxPoolelem
+              r∈A (mr )]ℓ = maxr∈A [mr ]ℓ for each feature dimension ℓ.
+
+Interest Diversity Regularization. Although the interest queries Q are orthogonally ini-
+tialized, soft cross-attention does not prevent the active interest vectors {mr }Ur=1
+                                                                                    eff
+                                                                                        from
+collapsing toward a common direction during training, which would cause z to degener-
+ate into a single-interest representation and undermine its role as a structurally balanced
+
+                                               11
+teacher signal for the contrastive objective. To prevent this, we introduce a lightweight
+diversity regularizer on the ℓ2 -normalized active interest matrix M̃ ∈ RUeff ×d :
+                                                           2
+                                  Ldiv = M̃M̃⊤ − I             ,                       (16)
+                                                           F
+
+where m̃r = mr /∥mr ∥ and I ∈ RUeff ×Ueff is the identity matrix. This loss penalizes
+pairwise cosine similarity between interest vectors, encouraging them to remain approxi-
+mately orthogonal and thereby preserving the multi-interest expressiveness of z.
+
+3.5. Model Optimization
+    We now describe the training objectives. In what follows, a batch contains B users;
+subscript i indexes users within the batch. For the i-th user, the Sequential Inference
+Encoder produces ui = hNi and the Hierarchical Interest Encoder produces zi .
+
+Recommendation Loss. Let EV ∈ R|V|×d be the item embedding matrix, where each row
+corresponds to an item vector. The prediction score distribution over all candidate items
+is:
+                                 ŷi = Softmax(EV ui )                                (17)
+    The recommendation loss is then defined as the full cross-entropy between the pre-
+dicted distribution and the one-hot ground-truth label:
+                                            |V|
+                                            X
+                                 LCE = −          ȳv log(ŷv ),                       (18)
+                                            v=1
+
+where ȳv = 1 only for the target item and 0 otherwise, and the sum is over all items in
+the catalog V. No sampled negatives or in-batch candidate approximation are used.
+
+Contrastive Regularization Loss. The multi-interest representation zi from the Hierarchi-
+cal Interest Encoder and the sequential user embedding ui from the Sequential Inference
+Encoder constitute two complementary views of the same user state: ui captures fine-
+grained autoregressive dependencies, while zi provides a structurally balanced summary
+across all intent phases (see §3.4). We align them with a contrastive loss using in-batch
+negatives.
+    Let ũi = ui /∥ui ∥ and z̃i = zi /∥zi ∥ denote the ℓ2 -normalized representations of the
+i-th user from the Sequential Inference Encoder and the Hierarchical Interest Encoder,
+respectively. The contrastive loss is:
+                                    B
+                                             exp ũ⊤
+                                                              
+                                 1 X               i z̃i / η
+                         LCL = −       log PB           ⊤
+                                                                  ,                   (19)
+                                 B i=1      j=1 exp  ũ i z̃j / η
+
+where η is a temperature hyperparameter. Each user’s sequential representation ũi is
+treated as the anchor, with the corresponding multi-interest representation z̃i as the
+positive and all other z̃j (j ̸= i) as in-batch negatives. Gradients from LCL flow simulta-
+neously into the Sequential Inference Encoder (through ui ) and the Hierarchical Interest
+Encoder (through zi ), imposing cross-path geometric regularization without altering the
+inference-time computation.
+
+
+
+
+                                             12
+Algorithm 1 Training Procedure of S2-CAR
+Input: Chronologically split prefixes Strain , Sval , Stest ; item set V; category set C
+Output: Best model parameters Θ∗
+ 1: Initialize Soft-TPP parameters ΘTPP = {EC , fδ }
+ 2: Train ΘTPP on Strain by minimizing LTPP in Eq. (7); freeze ΘTPP
+ 3: Initialize recommendation parameters Θ = {ΘSIE , ΘHIE } and set Θ∗ ← Θ
+ 4: repeat
+ 5:   for each training prefix S ∈ Strain do
+ 6:      Generate boundary flags {bi } using the frozen Soft-TPP
+ 7:      Obtain u from the SIE and z from the HIE
+ 8:      Update Θ by minimizing LCE + γLCL + βLdiv
+ 9:   end for
+10:   Update Θ∗ if metrics on Sval improve
+11: until early stopping is triggered
+12: return Θ∗
+
+
+Joint Training. The final training loss combines the recommendation loss, the contrastive
+regularizer, and the interest diversity regularizer:
+
+                                 L = LCE + γ LCL + β Ldiv ,                                (20)
+
+where γ controls the strength of the contrastive regularizer and β controls the diversity
+penalty. Note that Ldiv operates only on the Hierarchical Interest Encoder, whereas LCL
+aligns the Sequential Inference Encoder and the Hierarchical Interest Encoder during
+training. Both auxiliary objectives are discarded at inference, incurring no additional
+cost during serving.
+
+3.6. Complexity Analysis
+    Algorithm 1 presents the training procedure for the proposed S2-CAR. The model
+follows a two-stage design: the Soft-TPP is first pretrained to capture continuous-time
+intent dynamics and then frozen, after which boundary flags are used to guide both
+encoders in the main training loop. To avoid split leakage under leave-one-out evaluation,
+Soft-TPP pretraining uses only the training prefixes. During validation and testing, the
+frozen Soft-TPP generates boundary flags only from adjacent interactions within the
+visible prefix of the corresponding split; the held-out target item’s identity, timestamp,
+and category are not used to compute intervals, co-occurrence weights, or boundary flags.
+In particular, no boundary is generated from the interval between the last visible item
+and the held-out target. The SIE processes the visible item sequence to produce a fine-
+grained sequential user embedding, while the HIE constructs a hierarchically balanced
+multi-interest representation as a contrastive supervision signal.
+    We analyze the computational complexity of S2-CAR. Given embedding dimension
+d, sequence length N , number of segments K, maximum interest slots Umax , and catalog
+size |V|, the Soft-TPP incurs O(N · d) per sequence and is pretrained once and frozen,
+contributing no cost to the main training loop. The SIE applies L1 Transformer blocks
+over the full sequence, yielding O(N 2 · d) (with L1 absorbed as a small constant). MS-
+RoPE adds linear rotation operations over query and key vectors in each head, which
+are absorbed into the Transformer constant when the number of heads is fixed. The HIE
+operates on K segment vectors where K ≪ N , with a segment-level Transformer costing
+
+                                               13
+                            Table 1: Summary of Notations
+
+
+Notation                   Description
+
+U, V                       Sets of users and items
+S = {(vi , ci , ti )}N
+                     i=1   Chronologically ordered interaction history of a
+                           user
+vi ∈ V                     Item interacted with at position i
+ci                         Category label of item vi
+ti                         Timestamp of the i-th interaction
+∆ti = ti+1 − ti            Inter-event time interval
+
+e(t) ∈ Rd                  Latent intent energy vector
+δ i ∈ Rd+                  Dimension-wise decay rate vector at position i
+ri                         Energy retention ratio
+τ ∈ (0, 1)                 Boundary threshold
+Λi                         TPP compensator; integral of λ(t) over (ti , ti+1 )
+w(ci , ci+1 ) ∈ (0, 1]     Soft co-occurrence weight between adjacent cate-
+                           gories
+α                          Scaling factor in the soft co-occurrence weight
+bi ∈ {0, 1}                Binary boundary flag (bi = 1 marks the start of a
+                           new segment)
+K                          Total number of segments produced by the frozen
+                           Soft-TPP
+
+Umax                       Maximum number of interest slots (upper cap on
+                           Ueff )
+ρ ∈ (0, 1]                 Compression ratio; controls the degree of slot com-
+                           pression relative to segment count
+η                          Temperature hyperparameter in the contrastive
+                           loss LCL
+γ                          Weight of the contrastive regularizer in the joint
+                           training loss
+β                          Weight of the interest diversity regularizer in the
+                           joint training loss
+
+
+
+
+                                         14
+O(K 2 · d), cross-attention over Umax interest slots contributing O(Umax · K · d), and the
+diversity regularizer adding O(Umax2
+                                       · d); since both Umax and L2 are small constants, the
+HIE reduces to O(K ·d). In addition to the encoder cost, the full-catalog prediction layer
+                      2
+
+used for cross-entropy training and full-ranking evaluation requires O(|V| · d) scoring per
+instance, or O(B|V| · d) for a mini-batch of size B. The joint per-instance complexity is
+therefore O(N 2 · d + K 2 · d + |V| · d) when full softmax scoring is included.
+
+4. Experiments
+4.1. Datasets
+
+                                 Table 2: Statistics of the datasets.
+
+ Dataset   # Users    # Items      # Cats     # Interacts      Avg. Len   Density   Duration (h)
+ ML-1M        6,040     3,416         18         999,611         165.50    4.84%       395.55
+ Amazon      65,262    106,427        28        1,540,690         23.61    0.02%      4,128.80
+ Steam       39,795     10,587        44        1,790,393         44.99    0.42%      30,761.08
+
+
+   We evaluate our method on three publicly available benchmarks that span diverse
+application domains and exhibit varying levels of interaction sparsity, ensuring a compre-
+hensive and rigorous assessment.
+
+   • ML-1M (Harper and Konstan, 2015) is a widely adopted movie rating dataset
+     from the MovieLens platform, comprising one million explicit ratings assigned by
+     approximately 6,000 users to around 4,000 films. Following common sequential
+     recommendation practice, ratings are treated as implicit interactions and ordered
+     by timestamp. Its relatively dense interaction structure makes it a standard testbed
+     for sequential recommendation research.
+
+   • Amazon (He and McAuley, 2016) is a large-scale product review collection span-
+     ning multiple merchandise categories on the Amazon e-commerce platform. To
+     balance data scale with computational tractability, we retain the most recent 2 mil-
+     lion interactions aggregated across all categories before preprocessing, preserving
+     both temporal ordering and cross-category diversity.
+
+   • Steam (Kang and McAuley, 2018) is a video game interaction dataset collected
+     from the Steam gaming platform, capturing user purchase and play histories. Its
+     domain-specific nature and moderate sparsity provide a complementary evaluation
+     setting to the other two benchmarks.
+
+    All datasets are preprocessed following the filtering procedure that retains users with
+at least 20 interactions and items with at least 5 interactions. Category metadata is
+mapped before model training and then kept fixed across all splits. Data partitioning
+adheres to the widely adopted leave-one-out protocol (Kang and McAuley, 2018; Li et al.,
+2021): the most recent interaction of each user is reserved for testing, the second-most-
+recent for validation, and all remaining interactions constitute the training set. This
+chronological split strictly respects the temporal ordering of interactions to prevent data
+leakage. For each user, the validation instance uses only the training prefix to predict
+the validation item, while the test instance uses the training plus validation prefix to pre-
+dict the test item. Soft-TPP pretraining is performed only on training prefixes. When
+
+                                                 15
+generating boundary flags for validation and testing, the frozen detector is applied only
+to adjacent events inside the visible prefix, so the held-out target’s item identity, times-
+tamp, and category are not used to compute ∆ti , w(ci , ci+1 ), or boundary flags. Thus,
+the boundary sequence available to S2-CAR at evaluation time is causally determined by
+observed interactions only. Summary statistics for all three datasets are reported in Ta-
+ble 2. Notably, the three datasets exhibit substantially different temporal scales: ML-1M
+has a compact average sequence duration of 395.55 hours, Amazon spans 4,128.80 hours
+on average, and Steam extends to 30,761.08 hours, reflecting the long-term nature of
+gaming engagement.
+
+4.2. Baselines
+    We compare our proposed method against a representative and diverse set of sequen-
+tial recommendation models, ranging from classical approaches to state-of-the-art con-
+trastive learning frameworks. We compare against 13 baselines spanning three categories:
+general sequential recommenders (GRU4Rec, Caser, SASRec, BERT4Rec, DSSRec), aug-
+mentation and multi-intent methods (MiaSRec, CL4SRec, DuoRec, ICSRec, BASRec),
+and temporal-aware recommenders (TiSASRec, DT-GAT, TLSRec). We also summarize
+the features of different baselines and our proposed model in Table 3.
+
+   • GRU4Rec (Hidasi et al., 2015) is among the earliest deep sequential recom-
+     menders, employing gated recurrent units to encode the temporal dynamics of user
+     sessions. It introduces session-parallel mini-batching and ranking-based loss func-
+     tions tailored to the recommendation setting.
+
+   • Caser (Tang and Wang, 2018) frames sequential recommendation as an image
+     recognition problem by treating the embedding matrix of recent items as an “image”
+     and applying both horizontal and vertical convolutional filters to capture point-level
+     and union-level transition patterns at multiple granularities.
+
+   • DSSRec (Ma et al., 2020) proposes a sequence-to-sequence training strategy based
+     on latent self-supervision and disentanglement. Rather than predicting only the
+     next item, it reconstructs representations of future subsequences in the latent space,
+     and constructs training pairs from subsequences that share the same underlying user
+     intent, enabling the model to capture longer-term and more diverse user preferences.
+
+   • SASRec (Kang and McAuley, 2018) introduces an unidirectional self-attention ar-
+     chitecture that adaptively attends to relevant items in a user’s history to predict the
+     next interaction. Its scalability and strong empirical performance have established
+     it as a canonical sequential recommendation baseline.
+
+   • BERT4Rec (Sun et al., 2019) adapts the bidirectional encoder representations
+     from the BERT language model to sequential recommendation via a cloze-style
+     masked item prediction task, enabling the model to leverage both left- and right-
+     context signals when learning item representations.
+
+   • CL4SRec (Xie et al., 2022) is a contrastive framework for sequential recommen-
+     dation that introduces three sequence-level data augmentation operators, random
+     cropping, item masking, and subsequence reordering, and enforces representation
+     consistency between augmented views through an InfoNCE-style contrastive objec-
+     tive.
+
+                                            16
+   • DuoRec (Qiu et al., 2022) addresses the representation degeneration problem in
+     transformer-based sequential models by combining a model-level unsupervised aug-
+     mentation based on dropout-induced stochastic encoders with a supervised con-
+     trastive objective that pulls together sequences sharing the same target item.
+   • MiaSRec (Choi et al., 2024) augments the standard transformer architecture with a
+     multi-intent module that routes each item to several intent embeddings, allowing the
+     model to disentangle and concurrently track multiple evolving user intents within
+     a single sequence encoder.
+   • ICSRec (Qin et al., 2024) decomposes user interaction histories into intent-homogeneous
+     subsequences by clustering items into latent intent categories, and then applies con-
+     trastive learning at the intent level to explicitly align representations of sequences
+     sharing the same underlying user purpose.
+   • BASRec (Dang et al., 2025) augments sequential recommendation with balanced
+     relevance and diversity, constructing augmented training signals that preserve target
+     relevance while improving behavioral diversity.
+   • TiSASRec (Li et al., 2020) employs a time-aware self-attention mechanism that
+     incorporates both absolute positional information and relative time intervals be-
+     tween user interactions, enabling the model to capture temporal dynamics within
+     the sequence.
+   • TLSRec (Chen et al., 2022) segments interaction histories into sessions and ap-
+     plies a hierarchical self-attention network to capture preferences at both the session
+     and intra-session levels, fusing them through a neural time gate that adaptively
+     weights long- and short-term signals based on the elapsed time since the user’s last
+     interaction.
+   • DT-GAT (Guo et al., 2026) proposes a dual-channel temporal graph attention
+     architecture that jointly models item-level and sequence-level dynamics, combined
+     with a multi-temporal window mechanism to produce user representations.
+
+4.3. Evaluation Metrics
+    We evaluate all methods using two standard top-K ranking metrics widely adopted
+in sequential recommendation: Recall (R@K) and Mean Reciprocal Rank (MRR@K),
+with K ∈ {5, 10}. R@K measures retrieval effectiveness by computing the fraction of
+test cases in which the ground-truth item appears within the top-K ranked candidates:
+                                             |U |
+                                      1 X
+                               R@K =         I(ri ≤ K),                               (21)
+                                     |U| i=1
+where U denotes the set of test users, ri is the rank assigned to the ground-truth item for
+the i-th user, and I(·) is the indicator function returning 1 if the condition holds and 0
+otherwise. R@K treats all positions within the top-K list equally and thus reflects cov-
+erage without regard to ranking position. MRR@K complements R@K by incorporating
+positional sensitivity, rewarding methods that place the ground-truth item closer to the
+top of the ranked list:
+                                                 |U |
+                                             1 X I(ri ≤ K)
+                              MRR@K =                        .                         (22)
+                                            |U| i=1     ri
+
+                                            17
+Since each test case contains exactly one ground-truth item, the reciprocal rank 1/ri is
+non-zero only when the ground-truth item falls within the top-K list, making the above
+expression equivalent to the standard truncated form. Higher MRR@K values indicate
+that the ground-truth item not only appears in the top-K list but is consistently ranked
+near the top, thereby reflecting the quality of the ranking more faithfully than R@K
+alone.
+
+4.4. Experiment Settings
+     All models are implemented in PyTorch and trained on a single NVIDIA RTX A5000
+GPU (24 GB VRAM). To ensure fair and reproducible comparisons, we enforce a uni-
+fied set of core hyperparameters across all baselines and our proposed method: a hidden
+embedding dimensionality of 100, a mini-batch size of 100, and ℓ2 -normalized parameter
+initialization to stabilize early training dynamics. All models are optimized with the
+Adam optimizer at a fixed learning rate of 10−3 , and training is terminated via early
+stopping with a patience of 20 epochs monitored on validation R@10. All baseline num-
+bers are reproduced under this unified protocol, rather than taken from original papers,
+to ensure a fair comparison under the same evaluation conditions.
+     To eliminate the confounding effect of different negative-sampling strategies and sam-
+pled candidate sizes in sequential recommendation evaluation, we use full cross-entropy
+over the entire item set V, rather than sampled softmax or negative sampling. During
+evaluation, each test instance is ranked against the complete candidate set of size |V| (i.e.,
+all items in the catalog), and no sampled negatives are used for fair comparison (Krichene
+and Rendle, 2020).
+     For S2-CAR, additional hyperparameters are set as follows. The Soft-TPP pretraining
+stage uses the same Adam optimizer, learning rate, batch size, and 5-run seed protocol
+as the main model unless otherwise specified, and is run for 5 epochs before freezing.
+The TPP scaling factor α is fixed at 10. The contrastive loss weight γ is searched over
+0.001, 0.01, 0.1, 0.5, the diversity weight β over 0.001, 0.005, 0.01, 0.2 and selected as 0.005
+according to validation R@10, the compression ratio ρ over 0.25, 0.5, 0.75, 1.0, and the
+energy threshold τ over 0.5, 0.7, 0.8, 0.9. The contrastive temperature is fixed at 0.5. The
+SIE and HIE each use 2 Transformer layers and 10 attention heads. The maximum interest
+slot count Umax is set to 50. For MS-RoPE, per-head frequency scales are initialized on a
+log-uniform grid spanning [1.0, 10.0] across the 10 heads, allowing each head to specialize
+in positional dependencies at a different granularity.
+     To account for stochastic variability in model training, all experiments are repeated
+independently 5 times with different random seeds. We report the mean performance
+across runs and provide 95% confidence intervals for the best and second-best methods
+on each dataset to indicate the variability of observed improvements.
+     To better evaluate the performance of the proposed S2-CAR, we design experiments
+to answer the following research questions:
+
+• RQ1 (Overall Performance): Does S2-CAR consistently outperform state-of-the-
+  art sequential recommenders across diverse benchmarks?
+
+• RQ2 (Plug-in Generalizability): Is the proposed energy-based TPP segmentation
+  a broadly applicable design? Does integrating it into existing sequential models as a
+  plug-in module yield consistent performance gains?
+
+
+
+                                              18
+• RQ3 (Ablation Analysis): How do the individual components of S2-CAR, the
+  Context-Aware Soft-TPP segmentation, the Segment-Count-Adaptive Multi-Intent Ex-
+  traction, and the Hierarchical Interest Encoder, each contribute to overall recommen-
+  dation performance?
+• RQ4 (Hyperparameter Sensitivity): How sensitive is S2-CAR to key hyperparam-
+  eters, including the energy threshold τ , the compression ratio ρ, and the loss weights
+  γ?
+• RQ5 (Computational Efficiency): Is the additional computational overhead intro-
+  duced by the two-stage training procedure of S2-CAR acceptable for practical deploy-
+  ment?
+• RQ6 (Middle Information Utilization): Can S2-CAR effectively utilize intent-
+  relevant signals embedded in the middle of interaction sequences?
+
+4.5. Overall Performance(RQ1)
+
+Table 3: Feature comparison across sequential recommendation models. A checkmark (✓) indicates the
+model incorporates the corresponding technique, while a cross mark (✗) indicates it does not. Feature
+labels are assigned according to the definitions in this caption; adaptive intent segmentation denotes
+learned or data-adaptive boundary inference rather than fixed window or heuristic session partitioning.
+
+                                               Intent Modeling                                                  Modeling Techniques
+ Models
+              Temporal Dynamics    Adaptive Intent Segmentation Multi-Interest Modeling        Hierarchical Encoding     Category-Aware Modeling
+ GRU4Rec              ✗                             ✗                             ✗                      ✗                            ✗
+ Caser                ✗                             ✗                             ✗                      ✗                            ✗
+ BERT4Rec             ✗                             ✗                             ✗                      ✗                            ✗
+ SASRec               ✗                             ✗                             ✗                      ✗                            ✗
+ DSSRec               ✓                             ✗                             ✗                      ✗                            ✗
+ CL4SRec               ✗                            ✗                             ✗                      ✗                            ✗
+ DuoRec                ✗                            ✗                             ✗                      ✗                            ✗
+ MiaSRec               ✗                            ✗                             ✓                      ✗                            ✗
+ ICSRec                ✗                            ✗                             ✓                      ✗                            ✗
+ BASRec                ✗                            ✗                             ✗                      ✗                            ✗
+ TiSASRec             ✓                             ✗                             ✗                      ✗                            ✗
+ TLSRec               ✓                             ✗                             ✗                      ✓                            ✗
+ DT-GAT               ✓                             ✗                             ✓                      ✗                            ✗
+ S2-CAR               ✓                            ✓                              ✓                      ✓                            ✓
+
+
+
+
+Table 4: Performance comparison on three datasets. We report 95% confidence intervals (5 runs) for
+second-best and best methods. Best results are bold, and second-best are underlined.
+
+                               ML-1M                                         Amazon                                        Steam
+Method
+             R@5           R@10    MRR@5        MRR@10        R@5       R@10      MRR@5 MRR@10           R@5          R@10     MRR@5 MRR@10
+GRU4Rec       2.44          3.29       1.44        1.56          1.95    2.85         1.15    1.35       7.48          10.23       5.19     5.50
+Caser         6.89         11.27       3.59        4.55          2.29    3.17         1.48    1.59       8.89          11.74       6.64     7.01
+DSSRec        7.21         14.35       3.11        3.97          2.23    3.68         0.62    0.72       8.20          12.50       6.88     7.39
+BERT4Rec      9.96         18.55       4.18        5.33          1.20    2.27         0.51    0.64       9.58          12.74       7.08     7.49
+SASRec        10.19        16.63       4.92        5.75          2.76    4.23         1.41    1.61       9.82          13.05       7.13     7.59
+CL4SRec        9.95      16.30         5.08        5.92          2.89    4.15         1.62    1.84        9.37         12.71      6.74      7.17
+DuoRec        11.58      17.41         5.71        5.94          1.51    2.52         0.77    0.91        7.31         10.66      4.55      5.00
+MiaSRec       11.80      19.75         5.50        6.50          2.20    3.41         1.15    1.31        9.71         12.81      7.16      7.57
+ICSRec        10.70      17.25         5.33        6.19          2.80    4.32         1.47    1.67        9.70         13.28      7.12      7.60
+BASRec     15.75±0.14 24.75±0.19       8.26        9.44          2.75    4.27         1.44    1.64     9.93±0.11    13.41±0.13 7.21±0.09 7.64±0.07
+TiSASRec      14.09        22.10      7.12          8.15        2.48      3.91      1.28      1.46       8.96          12.52       6.41     6.87
+TLSRec        15.50        24.41   9.18±0.09     9.94±0.11   3.38±0.11 5.18±0.06 1.73±0.05 1.97±0.09     9.75          13.30       6.80     7.28
+DT-GAT        9.88         15.38      4.75          5.71        2.71      4.92      1.44      1.67       8.26          11.64       5.96     6.42
+S2-CAR     20.03±0.16 28.74±0.20 11.92±0.12 13.07±0.14 4.04±0.05 5.74±0.07 2.30±0.03 2.51±0.05 10.84±0.10 14.41±0.14 7.86±0.08 8.32±0.09
+Improv.     +27.17%    +16.12%     +29.85%       +31.49%     +19.53%    +10.81%   +32.95%    +27.41%   +9.16%        +7.46%     +9.02%    +8.90%
+
+
+
+  Table 4 reports R@5, R@10, MRR@5, and MRR@10 for all methods across the ML-
+1M, Amazon, and Steam datasets. S2-CAR achieves the best mean scores on every metric
+
+                                                                        19
+and dataset. The reported confidence intervals for the best and second-best methods
+indicate that the observed gains are stable across repeated runs.
+    GRU4Rec and Caser represent an earlier generation of sequential recommenders.
+GRU4Rec encodes interaction histories through gated recurrent units but treats each
+time step uniformly, which limits its sensitivity to the varying importance of individual
+interactions. Caser instead applies convolutional filters over a fixed-length item window
+to detect local transition patterns; because the receptive field is bounded, it struggles to
+propagate long-range dependencies. Both models trail every attention-based method by
+a wide margin, confirming that simple recurrence and local convolution are insufficient
+for capturing the heterogeneous dynamics present in real-world interaction logs.
+    Among the augmentation and intent-aware methods, CL4SRec, DuoRec, ICSRec, and
+BASRec each exhibit dataset-specific strengths: BASRec is the strongest method in this
+group on ML-1M and Steam, yet none transfers uniformly across all three benchmarks.
+    Among the temporal and multi-interest methods, TiSASRec outperforms SASRec,
+confirming that explicit temporal modeling benefits dense, long-horizon logs, but its gains
+do not transfer to sparser datasets where irregular time-gaps reduce signal reliability.
+TLSRec’s second best performance on Amazon suggests that fixed temporal window
+segmentation helps when behavioral phases are temporally well-separated. However, its
+fixed gap-based criterion limits generalization to datasets where intent transitions are less
+aligned with raw time-gaps. Moreover, MiaSRec’s fixed-capacity interest slots struggle to
+disambiguate the increasingly complex interaction patterns in long histories, while DT-
+GAT’s graph-based aggregation suffers from over-smoothing as sequence length grows,
+causing distinct behavioral signals to collapse into indistinguishable representations. S2-
+CAR maintains a consistent advantage in both retrieval coverage and ranking quality
+throughout. Notably, the largest relative MRR@5 gain appears on Amazon, while ML-1M
+has the longest average sequence length (165.50). This suggests that the improvement is
+not explained by sequence length alone, but also by sparsity, temporal scale, and category
+heterogeneity. The more modest but still consistent improvements on Steam (avg. length
+44.99) further indicate that the approach generalizes beyond the densest long-sequence
+setting. All results are reported as the mean across 5 independent runs; the reported
+confidence intervals for the best and second-best methods indicate stable margins across
+runs.
+
+4.6. Plug-in Generalizability (RQ2)
+    To evaluate whether the proposed Soft-TPP segmentation module is broadly appli-
+cable beyond the full S2-CAR framework, we integrate it as a plug-in component into
+three representative sequential recommendation backbones: CoSeRec (Liu et al., 2021b)
+(augmentation-based), SURGE (Chang et al., 2021) (graph-based), and DiffuRec (Li
+et al., 2023) (diffusion-based). For each backbone, the proposed energy-based boundary
+is incorporated as a learnable embedding added to the input item embeddings, while
+all other architectural components and hyperparameters remain unchanged. Results are
+reported in Table 5.
+    Across all three backbones and all three datasets, integrating the TPP segmentation
+module yields consistent improvements, confirming that the Soft-TPP provides a broadly
+useful structural signal rather than one that is tailored exclusively to the S2-CAR archi-
+tecture.
+    The gains are pronounced on the Amazon dataset; we attribute this to the sparser
+and more heterogeneous nature of the Amazon interaction logs: users on e-commerce
+
+
+                                             20
+platforms tend to exhibit sharper and more frequent intent transitions across product
+categories, making accurate boundary detection particularly valuable. By contrast, gains
+on ML-1M are more modest (e.g., 2.76% R@10 for both CoSeRec and DiffuRec), con-
+sistent with the observation that the denser and more temporally compact MovieLens
+sequences leave less room for segmentation to disambiguate overlapping intents. Among
+the three backbones, SURGE benefits most from the plug-in module. SURGE originally
+constructs an item-item interest graph based on pairwise co-occurrence; without explicit
+intent boundaries, cross-phase co-occurrences may introduce spurious edges that con-
+flate distinct behavioral phases. The injected TPP boundary embedding helps SURGE
+distinguish cross-boundary co-occurrences through boundary-aware item representations,
+thereby reducing the impact of such cross-phase edges without changing the graph con-
+struction procedure. CoSeRec and DiffuRec exhibit smaller but consistent gains, indicat-
+ing that augmentation and diffusion-based methods also benefit from the design.
+
+Table 5: Plug-and-Play comparison across three datasets. Integrating our TPP segmentation module
+into existing sequential backbones yields consistent improvements.
+
+                            ML-1M                  Amazon               Steam
+          Method
+                       R@10    MRR@10       R@10      MRR@10      R@10     MRR@10
+          CoSeRec    20.99        7.84       4.23       1.75       12.88     7.65
+            + Ours   21.57        8.11       4.69       1.92       13.19     7.84
+            Improv. +2.76%       +3.44%    +10.87%     +9.71%     +2.41%    +2.48%
+          SURGE      16.59        6.21       3.81       1.94       11.92     6.19
+            + Ours   17.72        6.93       4.24       2.30       12.31     6.57
+            Improv. +6.81%      +11.59%    +11.29%    +18.56%     +3.27%    +6.14%
+          DiffuRec   24.31        9.19       4.35       1.78       13.36     7.19
+            + Ours   24.98        9.47       5.01       1.95       13.61     7.45
+            Improv. +2.76%       +3.05%    +15.17%     +9.55%     +1.87%    +3.62%
+
+
+
+4.7. Ablation Analysis (RQ3)
+    To examine how each component contributes to S2-CAR, we conduct an ablation
+study on all three datasets. The variants in Table 6 modify one architectural factor at a
+time while keeping the remaining training and evaluation settings unchanged.
+    We first examine the two encoder paths. Removing the Hierarchical Interest Encoder
+(w/o HIE) consistently reduces performance, indicating that the segment-level path
+provides useful cross-segment supervision beyond the causal sequential representation.
+Using the Hierarchical Interest Encoder alone for inference (w/o SIE) leads to a larger
+decline, since segment pooling weakens intra-segment order information and short-range
+transition signals. These results support the use of the Sequential Inference Encoder for
+fine-grained next-item prediction and the Hierarchical Interest Encoder as a structurally
+balanced training signal.
+    We then evaluate the boundary construction mechanism, with particular attention
+to whether the observed gains mainly come from access to category and temporal side
+information. Inspired by fixed temporal segmentation (Chen et al., 2022), we replace
+Soft-TPP boundaries with fixed 48-hour segmentation (TPP → Fixed), which leads to
+consistent performance degradation, suggesting that a global time-gap rule is insufficient
+for capturing user-specific intent shifts. To further separate the effect of side information
+from the effect of Soft-TPP boundary modeling, we introduce a metadata-only variant
+
+                                              21
+(w/o TPP). In this variant, the Soft-TPP module is removed, while temporal embed-
+dings (Guo et al., 2026) and category embeddings are still provided to the model. Specif-
+ically, we add these two side information embeddings to the item embedding at each
+position, so that the model retains access to temporal and category signals without using
+TPP-based boundary generation. Thus, w/o TPP does not use continuous-time energy
+decay, the TPP likelihood, or the energy-retention boundary criterion. Its performance is
+significantly below the full model. This pattern suggests that category and temporal in-
+formation are useful, but they do not fully explain the gains of S2-CAR. The comparison
+provides a controlled test showing that the Soft-TPP boundary signal contributes beyond
+both heuristic time segmentation and direct temporal-category metadata injection.
+    Replacing Multi-Scale Rotary Position Embedding with standard absolute position
+encoding (w/o MS-RoPE) also leads to lower performance, showing that multi-scale
+relative positional information is useful when user histories contain both short-range
+transitions and longer-range preference recurrence. Removing the diversity regularizer
+(w/o Ldiv ) causes a smaller but consistent decline, which is consistent with the role of
+this term in discouraging collapse among active interest vectors.
+    We next compare different ways of using the Hierarchical Interest Encoder output.
+Directly summing ui and zi before scoring (LCL → Sum) performs worse than con-
+trastive alignment, suggesting that the hierarchical representation is better used as a
+training-time regularizer than as an additional inference feature. Replacing the con-
+trastive objective with a gated fusion scheme (LCL → Gated) shows a similar pattern.
+These results indicate that forcing the two representations into the same scoring vector
+may introduce noise, whereas contrastive alignment preserves the causal inference path
+while still transferring segment-level structure during training.
+    Finally, we assess the segment summarization and slot allocation designs. Replacing
+learned segment attention with mean pooling (SegAttn → Mean) yields a moderate
+drop, implying that items within the same segment do not contribute equally to the
+segment intent. Fixing the number of active interest slots to five (DSlot → Fixed)
+also reduces performance, which suggests that adapting the number of active slots to the
+inferred segment count better reflects variation in behavioral complexity across users.
+
+                                  Table 6: Ablation study results.
+
+                              ML-1M                    Amazon                Steam
+            Variant
+                         R@10       MRR@10 R@10           MRR@10 R@10         MRR@10
+        w/o HIE           26.38        11.27       4.82       2.03   13.13       7.65
+        w/o SIE           21.34         9.12       4.13       1.74   11.47       6.41
+        w/o MS-RoPE       27.13        12.21       5.41       2.29   13.74       7.91
+        w/o Ldiv          28.32        12.69       5.48       2.37   14.06       8.14
+        TPP → Fixed       26.91        12.24       5.26       2.18   13.83       7.94
+        w/o TPP           26.57        11.96       5.08       2.09   13.61       7.79
+        LCL → Sum         26.14        11.18       5.07       2.14   13.21       7.51
+        LCL → Gated       26.67        11.73       5.26       2.24   13.54       7.78
+        SegAttn → Mean    27.83        12.71       5.63       2.43   14.17       8.22
+        DSlot → Fixed     27.19        12.29       5.51       2.36   13.89       8.07
+        S2-CAR           28.74         13.07      5.74       2.51    14.41       8.32
+
+
+
+
+                                                22
+4.8. Hyperparameter Sensitivity (RQ4)
+     We examine the sensitivity of our model to three key hyperparameters: the contrastive
+loss weight γ, the compression ratio ρ, and energy threshold τ . For each hyperparameter,
+we vary its value while holding all others fixed at their optimal settings, and report
+Recall@10 and MRR@10 on ML-1M, Amazon, and Steam. The results are presented in
+Figure 3, Figure 4, and Figure 5.
+     The parameter γ governs the contribution of the contrastive objective to the overall
+training loss. As shown in the first row of Figure 3, performance first improves and
+then declines as γ increases from 0.001 to 0.5 across all three datasets, with the optimal
+value at γ = 0.01 on ML-1M and γ = 0.1 on Amazon and Steam. When γ is too
+small, the cross-path alignment signal between the Sequential Inference Encoder and the
+Hierarchical Interest Encoder is insufficient to regularize the geometry of u, resulting in
+under-differentiated user representations. Conversely, an excessively large γ causes the
+contrastive term to dominate the recommendation objective, impairing the sequential
+modeling capacity of the SIE and degrading ranking quality. These results confirm that
+LCL functions as an effective auxiliary regularizer rather than the primary training signal,
+and that its weight requires moderate tuning to balance cross-path alignment against
+next-item prediction fidelity.
+     The compression ratio ρ governs the number of active interest slots relative to the
+segment count K produced by the frozen Soft-TPP module, via Ueff = min(⌈ρK⌉, Umax ).
+As shown in Figure 4, the optimal ρ varies across datasets in a manner consistent with
+differences in sequence length and the degree of interest recurrence within each domain.
+     On ML-1M, users accumulate substantially longer interaction histories (average length
+165.50, compared to 23.61 on Amazon and 44.99 on Steam), which provides more posi-
+tional opportunities for boundary events to accumulate, causing the Soft-TPP to produce
+a larger number of boundary-delimited segments K per user. However, a large K does
+not imply a proportionally larger number of distinct interests: given the narrow category
+vocabulary (18 categories), the probability of genuine cross-segment intent divergence is
+limited, meaning many segments are likely manifestations of the same underlying intent
+type rather than truly distinct behavioral phases. While on the Amazon, sequences are
+considerably shorter, so the TPP tends to produce fewer segments per user. With a
+smaller baseline K, interest recurrence is less prevalent, and the segment-to-interest ratio
+is closer to one-to-one. Compressing the slot budget in this regime (ρ < 1.0) would prema-
+turely merge segments that correspond to genuinely distinct behavioral phases, discarding
+useful diversity in the multi-interest representation. Retaining all slots (ρ = 1.0) therefore
+preserves the full discriminative structure of z without introducing the redundancy that
+would arise from overly long histories.
+     Finally, the energy threshold τ controls the sensitivity of the Soft-TPP boundary
+detector: a smaller τ requires more severe energy dissipation before declaring a new seg-
+ment, yielding coarser segmentation, while a larger τ triggers boundaries more readily,
+producing finer-grained segments. As shown in Figure 5, the optimal τ varies across
+datasets in a manner consistent with their temporal characteristics. On ML-1M, where
+users frequently rate multiple movies within the same day, a large proportion of con-
+secutive interactions carry near-zero time-gaps, causing the energy retention ratio ri to
+cluster near its upper bound. A higher threshold (τ = 0.8) is therefore required to trigger
+meaningful boundaries at positions where genuine intent transitions occur, while smaller
+values fail to distinguish true phase changes from same-session continuations. On Ama-
+zon, the sparser and more category-diverse interaction logs produce larger inter-event
+
+                                             23
+time-gaps and more frequent categorical divergence, driving ri to lower values on aver-
+age; the optimal threshold (τ = 0.7) is thus reached earlier, and increasing τ beyond this
+point introduces spurious boundaries that fragment coherent browsing sessions. Steam
+exhibits a pattern similar to ML-1M, with the optimal threshold at τ = 0.8, consis-
+tent with its domain-concentrated nature where users engage with games over extended
+periods within stable interest phases despite the long overall sequence duration.
+
+          13.5       ML-1M       29.0 2.65     Amazon                    Steam
+                                                         5.70 8.4                        14.5
+          12.0                 27.0 2.50                 5.50 8.1                        14.0
+          10.5                 25.0 2.35                 5.30 7.8                        13.5
+           9.0.001 0.01 0.1 0.523.0 2.20.001 0.01 0.1 0.55.10 7.50.001 0.01 0.1     0.513.0
+                                         MRR@10         Recall@10
+                 Figure 3: Hyper-parameter sensitivity analysis of γ on three datasets
+
+
+
+          12.7       ML-1M       28.4 2.54     Amazon       5.78 8.5      Steam          14.5
+          12.3                   27.6 2.46                  5.62 8.3                     14.2
+          11.9                   26.8 2.38                  5.46 8.1              13.9
+          11.50.25 0.5 0.75 1.026.0 2.300.25 0.5 0.75 1.05.30 7.90.25 0.5 0.75 1.013.7
+                                         MRR@10         Recall@10
+                 Figure 4: Hyper-parameter sensitivity analysis of ρ on three datasets
+
+
+
+          13.40      ML-1M      29.00 2.80     Amazon       6.20 8.60     Steam      14.80
+          13.10                 28.00 2.60                  5.80 8.30                14.20
+          12.80                 27.00 2.40                  5.40 8.00                13.60
+          12.500.5 0.7 0.8 0.926.00 2.200.5 0.7 0.8 0.95.00 7.700.5 0.7 0.8 0.913.00
+                                         MRR@10         Recall@10
+                 Figure 5: Hyper-parameter sensitivity analysis of τ on three datasets
+
+
+
+4.9. Computational Efficiency (RQ5)
+    We compare the computational cost of S2-CAR against four representative baselines
+on the Amazon dataset, measuring per-epoch actual training time, peak GPU memory,
+and epochs to convergence. Results on the other two datasets follow the same relative
+ordering and are omitted for brevity.
+    Table 7 reports the per-epoch training time, peak GPU memory, and epochs to con-
+vergence for the proposed method and baselines on the Amazon dataset. S2-CAR’s per-
+epoch time (144 s) is higher than BASRec (71 s) and SASRec (58 s) due to the additional
+hierarchical encoder, but it converges in only 7 epochs, bringing the total training time to
+1,008 seconds, competitive with BASRec (71 s × 26 epochs = 1,846 s total) and ICSRec
+
+
+                                                  24
+Table 7: Computational efficiency comparison on Amazon. Training time per epoch and peak GPU
+memory are measured on a single NVIDIA RTX A5000 GPU. † denotes the TPP training cost, which is
+a one-time overhead and excluded from the per-epoch timing.
+
+          Method            Time/Epoch (s)   GPU Mem (MB)       Epochs to Converge
+          SASRec                 58                6,663                 13
+          CL4SRec                231               13,955                10
+          ICSRec                 176               15,970                9
+          BASRec                  71               11,083                26
+          S2-CAR                 144               11,375                7
+          TPP pre-train †         9                1,162                 5
+
+
+(176 s × 9 epochs = 1,584 s total). In terms of memory, S2-CAR (11,375 MB) is compa-
+rable to BASRec (11,083 MB) and considerably more efficient than ICSRec (15,970 MB).
+The Soft-TPP pre-training adds only 45 seconds in total (9 s × 5 epochs), which is
+negligible relative to the main-model training cost. The complexity-adaptive slot gating
+(Ueff = min(⌈ρK⌉, Umax )) selects a compact active subset from the Umax candidate inter-
+est vectors. In the current implementation, candidate interest vectors are still computed
+from Umax queries, so the main cross-attention cost remains O(Umax · K · d). The adaptive
+selection reduces the subsequent pooling and diversity-regularization computation over
+active interest vectors, and the entire HIE branch is discarded at serving time.
+
+4.10. Middle Information Utilization (RQ6)
+    We investigate whether S2-CAR improves the utilization of middle-sequence infor-
+mation by evaluating its reliance on different parts of the interaction history and its
+robustness to boundary-level perturbations. To this end, we conduct two complementary
+experiments: (1) an item deletion analysis that measures the contribution of different
+temporal segments, and (2) a boundary noise injection experiment that probes whether
+segmentation can isolate cross-segment interference.
+    Prior analysis (Figure 1b) reveals a clear asymmetry in SASRec: removing items
+from the middle segment causes little or no performance degradation, and may even
+lead to slight improvements for longer sequences, whereas removing items from the last
+segment consistently degrades performance. This indicates that existing models largely
+under-utilize middle-segment history and over-rely on recent interactions.
+    Figure 6 extends the same item deletion protocol to S2-CAR across all three bench-
+mark datasets. In contrast to SASRec, removing items from the middle segment consis-
+tently leads to performance degradation across all length groups (orange bars, ∆Recall@10 <
+0 throughout, where ∆Recall@10 denotes the deleted-sequence score minus the original
+score). This result shows that S2-CAR actively relies on middle-sequence information
+rather than treating it as redundant. Meanwhile, removing items from the last segment
+(black bars) also degrades performance, confirming that recent interactions remain impor-
+tant. Together, these results indicate that S2-CAR achieves a more balanced utilization
+of both short-term and long-term signals.
+    To further understand the underlying mechanism, we examine whether this improve-
+ment is driven by accurate intent segmentation. If segmentation correctly identifies intent
+boundaries, noise introduced at segment boundaries should be contained locally rather
+than affecting representations that capture longer-range dependencies. To test this, for
+each user sequence we insert a randomly sampled out-of-category item at a random po-
+sition within either the last temporal segment (Tail Injection) or the first temporal
+
+                                              25
+       0                                                                    0                                                                        0
+
+
+Recall@10                                                            Recall@10                                                                 Recall@10
+
+
+
+                 46        76        106 7 136 7 166 7 196 7 226                      29        39        49         59         69        79                    26        41         56        71        86        101 2 116 2 206
+            17        47        77      10    13    16    19                     20        30        40         50         60        70                    12        27         42        57        72        87      10    19
+                           Length group (short long)                                        Length group (short long)                                                          Length group (short long)
+                                     (a) ML-1M                                         (b) Amazon (length ≥ 20)                                                                           (c) Steam
+
+
+                                                               Removal in Last segment                                    Removal in Middle segment
+
+Figure 6: Item deletion analysis for S2-CAR across all three datasets (∆ Recall@10). Half the items in
+the last segment (short-term proxy, black) or middle segment (long-term proxy, orange) are randomly
+removed; bars below zero indicate performance degradation relative to the original sequence.
+
+
+segment (Head Injection), where segments are defined by the standard 48-hour inac-
+tivity threshold (Chen et al., 2022). We deliberately adopt this fixed heuristic rather
+than TPP-derived boundaries to ensure that the injected noise is independent of S2-
+CAR’s own segmentation, avoiding confounding effects in cross-model comparison. All
+models are retrained from scratch on the perturbed sequences under identical settings,
+and the performance change is reported as (perturbed − original)/original × 100%; be-
+cause the reported values are negative under performance degradation, values closer to
+zero indicate greater robustness.
+    As shown in Table 8, S2-CAR reports values closest to zero in most settings and
+remains competitive in the few cases where TLSRec is slightly closer to zero, such as
+Amazon R@5. Overall, the results suggest that boundary-level noise is less likely to
+dominate S2-CAR’s sequence representation. In contrast, SASRec suffers the largest
+degradation, reflecting its strong reliance on positional bias. CL4SRec shows moderate
+robustness due to stochastic augmentations that reduce dependence on specific positions,
+while ICSRec benefits from intent-level clustering but still allows noise to affect the target
+intent representation in the absence of explicit boundary detection. TLSRec exhibits
+moderate robustness, consistently outperforming SASRec and CL4SRec, as its session-
+level modeling partially captures temporal structure. However, without explicit boundary
+detection, it remains susceptible to cross-segment noise in most metrics, leading to greater
+degradation than S2-CAR overall.
+
+5. Discussion
+5.1. Theoretical Implications
+    S2-CAR advances the theoretical understanding of user intent modeling in sequen-
+tial recommendation along three dimensions. First, by grounding intent segmentation in
+a Continuous-Time Temporal Point Process (TPP) framework, we provide a principled
+probabilistic alternative to heuristic time-gap or fixed-window partitioning strategies.
+The energy retention ratio ri derived from the Context-Aware Soft-TPP offers a theoret-
+ically motivated boundary criterion that adapts to the local categorical dynamics of each
+user, rather than imposing a globally uniform criterion. Second, the Segment-Count-
+Adaptive slot gating mechanism (Equation 14) formalizes the intuition that interest ca-
+
+                                                                                                               26
+          Table 8: Relative performance degradation (%) under boundary noise injection.
+
+     Dataset   Metric   SASRec (%) ↓   CL4SRec (%) ↓    ICSRec (%) ↓   TLSRec (%) ↓   S2-CAR (%) ↓
+               R@5         −9.83           −6.41           −4.72          −3.89          −1.40
+               R@10        −9.12           −5.87           −4.31          −4.17          −0.19
+     ML-1M
+               MRR@5       −10.24          −6.93           −5.01          −4.52          −1.06
+               MRR@10      −10.57          −7.12           −4.88          −4.81          −1.21
+               R@5         −7.41           −5.23           −4.18          −3.14          −3.37
+               R@10        −6.63           −4.97           −3.85          −3.95          −3.42
+     Amazon
+               MRR@5       −8.62           −5.64           −4.53          −4.17          −3.23
+               MRR@10      −8.21           −5.38           −4.29          −4.75          −3.22
+               R@5         −8.74           −5.91           −4.43          −4.62          −1.70
+               R@10        −7.93           −5.42           −3.97          −4.14          −0.37
+     Steam
+               MRR@5       −9.31           −6.24           −4.61          −3.73          −1.62
+               MRR@10      −8.87           −5.83           −4.37          −4.07          −1.29
+
+
+
+pacity should scale with behavioral complexity, addressing the uniform-slot limitation
+identified in prior multi-interest work (Li et al., 2019; Cen et al., 2020). Third, the
+decoupled training design, where the HIE provides contrastive supervision to the SIE
+without participating in inference, establishes a general principle for injecting structural
+regularization into autoregressive encoders without compromising their sequential fidelity.
+
+5.2. Practical Implications
+    From a practical standpoint, S2-CAR offers several deployment-relevant advantages.
+The Soft-TPP segmentation module is pretrained once and frozen, adding only 45 seconds
+of one-time overhead (Table 7), and functions as a plug-and-play component that con-
+sistently improves existing backbones, including augmentation-based (CoSeRec), graph-
+based (SURGE), and diffusion-based (DiffuRec) architectures, without modifying their
+internal design (Table 5). This modularity makes the proposed segmentation broadly
+applicable beyond the S2-CAR framework. Furthermore, S2-CAR converges in only 7
+epochs despite its two-encoder architecture, resulting in a total training cost competitive
+with simpler baselines such as BASRec, while achieving substantially higher recommenda-
+tion quality. These properties suggest that S2-CAR is suitable for real-world deployment
+scenarios where both accuracy and computational efficiency are critical.
+
+5.3. Differences from Existing Work
+    Table 3 summarizes how S2-CAR differs from existing methods along five modeling
+dimensions. Unlike prior hierarchical methods that rely on fixed temporal windows (Chen
+et al., 2022) or raw time-gap thresholds (Ludewig and Jannach, 2018), S2-CAR infers
+segment boundaries from the continuous-time decay of latent intent energy, enabling
+task-specific segmentation without manually annotated boundary labels. Unlike multi-
+interest models that allocate a uniform number of interest slots across all users (Li et al.,
+2019; Choi et al., 2024), S2-CAR dynamically adjusts slot capacity in proportion to each
+user’s segment count via the compression ratio ρ, preventing both capacity waste and
+under-representation of diverse interests.
+
+5.4. Limitations and Future Work
+    While S2-CAR achieves consistent improvements across three diverse benchmarks,
+several limitations merit discussion. First, the two-stage training requires that category
+information is available at both pretraining and inference time; datasets without category
+metadata would require an alternative decay conditioning mechanism, such as item-level
+
+                                                   27
+semantic similarity or co-occurrence statistics. Second, the threshold hyperparameter τ
+requires dataset-specific tuning, as optimal values vary with the temporal density and cat-
+egorical diversity of each domain (Section 4.8); the hyperparameter sensitivity analysis in
+Section 4.8 shows that performance is relatively stable within a moderate range around the
+optimal value, but automating this selection remains an open direction. Third, while the
+Soft-TPP module is computationally lightweight (O(N d) per sequence, pretrained once
+in 45 seconds), the auxiliary HIE branch increases the parameter count by approximately
+1.7× the parameter count of a single Transformer, increasing GPU memory requirements
+during training to around 11 GB (comparable to BASRec at 11 GB, but higher than SAS-
+Rec at 6.6 GB, as reported in Table 7); future work could explore more memory-efficient
+contrastive designs such as momentum encoders or asynchronous teacher updates. Fi-
+nally, the current evaluation is limited to three benchmarks spanning movie, e-commerce,
+and gaming domains. Extending the evaluation to cross-domain, social media, or news
+recommendation settings, where intent dynamics may be triggered by different contextual
+signals, would further validate the generality of the proposed energy-based segmentation
+framework.
+
+6. Conclusion
+    In this paper, we proposed S2-CAR, a Segmentation-Supervised Hierarchical Multi-
+Intent Network with Complexity-Adaptive Regularization for sequential recommendation.
+Our work is motivated by two complementary failure modes of existing approaches: the
+reliance on fixed temporal boundaries that misalign with true intent transitions, and the
+uniform allocation of interest capacity that fails to reflect the varying complexity of user
+behavior across sessions. To address these, S2-CAR introduces a Context-Aware Soft-
+TPP that models user intent as a continuously decaying latent energy state, triggering
+segment boundaries only when energy retention falls below a dataset-specific threshold,
+without manually annotated boundary labels. Our plug-in experiments show consistent
+improvements on representative sequential recommenders, suggesting that behaviorally
+adaptive boundary construction can serve as a useful structural prior for a broader class
+of sequence modeling frameworks.
+
+
+
+
+                                            28
+References
+Cen, Y., Zhang, J., Zou, X., Zhou, C., Yang, H., Tang, J., 2020. Controllable multi-
+  interest framework for recommendation, in: Proceedings of the 26th ACM SIGKDD
+  international conference on knowledge discovery & data mining, pp. 2942–2951.
+
+Chang, J., Gao, C., Zheng, Y., Hui, Y., Niu, Y., Song, Y., Jin, D., Li, Y., 2021. Sequential
+  recommendation with graph neural networks, in: Proceedings of the 44th international
+  ACM SIGIR conference on research and development in information retrieval, pp. 378–
+  387.
+
+Chen, L., Yang, N., Yu, P.S., 2022. Time lag aware sequential recommendation, in:
+  Proceedings of the 31st ACM international conference on information & knowledge
+  management, pp. 212–221.
+
+Choi, M., Kim, H.y., Cho, H., Lee, J., 2024. Multi-intent-aware session-based recommen-
+  dation, in: Proceedings of the 47th international ACM SIGIR conference on research
+  and development in information retrieval, pp. 2532–2536.
+
+Daley, D.J., Vere-Jones, D., 2003. An introduction to the theory of point processes:
+ volume I: elementary theory and methods. Springer.
+
+Dang, Y., Zhang, J., Liu, Y., Yang, E., Liang, Y., Guo, G., Zhao, J., Wang, X., 2025.
+ Augmenting sequential recommendation with balanced relevance and diversity, in: Pro-
+ ceedings of the AAAI Conference on Artificial Intelligence, pp. 11563–11571.
+
+Deng, H., Hu, J., 2024. Sse4rec: Sequential recommendation with subsequence extraction.
+  Knowledge-Based Systems 285, 111364.
+
+Du, N., Dai, H., Trivedi, R., Upadhyay, U., Gomez-Rodriguez, M., Song, L., 2016. Re-
+ current marked temporal point processes: Embedding event history to vector, in: Pro-
+ ceedings of the 22nd ACM SIGKDD international conference on knowledge discovery
+ and data mining, pp. 1555–1564.
+
+Fang, H., Zhang, D., Shu, Y., Guo, G., 2020. Deep learning for sequential recommenda-
+  tion: Algorithms, influential factors, and evaluations. ACM Transactions on Informa-
+  tion Systems (TOIS) 39, 1–42.
+
+Guo, L., Wu, S., Lu, D., Gao, L., Xu, G., 2026. Dual-channel time-aware graph attention
+ network for session-based recommendation. Information Sciences , 123289.
+
+Harper, F.M., Konstan, J.A., 2015. The movielens datasets: History and context. Acm
+  transactions on interactive intelligent systems (tiis) 5, 1–19.
+
+Hawkes, A.G., 1971. Spectra of some self-exciting and mutually exciting point processes.
+  Biometrika 58, 83–90.
+
+He, R., McAuley, J., 2016. Ups and downs: Modeling the visual evolution of fashion
+  trends with one-class collaborative filtering, in: proceedings of the 25th international
+  conference on world wide web, pp. 507–517.
+
+Hidasi, B., Karatzoglou, A., Baltrunas, L., Tikk, D., 2015. Session-based recommenda-
+  tions with recurrent neural networks. arXiv preprint arXiv:1511.06939 .
+
+                                            29
+Hu, F., Zidek, J.V., 2002. The weighted likelihood. Canadian Journal of Statistics 30,
+ 347–371.
+
+Isham, V., Westcott, M., 1979. A self-correcting point process. Stochastic processes and
+  their applications 8, 335–347.
+
+Kang, W.C., McAuley, J., 2018. Self-attentive sequential recommendation, in: 2018 IEEE
+ international conference on data mining (ICDM), IEEE. pp. 197–206.
+
+Krichene, W., Rendle, S., 2020. On sampled metrics for item recommendation, in: Pro-
+  ceedings of the 26th ACM SIGKDD international conference on knowledge discovery
+  & data mining, pp. 1748–1757.
+
+Li, A., Liu, X., Yang, B., 2024. Item attribute-aware graph collaborative filtering. Expert
+  Systems with Applications 238, 122242.
+
+Li, C., Liu, Z., Wu, M., Xu, Y., Zhao, H., Huang, P., Kang, G., Chen, Q., Li, W.,
+  Lee, D.L., 2019. Multi-interest network with dynamic routing for recommendation at
+  tmall, in: Proceedings of the 28th ACM international conference on information and
+  knowledge management, pp. 2615–2623.
+
+Li, J., Wang, Y., McAuley, J., 2020. Time interval aware self-attention for sequential
+  recommendation, in: Proceedings of the 13th international conference on web search
+  and data mining, pp. 322–330.
+
+Li, Y., Chen, H., Sun, X., Sun, Z., Li, L., Cui, L., Yu, P.S., Xu, G., 2021. Hyper-
+  bolic hypergraphs for sequential recommendation, in: Proceedings of the 30th ACM
+  international conference on information & knowledge management, pp. 988–997.
+
+Li, Z., Chen, Q., Zou, L., Sun, A., Li, C., 2025. Multi-interest recommendation: A survey.
+  ACM Transactions on Information Systems .
+
+Li, Z., Sun, A., Li, C., 2023. Diffurec: A diffusion model for sequential recommendation.
+  ACM Transactions on Information Systems 42, 1–28.
+
+Liu, C., Li, X., Cai, G., Dong, Z., Zhu, H., Shang, L., 2021a. Noninvasive self-attention
+  for side information fusion in sequential recommendation, in: Proceedings of the AAAI
+  conference on artificial intelligence, pp. 4249–4256.
+
+Liu, N.F., Lin, K., Hewitt, J., Paranjape, A., Bevilacqua, M., Petroni, F., Liang, P.,
+  2024. Lost in the middle: How language models use long contexts. Transactions of the
+  association for computational linguistics 12, 157–173.
+
+Liu, Z., Chen, Y., Li, J., Yu, P.S., McAuley, J., Xiong, C., 2021b. Contrastive self-
+  supervised sequential recommendation with robust augmentation. arXiv preprint
+  arXiv:2108.06479 .
+
+Long, H., Lu, J., Dai, C., 2025. Dual denoising contrastive learning with multi-interest
+  fusion for sequential recommendation. Scientific Reports .
+
+Ludewig, M., Jannach, D., 2018. Evaluation of session-based recommendation algorithms:
+  M. ludewig, d. jannach. User Modeling and User-Adapted Interaction 28, 331–390.
+
+
+                                            30
+Lv, M., Liu, X., Xu, Y., 2025. Dynamic multi-interest graph neural network for session-
+  based recommendation, in: Proceedings of the AAAI conference on artificial intelli-
+  gence, pp. 12328–12336.
+
+Ma, J., Zhou, C., Yang, H., Cui, P., Wang, X., Zhu, W., 2020. Disentangled self-
+ supervision in sequential recommenders, in: Proceedings of the 26th ACM SIGKDD
+ international conference on knowledge discovery & data mining, pp. 483–491.
+
+Mei, H., Eisner, J.M., 2017. The neural hawkes process: A neurally self-modulating
+ multivariate point process. Advances in neural information processing systems 30.
+
+Ogata, Y., 1978. The asymptotic behaviour of maximum likelihood estimators for sta-
+ tionary point processes. Annals of the Institute of Statistical Mathematics 30, 243–261.
+
+Peng, T., Yuan, H., Zhang, Y., Li, Y., Dai, P., Wang, Q., Wang, S., Wu, W., 2025.
+  Tagrec: Temporal-aware graph contrastive learning with theoretical augmentation for
+  sequential recommendation. IEEE Transactions on Knowledge and Data Engineering
+  37, 3015–3029.
+
+Qin, X., Yuan, H., Zhao, P., Liu, G., Zhuang, F., Sheng, V.S., 2024. Intent contrastive
+  learning with cross subsequences for sequential recommendation, in: Proceedings of
+  the 17th ACM international conference on web search and data mining, pp. 548–556.
+
+Qiu, R., Huang, Z., Yin, H., Wang, Z., 2022. Contrastive learning for representation
+  degeneration problem in sequential recommendation, in: Proceedings of the fifteenth
+  ACM international conference on web search and data mining, pp. 813–823.
+
+Quadrana, M., Karatzoglou, A., Hidasi, B., Cremonesi, P., 2017. Personalizing session-
+ based recommendations with hierarchical recurrent neural networks, in: proceedings
+ of the Eleventh ACM Conference on Recommender Systems, pp. 130–137.
+
+Sharma, K., Lee, Y.C., Nambi, S., Salian, A., Shah, S., Kim, S.W., Kumar, S., 2024.
+  A survey of graph neural networks for social recommender systems. ACM Computing
+  Surveys 56, 1–34.
+
+Su, J., Ahmed, M., Lu, Y., Pan, S., Bo, W., Liu, Y., 2024. Roformer: Enhanced trans-
+  former with rotary position embedding. Neurocomputing 568, 127063.
+
+Sun, F., Liu, J., Wu, J., Pei, C., Lin, X., Ou, W., Jiang, P., 2019. Bert4rec: Sequen-
+  tial recommendation with bidirectional encoder representations from transformer, in:
+  Proceedings of the 28th ACM international conference on information and knowledge
+  management, pp. 1441–1450.
+
+Tan, Q., Zhang, J., Yao, J., Liu, N., Zhou, J., Yang, H., Hu, X., 2021. Sparse-interest
+  network for sequential recommendation, in: Proceedings of the 14th ACM international
+  conference on web search and data mining, pp. 598–606.
+
+Tang, J., Wang, K., 2018. Personalized top-n sequential recommendation via convolu-
+  tional sequence embedding, in: Proceedings of the eleventh ACM international confer-
+  ence on web search and data mining, pp. 565–573.
+
+
+
+
+                                           31
+Vassøy, B., Ruocco, M., de Souza da Silva, E., Aune, E., 2019. Time is of the essence:
+  a joint hierarchical rnn and point process model for time and item predictions, in:
+  Proceedings of the twelfth ACM international conference on Web search and data
+  mining, pp. 591–599.
+
+Wang, S., Cao, L., Wang, Y., Sheng, Q.Z., Orgun, M.A., Lian, D., 2021. A survey on
+ session-based recommender systems. ACM Computing Surveys (CSUR) 54, 1–38.
+
+Wang, W., Ma, J., Zhang, Y., Zhang, K., Jiang, J., Yang, Y., Zhou, Y., Zhang, Z., 2025.
+ Intent oriented contrastive learning for sequential recommendation, in: Proceedings of
+ the AAAI Conference on Artificial Intelligence, pp. 12748–12756.
+
+Wang, Y., Du, N., Trivedi, R., Song, L., 2016. Coevolutionary latent feature processes
+ for continuous-time user-item interactions. Advances in neural information processing
+ systems 29.
+
+Xie, X., Sun, F., Liu, Z., Wu, S., Gao, J., Zhang, J., Ding, B., Cui, B., 2022. Contrastive
+  learning for sequential recommendation, in: 2022 IEEE 38th international conference
+  on data engineering (ICDE), IEEE. pp. 1259–1273.
+
+Zhang, S., Chen, L., Shen, D., Wang, C., Xiong, H., 2025. Hierarchical time-aware
+  mixture of experts for multi-modal sequential recommendation, in: Proceedings of the
+  ACM on Web Conference 2025, pp. 3672–3682.
+
+Zhang, Z., Chen, R., Liu, S., Yao, Z., Ruwase, O., Chen, B., Wu, X., Wang, Z., 2024.
+  Found in the middle: How language models use long contexts better via plug-and-play
+  positional encoding. Advances in Neural Information Processing Systems 37, 60755–
+  60775.
+
+Zhao, Q., Erdogdu, M.A., He, H.Y., Rajaraman, A., Leskovec, J., 2015. Seismic: A
+  self-exciting point process model for predicting tweet popularity, in: Proceedings of
+  the 21th ACM SIGKDD international conference on knowledge discovery and data
+  mining, pp. 1513–1522.
+
+
+
+
+                                            32
+

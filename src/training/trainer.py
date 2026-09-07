@@ -27,6 +27,7 @@ from torch.utils.data import DataLoader
 from src.data.tokenized_loader import TokenizedShardDataset
 from src.safety.safety_token_regularization import SafetyTokenRegularizer
 from src.training.muon import Muon, build_muon_optimizer
+from src.training.symmetry_optimizer import build_symmetry_optimizer
 from src.training.zclip import ZClip
 
 logger = logging.getLogger(__name__)
@@ -282,6 +283,12 @@ class TrainConfig:
     muon_lr: float = 0.02  # Muon learning rate (much higher than AdamW's 3e-4)
     muon_momentum: float = 0.95
 
+    # Symmetry-compatible MoE router optimizer (arXiv:2605.18106)
+    use_symmetry_router_optimizer: bool = False
+    symmetry_router_lr: float = 5e-4
+    symmetry_router_beta: float = 0.95
+    symmetry_router_mode: str = "centered_row_norm"
+
     # BAdam (block-coordinate Adam)
     use_badam: bool = False
     badam_cycle_length: int = 1
@@ -375,6 +382,18 @@ class TrainConfig:
             use_8bit=raw.get("optimizer", {}).get("use_8bit", cls.use_8bit),
             muon_lr=raw.get("optimizer", {}).get("muon_lr", cls.muon_lr),
             muon_momentum=raw.get("optimizer", {}).get("muon_momentum", cls.muon_momentum),
+            use_symmetry_router_optimizer=raw.get("optimizer", {}).get(
+                "use_symmetry_router_optimizer", cls.use_symmetry_router_optimizer
+            ),
+            symmetry_router_lr=raw.get("optimizer", {}).get(
+                "symmetry_router_lr", cls.symmetry_router_lr
+            ),
+            symmetry_router_beta=raw.get("optimizer", {}).get(
+                "symmetry_router_beta", cls.symmetry_router_beta
+            ),
+            symmetry_router_mode=raw.get("optimizer", {}).get(
+                "symmetry_router_mode", cls.symmetry_router_mode
+            ),
             use_zclip=raw.get("gradient", {}).get("use_zclip", cls.use_zclip),
             zclip_z_threshold=raw.get("gradient", {}).get(
                 "zclip_z_threshold", cls.zclip_z_threshold
@@ -469,6 +488,7 @@ class CheckpointManager:
         accelerator: Any,
         muon_optimizer: Any | None = None,
         badam_scheduler: Any | None = None,
+        router_optimizer: Any | None = None,
     ) -> Path:
         """Save checkpoint as safetensors + metadata JSON."""
         ckpt_dir = self.save_dir / f"step-{step:07d}"
@@ -494,6 +514,8 @@ class CheckpointManager:
         }
         if muon_optimizer is not None:
             optim_state["muon"] = muon_optimizer.state_dict()
+        if router_optimizer is not None:
+            optim_state["router_optimizer"] = router_optimizer.state_dict()
         if badam_scheduler is not None:
             optim_state["badam"] = {
                 "current": badam_scheduler.current,
@@ -532,6 +554,7 @@ class CheckpointManager:
         scheduler: LambdaLR | None = None,
         muon_optimizer: Any | None = None,
         badam_scheduler: Any | None = None,
+        router_optimizer: Any | None = None,
     ) -> dict[str, Any]:
         """Load checkpoint from safetensors + metadata."""
         ckpt_dir = Path(ckpt_dir)
@@ -582,6 +605,8 @@ class CheckpointManager:
                 scheduler.load_state_dict(optim_state["scheduler"])
             if muon_optimizer is not None and "muon" in optim_state:
                 muon_optimizer.load_state_dict(optim_state["muon"])
+            if router_optimizer is not None and "router_optimizer" in optim_state:
+                router_optimizer.load_state_dict(optim_state["router_optimizer"])
             if badam_scheduler is not None and "badam" in optim_state:
                 badam_scheduler.current = optim_state["badam"]["current"]
                 badam_scheduler.step_count = optim_state["badam"]["step_count"]
@@ -630,6 +655,26 @@ class AureliusTrainer:
             self.n_params / 1e9,
         )
 
+        # C-20: Apply activation (gradient) checkpointing when configured.
+        # Wraps TransformerBlock.forward with torch.utils.checkpoint.checkpoint
+        # to trade recomputation for reduced peak activation memory.
+        ac_mode = getattr(self.cfg, "activation_checkpoint", "none")
+        if ac_mode in ("full", "every_layer"):
+            from src.model.transformer import TransformerBlock
+            from src.training.activation_checkpointing import (
+                CheckpointConfig,
+                apply_activation_checkpointing,
+            )
+
+            ckpt_cfg = CheckpointConfig(
+                checkpoint_every_n_layers=1,
+                use_reentrant=False,
+            )
+            n_wrapped = apply_activation_checkpointing(self.model, TransformerBlock, ckpt_cfg)
+            logger.info("Gradient checkpointing enabled: wrapped %d TransformerBlock layers", n_wrapped)
+        elif ac_mode not in ("none", "off", "", None):
+            logger.warning("Unknown activation_checkpoint mode: %s (expected 'full' or 'none')", ac_mode)
+
         # FP8 training via torchao
         if getattr(self.cfg, "fp8", False):
             try:
@@ -655,6 +700,11 @@ class AureliusTrainer:
             self.muon_optimizer = None
             self.adamw_optimizer = self.optimizer
 
+        # The router_optimizer is set as a side effect of _build_optimizer()
+        # when use_symmetry_router_optimizer is enabled.
+        if not hasattr(self, "router_optimizer"):
+            self.router_optimizer = None
+
         # Accelerator (handles device placement, mixed precision, DeepSpeed)
         ds_plugin = None
         if cfg.deepspeed_config and os.path.exists(cfg.deepspeed_config):
@@ -672,19 +722,27 @@ class AureliusTrainer:
 
         # Prepare with Accelerate
         if isinstance(self.optimizer, list):
-            (
+            # Build prepare args: model, muon, adamw, optionally router_opt, dataloader, scheduler
+            prepare_args = (
                 self.model,
                 self.muon_optimizer,
                 self.adamw_optimizer,
-                self.train_dataloader,
-                self.scheduler,
-            ) = self.accelerator.prepare(
-                self.model,
-                self.muon_optimizer,
-                self.adamw_optimizer,
-                self.train_dataloader,
-                self.scheduler,
             )
+            if self.router_optimizer is not None:
+                prepare_args = (*prepare_args, self.router_optimizer)
+            prepare_args = (*prepare_args, self.train_dataloader, self.scheduler)
+
+            prepared = self.accelerator.prepare(*prepare_args)
+            self.model = prepared[0]
+            self.muon_optimizer = prepared[1]
+            self.adamw_optimizer = prepared[2]
+            if self.router_optimizer is not None:
+                self.router_optimizer = prepared[3]
+                self.train_dataloader = prepared[4]
+                self.scheduler = prepared[5]
+            else:
+                self.train_dataloader = prepared[3]
+                self.scheduler = prepared[4]
             self.optimizer = [self.muon_optimizer, self.adamw_optimizer]
         else:
             (
@@ -760,20 +818,49 @@ class AureliusTrainer:
         When optimizer=='muon' or use_muon=True: returns a list [Muon, AdamW]
         — Muon for 2D weight matrices in transformer layers, AdamW for
         embeddings and 1D params. Otherwise returns a single AdamW.
+
+        When use_symmetry_router_optimizer is True, MoE router parameters are
+        extracted from the main optimizer and handled by a separate
+        symmetry-compatible optimizer (CenteredRowNorm or LeftSpectral).
+        The router optimizer is stored as ``self.router_optimizer``.
         """
         if getattr(self.cfg, "optimizer", "adamw") == "muon" or getattr(
             self.cfg, "use_muon", False
         ):
-            return self._build_muon_adamw()
-        return self._build_adamw()
+            result = self._build_muon_adamw()
+        else:
+            result = self._build_adamw()
+
+        # Build symmetry-compatible router optimizer (if enabled)
+        self.router_optimizer = None
+        if getattr(self.cfg, "use_symmetry_router_optimizer", False):
+            self.router_optimizer = build_symmetry_optimizer(
+                self.model,
+                mode=self.cfg.symmetry_router_mode,
+                lr=self.cfg.symmetry_router_lr,
+                beta=self.cfg.symmetry_router_beta,
+                weight_decay=0.0,
+            )
+
+        return result
 
     def _build_adamw(self) -> AdamW:
-        """Build AdamW (optionally 8-bit) with weight-decay exclusion for bias/norm params."""
+        """Build AdamW (optionally 8-bit) with weight-decay exclusion for bias/norm params.
+
+        When use_symmetry_router_optimizer is enabled, MoE router params are
+        excluded — they will be handled by a dedicated symmetry-compatible
+        optimizer created in ``_build_optimizer``.
+        """
         decay_params: list[torch.nn.Parameter] = []
         no_decay_params: list[torch.nn.Parameter] = []
 
         for name, param in self.model.named_parameters():
             if not param.requires_grad:
+                continue
+            # Skip MoE router params when symmetry optimizer is active
+            if getattr(self.cfg, "use_symmetry_router_optimizer", False) and (
+                "gate.weight" in name or "router.weight" in name or "proj.weight" in name
+            ):
                 continue
             if "bias" in name or "norm" in name or "ln" in name:
                 no_decay_params.append(param)
@@ -807,6 +894,10 @@ class AureliusTrainer:
 
         Uses ``build_muon_optimizer`` for param splitting, then enhances AdamW
         with decay/no-decay param groups and optional 8-bit compression.
+
+        When ``use_symmetry_router_optimizer`` is enabled, MoE router params
+        are excluded from both Muon and AdamW — they will be handled by a
+        dedicated symmetry-compatible optimizer created in ``_build_optimizer``.
         """
         # Use build_muon_optimizer for canonical param splitting
         _muon_tmp, _adam_tmp = build_muon_optimizer(
@@ -818,6 +909,22 @@ class AureliusTrainer:
         muon_params = _muon_tmp.param_groups[0]["params"]
         adam_params = _adam_tmp.param_groups[0]["params"]
         adam_param_ids = {id(p) for p in adam_params}
+
+        # Build set of router param IDs (excluded from Muon/AdamW when
+        # the symmetry-compatible router optimizer is active)
+        router_param_ids: set[int] = set()
+        if getattr(self.cfg, "use_symmetry_router_optimizer", False):
+            for name, param in self.model.named_parameters():
+                if not param.requires_grad:
+                    continue
+                if "gate.weight" in name or "router.weight" in name or "proj.weight" in name:
+                    router_param_ids.add(id(param))
+
+        # Remove router params from muon_params (in-place filter)
+        if router_param_ids:
+            muon_params = [p for p in muon_params if id(p) not in router_param_ids]
+            adam_params = [p for p in adam_params if id(p) not in router_param_ids]
+            adam_param_ids = {id(p) for p in adam_params}
 
         # Further split AdamW params into decay / no-decay groups
         adamw_decay: list[torch.nn.Parameter] = []
@@ -912,6 +1019,7 @@ class AureliusTrainer:
                 self.scheduler,
                 muon_optimizer=self.muon_optimizer,
                 badam_scheduler=self.badam_scheduler,
+                router_optimizer=self.router_optimizer,
             )
             self.global_step = metadata["step"]
             self.tokens_seen = metadata["tokens_seen"]
@@ -961,6 +1069,9 @@ class AureliusTrainer:
                     if self.muon_optimizer is not None:
                         self.muon_optimizer.step()
                         self.muon_optimizer.zero_grad()
+                    if self.router_optimizer is not None:
+                        self.router_optimizer.step()
+                        self.router_optimizer.zero_grad()
                     self.adamw_optimizer.step()
                     self.scheduler.step()
                     self.adamw_optimizer.zero_grad()
@@ -1047,6 +1158,7 @@ class AureliusTrainer:
                 accelerator=self.accelerator,
                 muon_optimizer=self.muon_optimizer,
                 badam_scheduler=self.badam_scheduler,
+                router_optimizer=self.router_optimizer,
             )
 
     @torch.no_grad()

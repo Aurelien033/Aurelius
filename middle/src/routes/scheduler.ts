@@ -212,3 +212,21 @@ export function createSchedulerRouter(store: SchedulerStore = new MemorySchedule
 
 // Default export uses in-memory store.
 export default createSchedulerRouter()
+
+/**
+ * Build request headers for dispatching commands to the Aurelius upstream.
+ *
+ * Includes ``X-API-Key`` when the ``AURELIUS_API_KEY`` env var is set;
+ * omits it otherwise (allowing the upstream to reject unauthenticated
+ * requests — fail-closed, M-17). Always includes ``Content-Type``.
+ */
+export function commandRequestHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  const apiKey = process.env.AURELIUS_API_KEY
+  if (apiKey) {
+    headers['X-API-Key'] = apiKey
+  }
+  return headers
+}

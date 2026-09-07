@@ -1,0 +1,17 @@
+# Calibration-Aware SFT experiment config
+include: sft_base.yaml
+
+experiment:
+  name: calibrated_sft
+  module: src.training.calibrated_sft
+  class: CalibratedSFTLoss
+
+calibration:
+  lambda_ece: 0.1
+  n_bins: 10
+  temperature: 0.1
+  ece_frequency: 1.0
+  sample_ratio: 0.2
+
+ablations:
+  lambda_values: [0.0, 0.01, 0.1, 0.5]

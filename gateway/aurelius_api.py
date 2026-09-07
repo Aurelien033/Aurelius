@@ -280,8 +280,8 @@ async def restrict_host(request, call_next):
 async def rate_limit(request, call_next):
     client_ip = request.client.host if request.client else "unknown"
     if _rate_limiter is None:
-        # Fallback: allow if rate limiter not yet initialized
-        return await call_next(request)
+        # Fail-closed: deny requests when rate limiter not initialized
+        return PlainTextResponse("Rate limiter not initialized", status_code=503)
     if not _rate_limiter(client_ip):
         return PlainTextResponse("Rate limit exceeded", status_code=429)
     return await call_next(request)
@@ -401,7 +401,14 @@ async def readiness() -> dict:
 
 
 @app.get("/metrics")
-async def prometheus_metrics() -> PlainTextResponse:
+async def prometheus_metrics(request: Request) -> PlainTextResponse:
+    """Prometheus metrics endpoint — requires X-API-Key header."""
+    metrics_key = os.environ.get("AURELIUS_METRICS_API_KEY")
+    if not metrics_key:
+        raise HTTPException(status_code=503, detail="Metrics endpoint not configured")
+    provided_key = request.headers.get("X-API-Key", "")
+    if provided_key != metrics_key:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
     return PlainTextResponse(
         METRICS.prometheus_text(),
         media_type="text/plain; version=0.0.4; charset=utf-8",
@@ -613,10 +620,15 @@ def _get_engine() -> Callable[[EngineChatRequest], str]:
 
 
 def _sanitize_completion(text: str) -> str:
-    """Clean model output before returning to client."""
-    text = text.encode("ascii", "ignore").decode("ascii", "ignore")
-    text = " ".join(text.split())
-    return text.strip()
+    """Clean model output before returning to client.
+
+    Preserves Unicode (emoji, CJK, scripts). M-03 (CSV): previously this
+    stripped non-ASCII via ``encode ascii ignore`` which corrupts any
+    non-Latin output. Whitespace normalization is retained.
+    """
+    if not isinstance(text, str):
+        text = str(text)
+    return " ".join(text.split())
 
 
 @app.post("/v1/chat/completions")

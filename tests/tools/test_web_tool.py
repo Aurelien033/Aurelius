@@ -5,17 +5,11 @@ No real network calls are made. All fetch tests use unittest.mock.patch.
 
 from __future__ import annotations
 
-import urllib.error
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tools.web_tool import (
-    _MAX_URL_LEN,
-    WebTool,
-    _is_safe_url,
-    _SafeRedirectHandler,
-)
+from tools.web_tool import _MAX_URL_LEN, WebTool, _is_safe_url
 
 
 @pytest.fixture
@@ -160,12 +154,11 @@ def test_fetch_rejects_file_scheme(tool):
 def test_fetch_success_mocked(tool):
     mock_resp = MagicMock()
     mock_resp.read.return_value = b"<html>hello</html>"
+    mock_resp.status = 200
     mock_resp.__enter__ = lambda s: s
     mock_resp.__exit__ = MagicMock(return_value=False)
-    mock_opener = MagicMock()
-    mock_opener.open.return_value = mock_resp
 
-    with patch("tools.web_tool.urllib.request.build_opener", return_value=mock_opener):
+    with patch("tools.web_tool._opener.open", return_value=mock_resp):
         result = tool.fetch("https://www.example.com/")
 
     assert result.success
@@ -176,41 +169,82 @@ def test_fetch_success_mocked(tool):
 
 
 def test_fetch_network_error_mocked(tool):
-    mock_opener = MagicMock()
-    mock_opener.open.side_effect = urllib.error.URLError("timeout")
-    with patch("tools.web_tool.urllib.request.build_opener", return_value=mock_opener):
+    import urllib.error
+
+    with patch("tools.web_tool._opener.open", side_effect=urllib.error.URLError("timeout")):
         result = tool.fetch("https://www.example.com/")
     assert not result.success
     assert "timeout" in result.error
 
 
-# ── Redirect handler — SSRF via redirect ─────────────────────────────────────
+# ── H-24 (CSV): redirect re-validation — SSRF-via-open-redirect ──────────────
 
 
-def test_redirect_to_imds_denied():
-    handler = _SafeRedirectHandler()
-    with pytest.raises(urllib.error.URLError, match="unsafe"):
-        handler.redirect_request(MagicMock(), None, 302, "Found", {}, "http://169.254.169.254/")
+def test_fetch_rejects_redirect_to_private_ip(tool):
+    """A public URL that redirects to 169.254.169.254 must be rejected at hop 2."""
+    import urllib.error
+
+    # First hop: public URL → returns 302 with Location targeting metadata service
+    redirect_err = urllib.error.HTTPError(
+        "https://public.example.com/x",
+        302,
+        "Found",
+        {"Location": "http://169.254.169.254/latest/meta-data/"},  # noqa: S106
+        None,
+    )
+
+    with patch("tools.web_tool._opener.open", side_effect=redirect_err):
+        result = tool.fetch("https://public.example.com/x")
+
+    assert not result.success
+    assert "denied target" in result.error or "169.254" in result.error
 
 
-def test_redirect_to_loopback_denied():
-    handler = _SafeRedirectHandler()
-    with pytest.raises(urllib.error.URLError, match="unsafe"):
-        handler.redirect_request(MagicMock(), None, 302, "Found", {}, "http://127.0.0.1/")
+def test_fetch_follows_safe_redirect(tool):
+    """A redirect to another public URL should be followed."""
+    import urllib.error
+
+    final_resp = MagicMock()
+    final_resp.read.return_value = b"final content"
+    final_resp.status = 200
+    final_resp.__enter__ = lambda s: s
+    final_resp.__exit__ = MagicMock(return_value=False)
+
+    redirect_err = urllib.error.HTTPError(
+        "https://public.example.com/a",
+        301,
+        "Moved",
+        {"Location": "https://public-other.example.com/b"},
+        None,
+    )
+
+    def side(req, timeout=None):
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "public-other" in url:
+            return final_resp
+        raise redirect_err
+
+    with patch("tools.web_tool._opener.open", side_effect=side):
+        result = tool.fetch("https://public.example.com/a")
+
+    assert result.success
+    assert "final content" in result.output
 
 
-def test_redirect_too_many_rejected():
-    handler = _SafeRedirectHandler(max_redirects=2)
-    handler._redirect_count = 2
-    with pytest.raises(urllib.error.URLError, match="too many redirects"):
-        handler.redirect_request(MagicMock(), None, 302, "Found", {}, "https://example.com/next")
+def test_fetch_rejects_redirect_loop(tool):
+    """Infinite redirect loops must terminate after _MAX_REDIRECTS."""
+    import urllib.error
 
+    redirect_err = urllib.error.HTTPError(
+        "https://example.com/a",
+        302,
+        "Found",
+        {"Location": "https://example.com/b"},
+        None,
+    )
 
-def test_redirect_safe_public_allowed():
-    handler = _SafeRedirectHandler()
-    req = urllib.request.Request("https://example.com/page1")
-    # Should not raise; returns a new request object (may be None in stub env).
-    try:
-        handler.redirect_request(req, None, 302, "Found", {}, "https://example.com/page2")
-    except urllib.error.URLError as exc:
-        pytest.fail(f"safe redirect unexpectedly rejected: {exc}")
+    with patch("tools.web_tool._opener.open", side_effect=redirect_err):
+        result = tool.fetch("https://example.com/a")
+
+    assert not result.success
+    assert "exceeded" in result.error or "redirect" in result.error

@@ -1,0 +1,38 @@
+{
+  "all_passed": true,
+  "checkpoint": null,
+  "passed": 6,
+  "results": [
+    {
+      "note": "",
+      "status": "PASS",
+      "test": "forge_verification"
+    },
+    {
+      "note": "",
+      "status": "PASS",
+      "test": "mutation_after_verify"
+    },
+    {
+      "note": "",
+      "status": "PASS",
+      "test": "secret_leakage"
+    },
+    {
+      "note": "confidence gate works; source trust not yet implemented",
+      "status": "PASS",
+      "test": "memory_poisoning"
+    },
+    {
+      "note": "",
+      "status": "PASS",
+      "test": "constitutional_integrity"
+    },
+    {
+      "note": "",
+      "status": "PASS",
+      "test": "replay_chain"
+    }
+  ],
+  "total": 6
+}

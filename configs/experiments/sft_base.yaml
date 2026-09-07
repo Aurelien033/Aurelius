@@ -1,0 +1,32 @@
+# Shared SFT base config for Aurelius experiments
+# Extends config_1b.yaml with SFT-specific settings.
+# Import via: include: configs/experiments/sft_base.yaml
+training:
+  mode: sft
+  learning_rate: 2e-5
+  min_lr: 1e-6
+  weight_decay: 0.01
+  beta1: 0.9
+  beta2: 0.999
+  warmup_steps: 100
+  total_steps: 3000
+  grad_clip: 1.0
+  scheduler: cosine
+  optimizer: adamw
+  batch_size: 4
+  micro_batch_size: 2
+  gradient_accumulation_steps: 4
+  max_seq_length: 2048
+  epochs: 3
+  eval_interval: 100
+  save_interval: 500
+
+data:
+  format: sft_jsonl
+  sft_format: messages  # messages or prompt_response
+  shuffle: true
+  seed: 42
+
+evaluation:
+  metrics: [accuracy, loss, ece]
+  benchmark_interval: 500

@@ -1,0 +1,3079 @@
+                                               A functional central limit theorem for kernel
+                                             gradient flow and infinitesimal gradient boosting
+
+                                                            Clément Dombry∗ and Jean-Jil Duchamps∗
+
+                                                                               June 25, 2026
+
+
+
+
+arXiv:2606.25494v1 [math.PR] 24 Jun 2026
+                                                                                   Abstract
+
+                                                     Building on the large-sample analysis of infinitesimal gradient boosting
+                                                 (Dombry and Duchamps, 2024b), we study the fluctuations of the process
+                                                 around its deterministic limit and establish a functional central limit theorem:
+                                                 the rescaled deviations converge in distribution to a Gaussian process. The
+                                                 analysis is carried out in a reproducing kernel Hilbert space (RKHS) naturally
+                                                 associated with the softmax gradient tree base learner, in which the boosting
+                                                 process is characterized as the solution of an autonomous ordinary differential
+                                                 equation (ODE).
+                                                     The proof rests on a general stochastic perturbation analysis of ODEs in
+                                                 Banach spaces, which is of independent interest: whenever a sequence of vector
+                                                 fields converges and satisfies a central limit theorem, so does the associated
+                                                 ODE solution. We first illustrate this perturbation approach in the simpler
+                                                 setting of kernel gradient flow, where the Gaussian limit admits an explicit
+                                                 characterization, and then consider the more complicated tree-based gradient
+                                                 boosting setting.
+
+                                           Keywords: gradient boosting, softmax gradient tree, central limit theorem, func-
+                                           tional convergence.
+                                           MSC 2020 subject classifications: primary 62G05; secondary 60F15, 60J25.
+
+
+                                           Contents
+                                           1 Introduction                                                                           2
+                                             1.1 Motivations and related works . . . . . . . . . . . . . . . . . . . . . .          2
+                                             1.2 Outline of the paper . . . . . . . . . . . . . . . . . . . . . . . . . . .         4
+                                             1.3 Framework and notation . . . . . . . . . . . . . . . . . . . . . . . . .           5
+
+                                           2 Perturbation analysis of ODEs                                                          8
+                                             ∗
+                                              Université Marie et Louis Pasteur, CNRS, LmB (UMR 6623), F-25000 Besançon, France.
+                                           Email: clement.dombry@umlp.fr, jean-jil.duchamps@umlp.fr
+
+
+
+                                                                                        1
+3 Gaussian fluctuations of kernel gradient flows                                      10
+  3.1 Kernel gradient flow . . . . . . . . . . . . . . . . . . . . . . . . . . .      10
+  3.2 Large sample asymptotics . . . . . . . . . . . . . . . . . . . . . . . .        12
+  3.3 The least squares regression case . . . . . . . . . . . . . . . . . . . .       12
+
+4 Gaussian fluctuations of infinitesimal gradient boosting                            14
+  4.1 Infinitesimal gradient boosting . . . . . . . . . . . . . . . . . . . . . .     14
+  4.2 Large sample asymptotics . . . . . . . . . . . . . . . . . . . . . . . .        18
+      4.2.1 Functional law of large numbers . . . . . . . . . . . . . . . . .         18
+      4.2.2 Functional central limit theorem . . . . . . . . . . . . . . . . .        20
+
+5 Proofs                                                                              22
+  5.1 Preliminaries on empirical process theory . . . . . . . . . . . . . . . .       22
+  5.2 Proofs related to Section 2 . . . . . . . . . . . . . . . . . . . . . . . .     25
+  5.3 Proofs related to Section 3 . . . . . . . . . . . . . . . . . . . . . . . .     27
+  5.4 Proofs related to Section 4 . . . . . . . . . . . . . . . . . . . . . . . .     31
+      5.4.1 Preliminaries: splitting schemes and partitions . . . . . . . . .         31
+      5.4.2 Preliminaries: an integral representation for Tn (F ) and T (F ) .        32
+      5.4.3 Proofs related to Subsection 4.1 . . . . . . . . . . . . . . . . .        34
+      5.4.4 Proofs related to Subsection 4.2: law of large numbers. . . . .           35
+      5.4.5 Proofs related to Subsection 4.2: functional central limit the-
+             orem. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .    37
+
+A Technical computations                                                              44
+  A.1 Dependency of Ψ with respect to F . . . . . . . . . . . . . . . . . . .         44
+  A.2 Dependency of Ψ with respect to P . . . . . . . . . . . . . . . . . . .         46
+  A.3 Uniform integrability for Ψ . . . . . . . . . . . . . . . . . . . . . . . .     49
+
+References                                                                            49
+
+
+1     Introduction
+1.1    Motivations and related works
+Tree-based gradient boosting, introduced by Friedman (2001), is one of the most
+successful algorithms in modern machine learning. Starting from an initial predictor,
+it builds a sequence of predictors by repeatedly fitting a regression tree to the pseudo-
+residuals of the current model and adding it with a small shrinkage factor, called
+the learning rate λ > 0. This procedure can be interpreted as a form of functional
+gradient descent in an infinite-dimensional space of predictors: each regression tree
+approximates the negative gradient of the empirical loss, and the resulting sequence
+follows a path along which the training error decreases. Modern implementations
+such as XGBoost (Chen and Guestrin, 2016) and LightGBM (Ke et al., 2017) are
+widely used and consistently achieve state-of-the-art performance on tabular data.
+Despite this empirical success, a rigorous mathematical understanding of gradient
+boosting remains incomplete. A large part of the statistical literature has focused
+
+
+                                           2
+on consistency, namely whether boosting procedures can achieve near-optimal pre-
+diction error as the sample size n tends to infinity. Positive answers were obtained
+for AdaBoost by Jiang (2004) and for more general boosting procedures by Lugosi
+and Vayatis (2004), Blanchard et al. (2004), Breiman (2004) and Zhang and Yu
+(2005). These analyses typically rely on approximating the Bayes predictor by lin-
+ear combinations of simple functions such as decision trees, together with suitable
+complexity controls.
+In contrast, results describing the time dynamics of gradient boosting – that is, the
+evolution of the predictor as the number of iterations increases – are much more
+limited. A notable exception is the work of Bühlmann and Yu (2003) on linear
+L2 -boosting, where a spectral analysis of the associated linear operator allows for a
+precise description of the trajectory and yields consistency as a consequence. This
+framework of linear L2 -boosting was further analyzed by Dombry and Esstafa (2024)
+in the vanishing-learning-rate regime.
+A complementary perspective was recently given in Dombry and Duchamps (2024a),
+who introduced infinitesimal gradient boosting as the limit of tree-based gradient
+boosting in the vanishing-learning-rate regime. More precisely, when λ → 0 and the
+number of iterations is rescaled as k = ⌊t/λ⌋, the boosting sequence converges to a
+deterministic continuous-time process. This limit is characterized as the unique so-
+lution of a nonlinear ordinary differential equation (ODE) in an infinite-dimensional
+function space, driven by the infinitesimal gradient boosting operator Tn , whose
+index n indicates its dependence on the data. A key technical ingredient is the
+introduction of softmax regression trees, which replace the discontinuous hardmax
+selection of classical regression trees with a smoother softmax selection. This en-
+sures Lipschitz continuity of the expected tree with respect to the training sample,
+which is key in the analysis of the ODE associated to infinitesimal gradient boost-
+ing. The resulting trajectory is deterministic (conditional on the sample) and has
+non-increasing training error.
+The large-sample behavior of infinitesimal gradient boosting was established in Dom-
+bry and Duchamps (2024b). In this work, the finite sample operator Tn is shown
+to converge almost surely to a deterministic population operator T , which defines a
+corresponding population gradient boosting flow depending only on the distribution
+P of the data (X, Y ). This result can be viewed as a functional law of large num-
+bers for the entire infinitesimal gradient boosting process. In addition, qualitative
+properties of the limit are derived, including the monotonicity of the population test
+error.
+More recently, Dagdoug et al. (2025) introduced a reproducing kernel Hilbert space
+(RKHS) framework for tree-based ensemble methods. They showed that softmax
+regression trees induce a natural family of data-dependent kernels. The associated
+RKHSs provides a convenient functional setting for infinitesimal gradient boosting
+since the ODE driving infinitesimal gradient boosting can be interpreted as a gradi-
+ent flow in a Hilbert manifold. This RKHS perspective will be central in the present
+work.
+While Dombry and Duchamps (2024b) identifies the deterministic limit of infinites-
+
+                                          3
+imal gradient boosting, it does not describe the fluctuations around this limit. Such
+second-order results, in the form of central limit theorems (CLTs), are fundamental
+in statistics: they quantify uncertainty, enable the construction of confidence bands,
+and support hypothesis testing. Although CLTs are well understood for many classi-
+cal estimators (see, e.g., van der Vaart, 1998), analogous results for gradient boosting
+remain largely unexplored. The main contribution of this paper is to fill this gap by
+establishing a functional central limit theorem for infinitesimal gradient boosting:
+                             √                    d
+                                 n (Ftn − Ft )t⩾0 −
+                                                  → (Ft )t⩾0 ,
+
+where the convergence in distribution is for differentiable processes taking values in a
+suitable RKHS H.f The limit is a centered continuous Gaussian process characterized
+as the solution of√a linear stochastic ODE driven by the asymptotic noise of the
+empirical process n(Pn − P ).
+The proof relies on a general framework for perturbations of autonomous ODEs in
+Banach spaces, developed
+                   √        in Section 2. We show that if the driving vector field
+converges at rate n to a Gaussian limit and satisfies appropriate smoothness con-
+ditions, then the solution of the ODE inherits Gaussian fluctuations, governed by
+a linearized equation. This result can be viewed as an infinite-dimensional func-
+tional delta method for ODEs. Applying this framework to infinitesimal gradient
+boosting requires tools from empirical process theory, in particular Donsker-type
+results (van der Vaart and Wellner, 1996). The RKHS structure introduced in Dag-
+doug et al. (2025) plays a crucial role in identifying suitable function classes and
+controlling the fluctuations of the boosting operator.
+
+1.2    Outline of the paper
+The paper develops three layers of results, each building on the previous one. We
+first establish a general perturbation theory for ODEs in Banach spaces (Section 2).
+We then derive a functional CLT for kernel gradient flows (Section 3). Finally, we
+obtain the main functional CLT for infinitesimal gradient boosting (Section 4).
+In Section 2, we develop a general stability theory for autonomous ODEs in a Banach
+space E. Given a vector field g : E → E, we study the sensitivity of the solution
+to perturbations of both the initial condition and the vector field. Proposition 2.1
+establishes continuity√ of the solution map, while a second-order result (Proposi-
+tion 2.2) shows that n-scaled perturbations lead to a Gaussian limit governed by a
+linearized ODE. A stochastic version yields both a functional law of large numbers
+and a functional CLT for random dynamical systems. We do not claim strong origi-
+nality for these results in the deterministic setting; however, we were unable to find
+statements and their stochastic counterparts specifically suited to our framework in
+the literature.
+In Section 3, we apply this theory to gradient flows in an RKHS H. We prove almost
+sure convergence of the empirical flow to its population counterpart, together with
+a functional CLT describing the Gaussian fluctuations. In the least-squares case,
+the theory greatly simplifies and the limit solves a linear ODE in H.
+
+
+                                             4
+In Section 4, we turn to infinitesimal gradient boosting. We first recover the func-
+tional law of large numbers from Dombry and Duchamps (2024b) within the RKHS
+framework from Dagdoug et al. (2025). Our main result, Theorem 4.8, is then a func-
+tional CLT for the infinitesimal gradient boosting process, obtained by combining
+the general perturbation theory with a CLT for the infinitesimal gradient boosting
+operator. This requires working in an enlarged RKHS H   f to control singular terms
+arising in the linearization. The key arguments for the proof rely on empirical pro-
+cess techniques and Donsker properties of carefully constructed function classes as
+well as on technical computations for deriving various asymptotic expansions.
+All main proofs are collected in Section 5, with supplementary technical material
+provided in the appendices.
+
+1.3    Framework and notation
+Statistical learning framework
+We consider a sample (Xi , Yi )1⩽i⩽n of n independent copies of a feature/label pair
+(X, Y ) taking values in X × Y with distribution P. Here X and Y denote metric
+spaces that are usually subsets of Rp and R respectively. The empirical measure
+associated with the sample (Xi , Yi )1⩽i⩽n is denoted
+                                              1 n
+                                   Pn =
+                                                X
+                                                   δ(X ,Y ) ,
+                                              n i=1 i i
+with δ(x,y) the Dirac mass at (x, y). For a measurable f : X × Y → R, we write
+                                       Z
+                                                                    1X n
+           Pn [f ] = Pn [f (x, y)] =       f (x, y) Pn (dx, dy) =         f (Xi , Yi ),
+                                                                    n i=1
+and, for measurable sets A ⊂ X ,
+                                                  1X n
+                                Pn (A) =                1A (Xi ).
+                                                  n i=1
+Note the slight abuse of notation, since we should write formally Pn (A × Y). Anal-
+ogous notation is used for expectations under the population distribution P.
+Given a measurable loss function ℓ : R × Y → [0, +∞), the goal is to estimate the
+minimizer
+                           F ∗ = argmin P[ℓ(F (x), y)],                       (1)
+                                           F ∈F
+where F denotes the set of measurable functions F : X → R. The theoretical risk
+                                 L(F ) = P[ℓ(F (x), y)]                                   (2)
+is not observable and is approximated by its empirical counterpart, the empirical
+risk
+                             Ln (F ) = Pn [ℓ(F (x), y)].                      (3)
+
+The choice of the loss function depends on the statistical task and the most common
+settings are:
+
+                                                   5
+  • Least square regression with Y = R and square loss ℓ(z, y) = 21 (y − z)2 . The
+    theoretical risk is the (half) mean squared error and is minimized by the re-
+    gression function F ∗ (x) = E[Y | X = x].
+  • Binary classification with Y = {0, 1} and ℓ(z, y) = − yz+log(1+ez ) the binary
+    cross-entropy loss. The optimal function is F ∗ (x) = log(p∗ (x)/(1 − p∗ (x)), the
+    logit of the success probability p∗ (x) = P(Y = 1 | X = x).
+
+We assume that the loss is twice continuously differentiable with respect to its first
+variable and denote
+                                   ∂                                   ∂2
+                    ∂1 ℓ(z, y) =      ℓ(z, y),         ∂12 ℓ(z, y) =        ℓ(z, y).
+                                   ∂z                                  ∂z 2
+We always work under the following assumption on the loss function ℓ.
+
+Assumption 1.1. For any fixed y ∈ Y, the function z 7→ ℓ(z, y) is strictly con-
+vex and twice continuously differentiable. Its second-order derivative is uniformly
+bounded:
+                           L := sup ∂12 ℓ(z, y) < ∞.
+                                        z∈R, y∈Y
+
+Moreover, the function (z, y) 7→ ∂1 ℓ(z, y) is uniformly continuous, and the following
+integrability conditions hold:
+
+                       P[|ℓ(0, y)|] < ∞       and P[|∂1 ℓ(0, y)|2 ] < ∞,
+
+as well as the following coerciveness condition:
+
+                                      lim P[ℓ(z, y)] = +∞.
+                                     |z|→∞
+
+
+
+Clearly, for least square regression, Assumption 1.1 reduces to P[y 2 ] < ∞. For clas-
+sification with binary cross-entropy, the integrability assumption is always satisfied
+since ∂1 ℓ(0, y) ≡ 0.
+
+Reproducing Kernel Hilbert Spaces
+In this paper, we focus on predictors F : X → R belonging to a reproducing kernel
+Hilbert space (RKHS). We recall below several basic definitions from RKHS theory.
+A kernel on X is a function k : X × X → R that is symmetric and positive semidef-
+inite, meaning that:
+  • k(x, x′ ) = k(x′ , x) for all x, x′ ∈ X ;
+  •     l,l′ =1 al al′ k(xl , xl′ ) ⩾ 0 for all L ⩾ 1, a1 , . . . , aL ∈ R, and x1 , . . . , xL ∈ X .
+      PL
+
+When X is a measurable space, the kernel is said to be measurable if k is measurable
+on X × X with respect to the product σ-field.
+An RKHS on X is a subspace H of the space of functions {F : X → R} equipped
+with a Hilbert structure such that the evaluation maps F 7→ F (x) are continuous for
+
+                                                   6
+all x ∈ X . We denote its inner product and norm by ⟨·, ·⟩H and ∥·∥H , respectively.
+By the Riesz representation theorem, for every x ∈ X there exists a unique element
+kx ∈ H such that
+                           ⟨kx , F ⟩H = F (x),   F ∈ H.
+The map Φ : X → H, x 7→ kx is called the feature map of the RKHS. The function
+k : X × X → R defined by
+
+                        k(x, x′ ) = ⟨kx , kx′ ⟩H = ⟨Φ(x), Φ(x′ )⟩H
+
+is a kernel on X , called the reproducing kernel of H. It uniquely characterizes H.
+Conversely, Aronszajn’s theorem (Aronszajn, 1950) ensures that any kernel gives
+rise to a unique RKHS for which it is the reproducing kernel; see also Hsing and
+Eubank (2015, Theorem 2.7.7).
+Throughout this paper, any RKHS that we use will satisfy the following regularity
+assumption.
+
+Assumption 1.2. The space X is a separable metric space and the kernel k :
+X × X → R of the RKHS H is continuous and bounded, with
+
+                                κ2 := sup k(x, x) < ∞.
+                                       x∈X
+
+
+Under Assumption 1.2, every function F ∈ H is continuous and bounded and we
+have
+                        ∥F ∥∞ := sup |F (x)| ⩽ κ ∥F ∥H .                 (4)
+                                      x∈X
+                                                                               q
+Indeed, using the reproducing property F (x) = ⟨F, Φ(x)⟩H and ∥Φ(x)∥H =            k(x, x),
+the Cauchy–Schwarz inequality implies
+                                                                     q
+             |F (x)| = |⟨F, Φ(x)⟩H | ⩽ ∥F ∥H ∥Φ(x)∥H = ∥F ∥H k(x, x).
+
+Taking the supremum over x ∈ X yields (4).
+Similarly, the continuity of functions in the RKHS follows from the continuity of k
+thanks to the inequality
+
+             |F (x) − F (x′ )| = |⟨F, Φ(x) − Φ(x′ )⟩H |
+                                                                        1
+                             ⩽ ∥F ∥H k(x, x) + k(x′ , x′ ) − 2k(x, x′ )) 2 ,           (5)
+
+where the upper bound tends to 0 as x′ → x.
+
+Tensor product operators.
+Let H be a separable Hilbert space. For u, v ∈ H, the mapping
+
+                        (u ⊗ v)(w) = ⟨u, w⟩H v,           w ∈ H,
+
+defines a rank-one bounded linear operator on H with operator norm
+
+                               ∥u ⊗ v∥op = ∥u∥H ∥v∥H .
+
+                                             7
+Finite linear combinations of such operators form the space of finite-rank operators
+that can be equipped with an inner product such that
+
+                       ⟨u1 ⊗ v1 , u2 ⊗ v2 ⟩ = ⟨u1 , u2 ⟩H ⟨v1 , v2 ⟩H .
+
+The Hilbert tensor product H ⊗ H is the completion of this pre-Hilbert space. It
+coincides with the space of Hilbert–Schmidt operators Λ : H → H, that is, operators
+such that
+                             ∥Λ∥2HS =    ∥Λei ∥2H < ∞,
+                                       X
+
+                                          i⩾1
+
+for some (equivalently, for any) complete orthonormal system (ei )i⩾1 of H.
+
+
+2     Perturbation analysis of ODEs
+Our analysis of the asymptotic behavior of kernel gradient flow and infinitesimal gra-
+dient boosting relies on general results describing how the solutions of autonomous
+ordinary differential equations (ODEs) react to perturbations of the vector field
+driving the dynamics. Throughout this section, let E denote a Banach space, and
+let a vector field be a continuous map g : E → E.
+A vector field g is said to be complete if it is locally Lipschitz continuous and if, for
+every initial condition x0 ∈ E, the Cauchy problem
+
+                                 ẋ(t) = g(x(t)),      t ⩾ 0,
+                             (
+                                                                                     (6)
+                                 x(0) = x0
+
+admits a unique global solution defined for all t ⩾ 0. Local existence and unique-
+ness of solutions follow from the Picard–Lindelöf theorem under the local Lipschitz
+assumption on g. An additional condition that ensures completeness is the linear
+growth condition
+                                        ∥g(v)∥E
+                                lim sup         < ∞,                            (7)
+                               ∥v∥E →+∞ ∥v∥E
+
+which controls the growth of g at infinity.
+We denote by Cb0 (E, E) the space of continuous maps g : E → E that are bounded
+on bounded subsets of E, endowed with the topology of uniform convergence on
+bounded sets. Similarly, C 1 ([0, +∞), E) denotes the space of continuously differen-
+tiable functions x : [0, +∞) → E, endowed with the topology of uniform convergence
+of both the functions and their derivatives on bounded time sets. If E is separable,
+then Cb0 (E, E) and C 1 ([0, +∞), E) are Polish spaces.
+We consider a sequence (x0,n , gn ) ∈ E × Cb0 (E, E), n ⩾ 1, where each gn is assumed
+to be a complete vector field. Denote by xn ∈ C 1 ([0, +∞), E) the unique solution
+of
+                   ẋn (t) = gn (xn (t)), t ⩾ 0,      xn (0) = x0,n .              (8)
+
+The following two propositions are central to the analysis of the first- and second-
+order asymptotics of infinitesimal gradient boosting as n → ∞. They establish,
+
+                                                8
+respectively, the continuity and a second-order (differentiability-type) stability prop-
+erty of the solution map (x0 , g) 7→ x, which associates to each pair (x0 , g) – consisting
+of an initial condition and a complete vector field – the corresponding solution of (6).
+
+Proposition 2.1 (First-order perturbation). Assume that (x0,n , gn ) → (x0 , g) in
+E × Cb0 (E, E) as n → ∞, and that the limit vector field g is complete. Then the
+sequence of solutions (xn )n⩾1 converges in C 1 ([0, +∞), E) to the unique solution x
+of the differential equation (6).
+                                                                         √
+For the second-order analysis, we consider the rescaled fluctuations n(gn − g) of
+the vector field around its limit g. In the setting of infinitesimal gradient boosting,
+it is natural to allow these fluctuations to take values in a Banach space larger than
+E. Let E be a Banach space such that E ⊂ E densely and ∥x∥E ⩽ ∥x∥E for all
+x ∈ E. Define Cb0 (E, E) analogously to Cb0 (E, E) and assume that
+                             √
+                               n(gn − g) → h in Cb0 (E, E)
+
+for some limit h.
+We further require a regularity property of g relative to the embedding E ⊂ E. We
+denote by CE1 (E, E) the class of functions f : E → E that are Fréchet differentiable
+on E and satisfy:
+  (i) for every x ∈ E, the derivative dx f : (E, ∥·∥E ) → (E, ∥·∥E ) is linear and
+      continuous;
+ (ii) the map x 7→ dx f is continuous on (E, ∥·∥E ) with values in the space of
+      continuous linear operators (E, ∥·∥E ) → (E, ∥·∥E ), equipped with the operator
+      norm ∥·∥op .
+By density of E in E and the continuity assumptions above, each dx f admits a unique
+continuous extension to (E, ∥·∥E ), which we continue to denote by dx f . Moreover,
+the map x 7→ dx f remains continuous on E.
+
+Proposition 2.2 (Second-order perturbation). Under the assumptions of Proposi-
+tion 2.1, suppose there exists a Banach space E as above such that g ∈ CE1 (E, E),
+and that
+        √               √         
+           n(x0,n − x0 ), n(gn − g) → (y0 , h) in E × Cb0 (E, E) as n → ∞.
+                             √
+Then the sequence yn := n(xn − x) converges in C 1 ([0, +∞), E) to the unique
+solution y of the linear differential equation in E
+
+              ẏ(t) = (dx(t) g)(y(t)) + h(x(t)),     t ⩾ 0,      y(0) = y0 .
+
+The limiting equation for y is linear with continuous, time-dependent coefficients.
+Existence and uniqueness of a global solution for all t ⩾ 0 therefore follow from the
+linear Picard–Lindelöf theorem.
+
+
+
+                                            9
+In the setting of infinitesimal gradient boosting, the initial condition and the vector
+field depend on the training data and are therefore random. We thus provide, as a
+corollary, a stochastic counterpart of Propositions 2.1 and 2.2.
+For each n ⩾ 1, let X0,n be an E-valued random variable (stochastic initial condition)
+and let Gn be a Cb0 (E, E)-valued random variable (stochastic vector field). Assume
+that, with probability one, Gn is complete, and denote by Xn ∈ C 1 ([0, +∞), E) the
+unique solution of
+
+                   Ẋn (t) = Gn (Xn (t)),   t ⩾ 0,       Xn (0) = X0,n .
+
+The following corollary establishes a law of large numbers and a central limit theorem
+for the processes Xn = (Xn (t))t⩾0 .
+
+Corollary 2.3.      (i) Suppose that
+                                     a.s.
+                        (X0,n , Gn ) −−→ (x0 , g)      in E × Cb0 (E, E),
+
+      where the limit vector field g is complete. Then
+                                   a.s.
+                              Xn −−→ x          in C 1 ([0, +∞), E),
+
+      where x denotes the unique solution of the deterministic differential equa-
+      tion (6).
+ (ii) In addition, assume that x0 and g are deterministic, that g ∈ CE1 (E, E) and
+      that (X0,n , Gn ) satisfy a central limit theorem in the sense that
+             √                 √         
+                                            d
+                  n(X0,n − x0 ), n(Gn − g) −→ (X0 , G )            in E × Cb0 (E, E),
+
+      where the limit (X0 , G ) is Gaussian. Then Xn exhibits Gaussian fluctuations:
+                             √              d
+                     Xn :=                 →X
+                                 n(Xn − x) −            in C 1 ([0, +∞), E),
+
+      where the limit X is Gaussian and characterized as the unique solution of
+
+             X˙ (t) = (dx(t) g)(X (t)) + G (x(t)),        t ⩾ 0,       X (0) = X0 .      (9)
+
+
+3     Gaussian fluctuations of kernel gradient flows
+We now apply the perturbation analysis of Section 2 to study the asymptotic be-
+havior of gradient flows in a Reproducing Kernel Hilbert Space (RKHS) framework.
+
+3.1    Kernel gradient flow
+Let H be an RKHS over a metric space X with bounded and continuous reproducing
+kernel k, i.e. satisfying Assumption 1.2. Recall the definition of the feature map
+Φ : X → H, defined by Φ(x) = k(x, ·) and which satisfies the reproducing property
+
+                       ⟨Φ(x), F ⟩H = F (x),          F ∈ H, x ∈ X .                     (10)
+
+                                            10
+Recall also the notation Pn for the empirical measure associated with an i.i.d. sample
+{(xi , yi )}ni=1 with distribution P. The corresponding empirical and population risks
+Ln and L are defined in (3) and (2). For all F, G ∈ H, the directional derivative of
+Ln satisfies
+                                  1
+              ⟨∇F Ln , G⟩H = lim    Pn [ℓ(F (x) + εG(x), y) − ℓ(F (x), y)]
+                             ε→0 ε
+                           = Pn [∂1 ℓ(F (x), y) G(x)]
+                           = Pn [⟨∂1 ℓ(F (x), y) Φ(x), G⟩H ],
+
+so that the gradient of the empirical loss at F is
+
+                           ∇F Ln = Pn [∂1 ℓ(F (x), y) Φ(x)].                      (11)
+
+The associated empirical gradient flow F n = (Ftn )t⩾0 is defined as the solution of
+
+                      dFtn
+                           = −∇Ftn Ln ,        t ⩾ 0,    F0n = 0.                 (12)
+                       dt
+
+Similarly, the population gradient of (2) is given by
+
+                            ∇F L = P[∂1 ℓ(F (x), y) Φ(x)],                        (13)
+
+and the corresponding population gradient flow F = (Ft )t⩾0 satisfies
+
+                       dFt
+                           = −∇Ft L,        t ⩾ 0,      F0 = 0.                   (14)
+                        dt
+
+We first verify in the next lemma that the gradient flows F n and F are well defined
+for all t ⩾ 0, and moreover that F n depends measurably (indeed continuously) on
+the training sample.
+
+Lemma 3.1.
+  (i) For all n ⩾ 1, the gradient vector field F 7−→ ∇F Ln is C 1 with a bounded
+      Fréchet derivative, and so belongs to Cb0 (H, H) and satisfies the linear growth
+      condition
+                                          ∥∇F Ln ∥H
+                                 lim sup             < ∞.                         (15)
+                                 ∥F ∥H →∞   ∥F ∥H
+     The same property holds for the population gradient vector field F 7→ ∇F L.
+ (ii) For every n ⩾ 1, the empirical gradient flow (12) admits a unique global
+      solution in C 1 ([0, +∞), H), and the same property holds for the population
+      gradient flow (14). Moreover, F n is continuous as a function of the sample
+      {(xi , yi )}1⩽i⩽n .
+
+
+
+
+                                          11
+3.2     Large sample asymptotics
+We now investigate the asymptotic behavior of F n as n → ∞. By applying Corol-
+lary 2.3 to the stochastic vector fields (∇F Ln )F ∈H , we obtain the following law of
+large numbers and Gaussian limit for the fluctuations.
+
+Theorem 3.2. In addition to Assumptions 1.1 and 1.2, assume that
+
+                                   sup|∂1 ℓ(0, y)| < ∞.                            (16)
+                                   y∈Y
+
+Then:
+  (i) As n → ∞,
+                                   a.s.
+                          (Ftn )t⩾0 −−→ (Ft )t⩾0       in C 1 ([0, +∞), H).
+
+ (ii) Moreover,
+                   √               
+                                              d
+                        n (Ftn − Ft )         → (Ft )t⩾0
+                                              −             in C 1 ([0, +∞), H),
+                                        t⩾0
+
+      where (Ft )t⩾0 is a centered Gaussian process in H characterized as the unique
+      solution of
+                              dFt
+                                    = A t F t + Gt ,  F0 = 0,                   (17)
+                                dt
+      where A = (At )t⩾0 ∈ C 1 ([0, +∞), H ⊗ H) is given by
+                               h                                i
+                      At = P ∂12 ℓ(Ft (x), y) Φ(x) ⊗ Φ(x) ,            t ⩾ 0,      (18)
+
+      and where (Gt )t⩾0 is an H-valued centered Gaussian process with continu-
+      ous sample paths with the same covariance structure as the H-valued process
+      (∂1 ℓ(Ft (x), y)Φ(x))t⩾0 under the probability measure P.
+The operator At in (18) corresponds to the Fréchet derivative of the gradient map
+F 7→ ∇F L evaluated at Ft , while the Gaussian process
+                                                   √ G in (17) represents the
+asymptotic noise generated by the empirical process n(Pn − P).
+Let us stress that the boundedness assumption (16) is restrictive and is used only in
+the proof of the technical Lemma 5.1(i). Alternatively, it could be replaced by any
+assumption ensuring that the class CM – which is defined in the lemma – is Donsker.
+Note however that (16) always holds in the classification setting since Y is then
+finite. In the least square regression setting, the assumption may not be satisfied,
+but the result still holds thanks to a different proof – see Theorem 3.3 below and
+its proof relying on the central limit theorem for square integrable variables in a
+Hilbert space.
+
+3.3     The least squares regression case
+We briefly discuss the case of kernel gradient flow in the least squares regression
+setting and exploit the fact that the gradient vector field is linear, so the gradient
+flow has an explicit expression.
+
+                                                  12
+For ℓ(z, y) = 12 (z − y)2 , the gradient vector field is
+                 ∇F Ln = Pn [(F (x) − y)Φ(x)] = Bn F − Cn ,                       F ∈ H,
+with random Bn ∈ H ⊗ H and Cn ∈ H defined by
+                     Bn = Pn [Φ(x) ⊗ Φ(x)] and Cn = Pn [yΦ(x)].                            (19)
+The gradient flow then yields the linear differential equation
+                       dFtn
+                            = −Bn Ftn + Cn ,                t ⩾ 0,           F0n = 0,
+                        dt
+with explicit solution
+                           Z t
+                   Ftn =         e−sBn Cn ds = t g
+                                                 exp(−tBn ) Cn ,                 t ⩾ 0,    (20)
+                             0
+                           k
+where g
+      exp(z) = ∞  k=0 (k+1)! = (e − 1)/z. The same expressions hold for the infinite
+                        z        z
+                 P
+
+population limit:
+                               Z t
+                      Ft =           e−sB C ds = t g
+                                                   exp(−tB) C,                 t ⩾ 0,
+                                 0
+
+with
+                      B = P[Φ(x) ⊗ Φ(x)] and C = P[yΦ(x)].
+In view of these expressions, the asymptotic behavior of the gradient flow in the
+least squares regression case is driven by the asymptotic behavior of (Bn , Cn ).
+
+Theorem 3.3. In the case ℓ(z, y) = 12 (z − y)2 , we have:
+  (i) (LLN and CLT for (Bn , Cn )). As n → ∞,
+                                              a.s.
+                             (Bn , Cn ) −−→ (B, C)             in (H ⊗ H) × H,
+       and                     √                    √               
+                                                                         d
+                                     n(Bn −B),                    → (B, C ),
+                                                         n(Cn −C) −
+       where (B, C ) is centered Gaussian in (H ⊗ H) × H with the same covariance
+       structure as (Φ(x) ⊗ Φ(x), yΦ(x)) under the probability measure P.
+ (ii) (Limit and fluctuations of the gradient flow). Consequently,
+                                            a.s.
+                                     F n −−→ F           in C 1 ([0, +∞), H),
+       and                 √             d
+                            n (F n − F ) −
+                                         → F                  in C 1 ([0, +∞), H),
+       where the centered Gaussian limit process F = (Ft )t⩾0 is characterized by the
+       linear ODE
+                         dFt
+                             = −B Ft − B Ft + C ,          F0 = 0,
+                          dt
+       equivalently,
+                                     Z t                                
+                         Ft =              e−(t−s)B − B Fs + C ds,                t ⩾ 0.
+                                      0
+
+                                                     13
+As a comment, we can provide a simple bound for the squared norm of the fluctua-
+tions. Using ∥e−Bt ∥op ⩽ 1, which holds because B is a positive semidefinite operator,
+we have
+                                  ∥Ft ∥H ⩽ ∥C∥H t,
+and consequently,          h       i
+                         E ∥Ft ∥2H ⩽ 21 σB2 ∥C∥2H t4 + 2 σC2 t2 ,
+with σB2 = E[∥B∥2HS ] and σC2 = E[∥C ∥2H ]. Here the constant terms admit the
+following simple upper bounds:
+
+                         ∥C∥H ⩽ P[|y|k(x, x)1/2 ] ⩽ κP[y 2 ]1/2 ,
+                         σB2 = P[k(x, x)] ⩽ κ2 ,
+                         σC2 = P[y 2 k(x, x)] ⩽ κ2 P[y 2 ].
+
+
+4     Gaussian fluctuations of infinitesimal gradient
+      boosting
+4.1    Infinitesimal gradient boosting
+We provide here the necessary background on infinitesimal gradient boosting, a
+continuous-time limit of gradient boosting obtained when the learning rate tends
+to zero while the number of iterations is rescaled accordingly. For brevity, we only
+summarize the main ideas and refer to Dombry and Duchamps (2024a,b) for a more
+detailed presentation.
+Gradient boosting in the vanishing learning-rate regime. Introduced by
+Friedman (2001), gradient boosting is a sequential algorithm designed to minimize
+the empirical risk. At each iteration, a (randomized) regression tree is fitted to the
+pseudo-residuals of the current predictor and added to it with a shrinkage factor
+λ > 0 (the learning rate). This yields a sequence of predictors (Fkn,λ )k⩾0 defined
+recursively from an initialization F0n by
+                            n,λ
+                           Fk+1 = Fkn,λ + λ Tk+1
+                                             n,λ
+                                                 ,      k ⩾ 0,
+
+where Tk+1
+       n,λ
+           is a (randomized) regression tree fitted to the pseudo-residuals
+                                                   
+                        n,λ
+                       rk,i = −∂1 ℓ Fkn,λ (xi ), yi ,   1 ⩽ i ⩽ n.
+
+The sequence (Fkn,λ )k⩾0 therefore forms a Markov chain with values in the space F of
+predictors. A standard choice of initialization is the constant predictor minimizing
+the empirical risk:
+                               F0n ≡ arg min Pn [ℓ(z, y)].                       (21)
+                                         z∈R
+
+Note that this may not be well-defined for any sample (xi , yi )1⩽i⩽n , e.g. in the case of
+binary classification with the yi taking only a single value. However, the convexity
+and coerciveness conditions of Assumption 1.1 are enough to ensure that for an i.i.d.
+sample with distribution P, this initialization makes sense for all n large enough.
+
+                                               14
+For the specific class of randomized regression trees called softmax regression trees
+(described below), Dombry and Duchamps (2024b) showed that a continuous-time
+limit emerges when λ → 0, provided the iteration index is rescaled as k = ⌊t/λ⌋.
+More precisely, for all t ⩾ 0,
+                                     a.s.
+                              n,λ
+                             F⌊t/λ⌋ −−→ Ftn       as λ → 0,
+
+and the convergence holds in an appropriate functional sense. The limiting process
+(Ftn )t⩾0 is called infinitesimal gradient boosting. Remarkably, it is deterministic given
+the sample (xi , yi )1⩽i⩽n , since the randomness inherent in the softmax regression
+trees vanishes as λ → 0.
+Softmax regression trees and softmax gradient trees. The motivation for
+introducing this class of randomized trees is a Lipschitz continuity property that
+is essential for analyzing the differential equation governing infinitesimal gradient
+boosting. A more detailed presentation is given in Dombry and Duchamps (2024b,
+Section 2.1).
+Given a sample (xi , ri )1⩽i⩽n of covariate/pseudo-residual pairs, a softmax regression
+tree of depth d ⩾ 1 is constructed by first generating a randomized partition of
+[0, 1]p into 2d hypercubes (the leaves), denoted (Av )v∈{0,1}d , and then assigning to
+each leaf the mean of the residuals falling into it. This yields the piecewise-constant
+predictor
+                                    i=1 ri 1Av (xi )
+                                   Pn
+                 T (z) =                             1Av (z), z ∈ [0, 1]p ,
+                            X
+                                             (x   )
+                                    Pn
+                          v∈{0,1}d
+                                         1
+                                      i=1 Av    i
+
+with the convention 0/0 = 0 for empty leaves.
+As in standard regression tree construction (Breiman et al., 1984), partitions are
+built by recursive binary splitting. For convenience, we work on [0, 1)p with right-
+open hypercubes. A split is encoded by a pair (j, u), where j ∈ [[1, p]] denotes the
+covariate along which the split is made, and u ∈ (0, 1) specifies the relative split
+position. For a region A = pj=1 [aj , bj ), splitting at (j, u) produces
+                            Q
+
+
+                         A0 = A ∩ {x : xj < aj + u(bj − aj )},
+                         A1 = A ∩ {x : xj ⩾ aj + u(bj − aj )}.
+
+Iterating this procedure d times yields a partition of [0, 1)p into 2d hypercubes.
+The splitting rule determines how splits are selected and hence the distribution of
+the random partition. In Breiman’s classical model, the split (j ∗ , u∗ ) maximizes the
+score
+                   n(A0 )               n(A1 )
+             ∆n =          r̄n (A0 )2 +        r̄n (A1 )2
+                     n                    n
+                   Pn [∂1 ℓ(F (x), y)1A0 (x)]2 Pn [∂1 ℓ(F (x), y)1A1 (x)]2
+                 =                               +                         ,         (22)
+                              Pn (A0 )                    Pn (A1 )
+
+where n(Al ) and r̄n (Al ) denote the number of observations and the mean residual
+in Al , l = 0, 1. Softmax regression trees replace the hard argmax selection with a
+
+                                            15
+softmax selection applied to K randomly drawn candidate splits. Namely, we gen-
+erate independent candidates ζ 1 , . . . , ζ K from a reference distribution, compute the
+corresponding scores ∆1n , . . . , ∆K
+                                    n , and select one of the candidate splits at random
+with probability
+                                    exp(β ∆kn )
+                    P(ξ = ζ k ) = PK              ,                1 ⩽ k ⩽ K.
+                                   l=1 exp(β ∆n )
+                                                l
+
+The limiting case β → 0 yields uniform selection among candidates, effectively
+reducing the model to the completely random tree with K = 1. When β → ∞, the
+softmax distribution concentrates on the splits maximizing the score, implying that
+the softmax regression tree model with β, K → ∞ converges to Breiman’s regression
+tree model.
+To formalize the construction, we use the framework of splitting schemes (Dombry
+and Duchamps, 2024a, Section 2.1). Successive splits are indexed by the internal
+nodes Td−1 of the complete binary tree of depth d, denoted Td . A splitting scheme
+is a collection ξ = (ξv )v∈Td−1 with ξv = (jv , uv ) encoding the split at internal node
+v. The partition resulting from the splitting scheme ξ is denoted (Aξv )v∈{0,1}d , corre-
+sponding to the 2d tree leaves.
+A softmax regression tree depends on the following hyperparameters: the depth d ⩾
+1, the number K ⩾ 1 of candidate splits at each node, the softmax parameter β > 0,
+and the reference distribution used to generate candidate splits. In Dombry and
+Duchamps (2024a), this reference distribution was taken to be uniform on [[1, p]] ×
+(0, 1). We generalize this by considering
+                              Uα = Unif([[1, p]]) ⊗ Beta(α, α),                              (23)
+meaning that j is drawn uniformly from [[1, p]] and, independently, u follows a
+Beta(α, α) distribution. uniform case corresponds to α = 1.
+For gradient boosting, the softmax regression tree depends on the pseudo-residuals
+induced by the current predictor F . We denote by Qn,F (dξ) the distribution of the
+splitting scheme of a softmax regression tree built from the sample (xi , yi )1⩽i⩽n with
+pseudo-residuals at F
+                           ri = −∂1 ℓ(F (xi ), yi ),        1 ⩽ i ⩽ n.
+For a splitting scheme ξ with corresponding partition (Aξv )v∈{0,1}d , the associated
+gradient tree is defined by
+                                   Pn [∂1 ℓ(F (x), y)1Aξv (x)]
+     Tn (z; F, ξ) = −                                            1Aξv (z),   z ∈ [0, 1]p .   (24)
+                          X
+
+                        v∈{0,1}d            Pn (Aξv )
+
+For future reference, we summarize the notation in the following definition.
+
+Definition 4.1. For fixed hyperparameters d ⩾ 1 (tree depth), K ⩾ 1 (number
+of proposals at each step), β ⩾ 0 (softmax selection parameter) and α > 0 (beta
+distribution parameter for proposal) and with the sample (xi , yi )1⩽i⩽n and a predictor
+F ∈ F as input, we define:
+
+                                                 16
+   • ξ = (ξv )v∈Td−1 the (random) splitting scheme encoding the successive splits,
+     with distribution Qn,F ;
+   • (Aξv )v∈{0,1}d the partition of [0, 1]p resulting from the splitting scheme ξ;
+   • Tn ( · ; F, ξ) the corresponding softmax gradient tree, as defined in Equation (24).
+In the totally random tree model (i.e., when K = 1 or β = 0), the distribution of
+the splitting scheme does not depend on the sample (xi , yi )1⩽i⩽n nor on F , and is
+denoted by Q0 .
+Importantly, the softmax selection rule used in the construction is reflected in the dis-
+tribution Qn,F of the splitting scheme. This distribution admits an explicit Radon–
+Nikodym derivative with respect to the reference measure Q0 ; see Proposition 5.2
+in Section 5.4.1. This representation will play a crucial role in our computations.
+An RKHS framework for infinitesimal gradient boosting. As justified in
+Dombry and Duchamps (2024a), the vanishing-learning-rate limit of gradient boost-
+ing based on softmax gradient trees is well defined and is characterized by a nonlinear
+ordinary differential equation in a suitable function space. We refer to this limit as
+infinitesimal gradient boosting. Here we adopt the convenient RKHS perspective
+introduced in Dagdoug et al. (2025). Recall that some background on RKHS theory
+is introduced in Section 1.3.
+Following Dagdoug et al. (2025), we define the (infinite) gradient forest as the aver-
+aged gradient tree:
+                           Z
+            Tn (z; F ) =           Tn (z; F, ξ) Qn,F (dξ)                                              (25)
+                                                    h                         i
+                               Z                Pn ∂1 ℓ(F (x), y) 1Aξv (x)
+                        =−                                                        1Aξv (z) Qn,F (dξ)
+                                       X
+
+                                     v∈{0,1}d              Pn (Aξv )
+for all z ∈ [0, 1]p .
+We let H be the RKHS with reproducing kernel k defined by
+                               Z
+               k(z, z ′ ) =                    1Aξv (z)1Aξv (z ′ ) Q0 (dξ),       z, z ′ ∈ [0, 1]p .   (26)
+                                      X
+
+                                    v∈{0,1}d
+
+It will be a convenient function space in our approach because of the following
+lemma.
+
+Lemma 4.2. For all F ∈ F, the function Tn (F ) = Tn (·; F ) defined by (25) belongs
+to H.
+The kernel k depends only on the proposal distribution for the candidate splits. By
+Dagdoug et al. (2025, Proposition 8), it is continuous and bounded on [0, 1]p × [0, 1]p
+under the choice (23) for the proposal distribution. This implies that the RKHS
+H satisfies Assumption 1.2, and therefore all functions in H are continuous and
+bounded on [0, 1]p .
+We are now ready to define infinitesimal gradient boosting as the solution of an
+ordinary differential equation in the RKHS H.
+
+                                                          17
+Definition 4.3. Let d ⩾ 1, K ⩾ 1, β > 0, and α > 0 be fixed hyperparameters,
+and let (xi , yi )1⩽i⩽n be a fixed input sample such that (21) is well-defined. The
+infinitesimal gradient boosting process (Ftn )t⩾0 is the unique solution in H of the
+ODE
+                                d n
+                                  F = Tn (Ftn ),    t ⩾ 0,                      (27)
+                                dt t
+with initial condition F0n given by (21).
+A key qualitative property of infinitesimal gradient boosting is that the empirical
+risk t 7→ Ln (Ftn ) defined by (3) is non-increasing. This reflects the fundamental
+design principle of gradient boosting, which aims at monotonically decreasing the
+empirical risk along its trajectory.
+We conclude this background on finite-sample infinitesimal gradient boosting by ver-
+ifying that the solution of (27) is well defined and measurable (and even continuous)
+with respect to the input sample. The next lemma is very similar to Lemma 3.1
+from Section 3.1.
+
+Lemma 4.4.
+  (i) For every n ⩾ 1, the infinitesimal gradient boosting operator F 7−→ Tn (F )
+      belongs to Cb1 (H, H) and satisfies the linear growth condition
+
+                                          ∥Tn (F )∥H
+                                  lim sup            < ∞.                         (28)
+                                 ∥F ∥H →∞   ∥F ∥H
+
+ (ii) For every n ⩾ 1 and input sample {(xi , yi )}1⩽i⩽n such that (21) is well-
+      defined, the differential equation (27) on H admits a unique global solution
+      F n = (Ftn )t⩾0 in C 1 ([0, +∞), H). Moreover, F n is continuous as a function
+      of the sample {(xi , yi )}1⩽i⩽n .
+A version of this Lemma holds for the population limit and is provided as Lemma 5.5
+in Section 5.
+
+4.2     Large sample asymptotics
+We now study the large-sample behavior of infinitesimal gradient boosting and es-
+tablish a functional law of large numbers together with a functional central limit
+theorem for the continuous-time process (Ftn )t⩾0 , taking values in the RKHS H. A
+related law of large numbers was proved in Dombry and Duchamps (2024b) in a dif-
+ferent functional setting. The main contribution of the present section is therefore
+the functional central limit theorem, which characterizes the fluctuations around the
+deterministic limit.
+
+4.2.1   Functional law of large numbers
+According to Definition (27), the differential equations governing the dynamics of
+infinitesimal gradient boosting are driven by the vector fields Tn : H → H, n ⩾ 1. We
+first state a law of large numbers for these vector fields, from which the law of large
+
+                                            18
+numbers for infinitesimal gradient boosting follows by Corollary 2.3. The following
+theorem is a reformulation in the RKHS H of convergence results established in
+a different functional setting in (Dombry and Duchamps, 2024b, Theorems 2.10
+and 2.13).
+
+Theorem 4.5. In addition to Assumption 1.1, assume that
+                           sup E[|∂1 ℓ(0, Y )|2 | X = x] < ∞.                          (29)
+                           x∈X
+
+Then:
+  (i) The vector fields converge almost surely:
+                                   a.s.
+                 (Tn (F ))F ∈H −→ (T (F ))F ∈H               in Cb0 (H, H) as n → ∞.
+
+                                      a.s.
+ (ii) As a consequence, if F0n −→ F0 , then the infinitesimal gradient boosting pro-
+      cesses converge almost surely:
+                            a.s.
+                  (Ftn )t⩾0 −→ (Ft )t⩾0             in C 1 ([0, +∞), H) as n → ∞,
+      where the limit F = (Ft )t⩾0 is the unique solution of the ODE
+                                          d
+                                             Ft = T (Ft ),     t ⩾ 0,                  (30)
+                                          dt
+      with initial condition F0 .
+In the least square regression and binary classification settings introduced in Sec-
+                                                               a.s.
+tion 1.3, the almost sure convergence of initial positions F0n −→ F0 is satisfied, as
+can be seen by a direct application of the law of large numbers.
+
+Remark 4.6. For the sake of brevity, we do not provide here a detailed description
+of the limit operator T : H → H. This definition is given in the section devoted
+to proofs, see Lemma 5.4 below. More intuitively, as discussed in Definition 2.9
+of Dombry and Duchamps (2024b), one can define a population softmax gradient
+tree T (z; F, ξ) and a population gradient forest T (z; F ) by replacing the empirical
+measure Pn by the population measure P in the formulas defining the finite sample
+versions. In particular, the mean residual r̄n (A) becomes
+                                              P[∂1 ℓ(F (x), y)1A (x)]
+                            r̄(A) = −
+                                                      P(A)
+and the score ∆n of the split A = A0 ∪ A1 defined by Equation (22) becomes
+                     P[∂1 ℓ(F (x), y)1A0 (x)]2 P[∂1 ℓ(F (x), y)1A1 (x)]2
+               ∆=                             +                          .
+                              P(A0 )                    P(A1 )
+
+Remark 4.7. Since the reproducing kernel k associated with H is continuous and
+bounded, by (4) the embedding of H into (C 0 ([0, 1]p , R), ∥·∥∞ ), the space of continu-
+ous functions endowed with the uniform norm, is continuous. Therefore, the almost
+sure convergence also holds in C 1 ([0, +∞), C 0 ([0, 1]p , R)).
+
+                                                   19
+4.2.2     Functional central limit theorem
+To analyze the fluctuations of infinitesimal gradient boosting, we need to work in a
+larger function space and introduce a family of RKHSs extending H. For γ ⩾ 0, we
+define the weight wγ (A) of a hypercube A ⊂ [0, 1]p by
+                                     
+                                     P(A)−γ ,         if P(A) > 0,
+                          wγ (A) =                                              (31)
+                                     1,               if P(A) = 0.
+
+This function is non-decreasing with respect to γ and satisfies w0 (A) = 1 for all A.
+We also define the weight of a splitting scheme ξ by
+
+                                 wγ (ξ) = max d wγ (Aξv ).
+                                           v∈{0,1}
+
+
+We finally define the critical exponent
+                                      Z                          
+                γmax = sup γ ⩾ 0 :         wγ (ξ) Q0 (dξ) < ∞ ∈ [0, +∞].        (32)
+
+This critical exponent depends on the distribution Q0 of the splitting scheme (and
+hence on the parameter α > 0 of the Beta distribution) as well as on the data
+distribution P. Roughly speaking, it quantifies the integrability of 1/P(A), where A
+denotes a typical leaf in the random partition generated according to the splitting
+scheme distribution Q0 .
+In the following, we provide a functional central limit theorem for the fluctuations
+of the vector field Tn around its limit T and then deduce a functional central limit
+theorem for the fluctuations of the infinitesimal gradient boosting processes F n
+around its limit F .
+
+Theorem 4.8. In addition to Assumption 1.1, assume that (29) holds. If γmax > 1,
+then there exists an RKHS H
+                          f with continuous and bounded reproducing kernel k̃
+such that
+   - H⊂H
+       f and ∥F ∥ ⩽ ∥F ∥ for all F ∈ H;
+                 H
+                 e      H
+
+   - H is dense in H,
+                   f
+
+and the following properties hold:
+  (i) The fluctuations of the vector fields satisfy a weak convergence
+                        √                        
+                                                              d
+                           n (Tn (F ) − T (F ))              −→ (W (F ))F ∈H
+                                                      F ∈H
+
+
+        in the space Cb0 (H, H)
+                             f with a Gaussian limit process W .
+
+ (ii) It the initial conditions satisfy
+
+                        F0n = Pn [f0 (y)] + oP (n−1/2 ),          as n → ∞,     (33)
+
+
+
+                                             20
+       with f0 such that P[f0 (y)2 ] < ∞, then the fluctuations of the infinitesimal
+       gradient boosting processes satisfy the weak convergence
+                      √              
+                                             d
+                          n(Ftn − Ft )     −→ (Ft )t⩾0     as n → ∞,
+                                          t⩾0
+
+       in the space C 1 ([0, ∞), H)
+                                 f with a Gaussian limit process F . The limit process
+       is equal in distribution to the unique solution of the differential equation in H
+                                                                                       f
+
+                            dFt         
+                                  = dFt T (Ft ) + W (Ft ),   t ⩾ 0,               (34)
+                             dt
+       with initial condition F0 following a centered Gaussian distribution with vari-
+       ance P[f0 (y)2 ] − P[f0 (y)]2 .
+The joint distribution of (F0 , W ) is difficult to describe explicitly; this Gaussian
+element arises through computations in the spirit of the functional delta method.
+Moreover, we will state during the proof that the map T : H → H belongs to
+  e (H, H), with the notation of Proposition 2.2, so that its differential dF T extends
+  1
+CH
+                           f This guarantees that the differential equation (34) is
+continuously to vectors in H.
+well-defined in H
+                f and thus is a linear ODE with continuous time-dependent coeffi-
+cients. The existence and uniqueness of a global solution defined for all t ⩾ 0 are
+granted by the linear Picard–Lindelöf Theorem.
+
+Remark 4.9. We did not include the explicit definition of H     f in Theorem 4.8 since it
+is rather technical. The precise definition of H f – more precisely, of a family of RKHSs
+(Hγ )γ∈[0,γmax ) – is given in Lemma 5.6 in the section devoted to proofs. Note that,
+  f
+
+because the reproducing kernel k̃ is bounded and continuous, the embedding H         f ,→
+(C 0 ([0, 1]p , R), ∥·∥∞ ) is continuous. As a consequence,
+                                                             the convergence stated in
+point (i) also holds in the space Cb H, C ([0, 1] , R) , and similarly the convergence
+                                       0      0     p
+                                                            
+in point (ii) holds in the space C 1 [0, ∞), C 0 ([0, 1]p , R) .
+
+Remark 4.10. For the two standard settings of regression and binary classification,
+we can check that the initialization (21) satisfies the asymptotic expansion (33).
+For least-squares regression, the empirical risk is minimized by the empirical mean
+F0n = Pn [y], so that (33) holds trivially with f0 (y) = y. For binary classification
+with cross-entropy loss, the minimizing constant is
+                                             Pn (y)
+                                                         !
+                                 F0n = log            .
+                                           1 − Pn (y)
+By the delta method applied with g(u) = log(u/(1 − u)) at p = P(y),
+                                                            
+                F0n = g(Pn (y)) = g(p) + g ′ (p) Pn (y) − p + oP (n−1/2 )
+                    = Pn [f0 (y)] + oP (n−1/2 ),
+with                                                 !
+                                          p     y−p
+                            f0 (y) = log     +          .
+                                         1−p   p(1 − p)
+Hence Equation (33) holds also in the case of binary classification.
+
+                                                21
+Remark 4.11. The condition γmax > 1 imposes an integrability requirement on
+1/P(A), where A denotes a typical leaf in the random partition generated according
+to the splitting scheme distribution Q0 . When P(A) is bounded from below by ε|A|,
+where |A| denotes the Lebesgue measure of A – for instance when X is uniformly
+distributed on [0, 1]p or admits a density bounded away from zero – one can show
+that γmax = α, the parameter of the Beta distribution defining Q0 .
+Indeed, in the case P(A) = |A|, each binary split multiplies the volume of the parent
+cell by an independent random factor with distribution Beta(α, α). As a result, the
+volume of a typical leaf has the same distribution as
+                                    d
+                                                                 i.i.d.
+                              V =                  β1 , . . . , βd ∼ Beta(α, α),
+                                    Y
+                                          βl ,
+                                    l=1
+
+and a straightforward calculation shows that E[V −γ ] < ∞ if and only if γ < α.
+Intuitively, larger values of α favor more balanced splits, which prevent the creation
+of very small leaves and thus improve the integrability of 1/P(A).
+
+Remark 4.12. As discussed in the previous remark, when X admits a density
+bounded from below, one has γmax = α, and therefore Theorem 4.8 holds for α > 1
+only. It is natural to ask what happens when α ⩽ 1, and in particular in the
+canonical case α = 1, which corresponds to split locations uniformly distributed on
+(0, 1). Unfortunately, our proof does not extend to this regime.
+Nevertheless, the case of totally random trees, corresponding to β = 0, can still
+be treated. In this setting, the Radon–Nikodym derivative of the splitting scheme
+distribution reduces to the constant 1 (that is, Ψ2 ≡ 1 in Lemma A.2), which
+substantially simplifies the analysis. This allows one to adapt the proof and establish
+convergence in a reproducing kernel Hilbert space associated with an unbounded
+kernel. More precisely, when α > 1/2 and γ ∈ (2 − α, 1 + α), we can work with the
+RKHS H  f with reproducing kernel
+          γ
+                          Z
+        k̃γ (z, z ′ ) =                  wγ (Aξv ) 1Aξv (z)1Aξv (z ′ ) Q0 (dξ),    z, z ′ ∈ [0, 1]p .
+                                X
+
+                              v∈{0,1}d
+
+Similarly to Dagdoug et al. (2025), for γ ⩽ α one can show that this kernel is un-
+bounded but satisfies P[k̃γ (x, x)] < ∞, so that functions in H
+                                                              f are square integrable
+                                                               γ
+with respect to P. Details are omitted for the sake of brevity.
+
+
+5     Proofs
+5.1    Preliminaries on empirical process theory
+Our approach uses empirical process theory and, in particular, the notions of Glivenko–
+Cantelli and Donsker classes. The Glivenko–Cantelli property is used to establish
+almost sure convergence and laws of large numbers, whereas the Donsker property
+allows one to study fluctuations around the limit and obtain (functional) central
+limit theorems. In our analysis of the large-sample behavior of kernel gradient flow
+
+                                                        22
+and infinitesimal gradient boosting, the following lemma plays a crucial role for the
+asymptotic analysis of the underlying vector fields.
+Following van der Vaart (1998, Section 19.2), a class C of measurable functions
+φ : (x, y) 7→ φ(x, y) is said to be P-Glivenko–Cantelli if
+                                           ∗−a.s.
+                         sup Pn [φ] − P[φ] −→ 0,       n → ∞,
+                         φ∈C
+
+
+where Pn = n−1 ni=1 δ(Xi ,Yi ) is the empirical measure associated with an i.i.d. sample
+                 P
+                                                 ∗−a.s.
+(Xi , Yi )1⩽i⩽n drawn from P. The convergence −→ denotes almost sure convergence
+in outer probability, a notion introduced to handle the potential non-measurability
+of the supremum.
+A class C is said to be P-Donsker if the empirical process
+                              √                
+                        Gn f = n Pn [f ] − P[f ] ,    f ∈ C,
+
+converges in outer distribution in ℓ∞ (C) to a tight limit process GP . The limit GP is
+necessarily a P-Brownian bridge, that is, a tight centered Gaussian process in ℓ∞ (C)
+with covariance         h            i
+                      E GP φ1 GP φ2 = P[φ1 φ2 ] − P[φ1 ] P[φ2 ].
+We refer to van der Vaart and Wellner (1996, Chapters 1.2 and 1.3) for details on
+outer probability and convergence in outer distribution. Note that a P-Donsker class
+is automatically P-Glivenko–Cantelli.
+
+Lemma 5.1.
+  (i) In the kernel gradient flow framework, assume furthermore that (16) holds and
+      let X be a second countable topological space and H be an RKHS with bounded
+      continuous kernel on X × X . Then, for all M > 0, the class of functions
+                     n                                                       o
+               CM = (x, y) 7→ ∂1 ℓ(F (x), y) G(x) : ∥F ∥H ⩽ M, ∥G∥H ⩽ 1
+
+      is P-Donsker and therefore P-Glivenko–Cantelli.
+ (ii) In the boosting framework, assume that X = [0, 1]p , and let R denote the class
+      of hyperrectangles of the form A = [a, b⟩ for some a, b ∈ [0, 1]p with a ⩽ b.
+      Then, for all M > 0, the class of functions
+                      n                                                     o
+                 ′
+                CM = (x, y) 7→ ∂1 ℓ(F (x), y) 1A (x) : ∥F ∥H ⩽ M, A ∈ R
+
+      is P-Donsker and therefore P-Glivenko–Cantelli.
+
+Proof. In both cases, we have an embedding (which is of course a linear continu-
+ous mapping) from the RKHS H to the space of bounded continuous functions on
+Cb0 (X , R). Furthermore by assumption, in both cases H is a separable Hilbert space
+and X is a second countable topological space, so the assumptions of Marcus (1985,
+Theorem 1.1) are satisfied, and this result implies that the unit ball of H is a Donsker
+class of functions (with respect to any probability measure). More generally, any
+
+                                          23
+bounded subset of H is Donsker as well. We then use permanence properties of
+Donsker and VC-classes under sums, products, and Lipschitz transformations (see
+van der Vaart and Wellner, 1996, Section 2.10) to prove the two claims.
+Proof of (i). To apply the permanence properties, we use the decomposition
+                                                          
+        ∂1 ℓ(F (x), y)G(x) = ∂1 ℓ(F (x), y) − ∂1 ℓ(0, y) G(x) + ∂1 ℓ(0, y) G(x),
+                                              
+where the factor | ∂1 ℓ(F (x), y) − ∂1 ℓ(0, y) | ⩽ L|F (x)| is uniformly bounded in the
+first term. We assume without loss of generality that M ⩾ 1, and we introduce the
+following intermediary classes of functions:
+                      n                                o
+              D1 = (x, y) 7→ F (x) : ∥F ∥H ⩽ M ,
+                      n                                        o
+              D2 = (x, y) 7→ ∂1 ℓ(F (x), y) : ∥F ∥H ⩽ M ,
+                      n                                                       o
+              D3 = (x, y) 7→ ∂1 ℓ(F (x), y) − ∂1 ℓ(0, y) : ∥F ∥H ⩽ M .
+
+By Marcus (1985), the class D1 is Donsker (the presence of the redundant variable y
+is harmless). To show that D2 is P-Donsker, we can use Theorem 2.10.6 in van der
+Vaart and Wellner (1996). Indeed, this result applies if we can show that these maps
+are of the form
+
+                D2 = {(x, y) 7→ φ(f (x, y), g(x, y)) : (f, g) ∈ F × G},
+
+where F and G are P-Donsker classes satisfying
+
+                                      sup |P[f ]| < ∞                              (35)
+                                    f ∈F ∪G
+
+
+and φ is such that there exists Lφ such that for all (x, y) ∈ X × Y and f1 , f2 ∈
+F, g1 , g2 ∈ G, the Lipschitz condition
+
+                  |φ(f1 (x, y), g1 (x, y)) − φ(f2 (x, y), g2 (x, y))|2
+                                                                                   (36)
+                     ⩽ Lφ |f1 (x, y) − f2 (x, y)| + |g1 (x, y) − g2 (x, y)|
+
+holds. We let F = D1 and G = {(x, y) 7→ s(y)}, where s : R → (0, 1) is any
+fixed sigmoid function, whose inverse we denote by s−1 . These classes are Donsker
+(note that G contains a single bounded function). Furthermore, by (4) and the
+boundedness of the kernel, the maps in D1 are also uniformly bounded, so (35)
+is satisfied. Finally, to obtain D2 from this construction, we must take φ of the
+form φ(z, t) = ∂1 ℓ(z, s−1 (t)), for which (36) is satisfied under Assumption 1.1 with
+Lφ = L2 , since (z, y) 7→ ∂1 ℓ(z, y) is L-Lipschitz in its first argument, uniformly
+in y ∈ Y. To apply Theorem 2.10.6 in van der Vaart and Wellner (1996), it only
+remains to check that at least one map in D2 is square-integrable, which is immediate
+using the assumption P[∂1 ℓ(0, y)2 ] < ∞. Therefore D2 is P-Donsker.
+The class D3 is Donsker because it is contained in D2 − D2 (pairwise differences),
+which is Donsker by Example 2.10.7 in van der Vaart and Wellner (1996). Likewise,
+the class D3 · D1 of pairwise products is Donsker as the product of two uniformly
+
+                                              24
+bounded Donsker classes (Example 2.10.8 in van der Vaart and Wellner, 1996).
+Finally, CM is included in the class D3 · D1 + φ0 · D1 , where the function φ0 (x, y) =
+∂1 ℓ(0, y) is fixed. According to Equation (16), φ0 is assumed uniformly bounded so
+that the class φ0 · D1 is Donsker, and finally the sum of the Donsker classes D3 · D1
+and φ0 · D1 is also Donsker.
+Proof of (ii). The proof is similar, except that G(x) is replaced by 1A (x). Let
+                                n                         o
+                          D4 = (x, y) 7→ 1A (x) : A ∈ R .
+
+Hyperrectangles form a VC-class, so D4 is P-Donsker and uniformly bounded. Thus
+D3 · D4 is P-Donsker. Since multiplication by the fixed function φ0 preserves the
+VC-subgraph property (Lemma 2.6.18(vi) in van der Vaart and Wellner, 1996), the
+class φ0 · D4 is VC-subgraph and hence P-Donsker. Note that we did not need to
+assume (16) here. Finally, CM′
+                               is included in D3 · D4 + φ0 · D4 , and is therefore
+P-Donsker.
+
+5.2    Proofs related to Section 2
+Recall the notation from 2, in particular the spaces Cb0 (E, E) and C 1 ([0, +∞), E).
+In the following proofs, we will also use (with transparent notation) spaces of the
+form C 0 ([0, +∞), E) or C 1 ([0, T ], E) for some finite T .
+
+Proof of Proposition 2.1. The proof is standard, but we include it for the sake of
+completeness. Let x be the solution of the differential equation (6). We introduce
+the set of times of uniform convergence,
+
+               C = {T ⩾ 0 : xn → x uniformly on [0, T ] as n → ∞}.
+
+We aim to prove that C = [0, +∞). To this end, we show that C ⊂ [0, +∞) is a non-
+empty, open, and closed subset, which implies, by connectedness of [0, +∞), that
+C = [0, +∞). Clearly, T = 0 belongs to C because of the assumption x0,n → x0 ,
+hence non-emptiness.
+To show that C is both open and closed, it suffices to prove that for any nonde-
+creasing sequence Tm → T0 , with Tm ∈ C for all m ⩾ 1, there exists δ > 0 such that
+T0 + δ ∈ C . Since g is assumed to be complete, x(t) is well defined for all t ⩾ 0. In
+particular, we can define open balls Br = B(x(T0 ), r) for r > 0 and consider
+
+                        M = sup{∥gn (v)∥E : v ∈ B2 , n ⩾ 1},
+
+which is finite because gn → g uniformly on B2 . By continuity of x and by the
+definition of C , we may fix m, n0 ⩾ 1 such that Tm > T0 −1/(2M ), x(Tm ) ∈ B1 , and,
+for all n ⩾ n0 , xn (Tm ) ∈ B1 . Because all solutions have derivative bounded by M as
+long as they stay in B2 , they cannot exit B2 starting from B1 in a time shorter than
+1/M . Therefore, for all s ∈ [0, 1/M ] and n ⩾ n0 , we have xn (Tm +s), x(Tm +s) ∈ B2 ,
+
+
+
+
+                                          25
+so that
+          ∥xn (Tm + s) − x(Tm + s)∥E − ∥xn (Tm ) − x(Tm )∥E
+              Z Tm +s
+          ⩽             ∥gn (xn (u)) − g(x(u))∥E du
+               Tm
+              Z Tm +s                                                           
+          ⩽              ∥gn (xn (u)) − g(xn (u))∥E + ∥g(xn (u)) − g(x(u))∥E du
+               Tm
+                                                          Z Tm +s
+          ⩽ s sup ∥gn (v) − g(v)∥E + sup ∥dv g∥op                   ∥xn (u) − x(u)∥E du.
+               v∈B2                        v∈B2            Tm
+
+By Grönwall’s lemma, we deduce
+                                                                                          
+  ∥xn (Tm + s) − x(Tm + s)∥E ⩽ ∥xn (Tm ) − x(Tm )∥E + s sup ∥gn (v) − g(v)∥E
+                                                                       v∈B2
+                                                               
+                                       × exp s sup ∥dv g∥op ,
+                                                   v∈B2
+
+which tends to 0 uniformly in s ∈ [0, 1/M ]. Because we chose Tm > T0 − 1/(2M ),
+this shows that T0 + 1/(2M ) ∈ C , concluding that C = [0, +∞).
+So far, we have proven the uniform convergence xn → x on compact sets. Since
+ẋn = gn ◦ xn and gn → g uniformly on bounded sets, we readily deduce the uniform
+convergence ẋn → g ◦ x = ẋ on compact sets, hence xn → x in C 1 ([0, +∞), E).
+                                                                     √
+Proof of Proposition 2.2. We first prove that the sequence yn = n(xn − x), n ⩾ 1,
+is relatively compact in C 0 ([0, +∞), E). It is enough to show relative compactness
+in C 0 ([0, T ], E) for every T > 0. To this aim, note that
+                         √
+          ∥ẏn (t)∥E = n ∥gn (xn (t)) − g(x(t))∥E
+                         √                            √
+                      ⩽ n ∥gn (xn (t)) − g(xn (t))∥E + n ∥g(xn (t)) − g(x(t))∥E .
+Since xn → x uniformly on [0, T ], there exists a compact (hence bounded) set B ⊂ E
+containing xn (t) and x(t) for all t ∈ [0, T ] and n ⩾ 1. We can then bound
+                            √                                
+          ∥ẏn (t)∥E ⩽ sup ∥ n(gn (v) − g(v))∥E + sup ∥dv g∥op ∥yn (t)∥E ,
+                          v∈B,n⩾1                               v∈B
+
+where both suprema are finite under our assumptions (the second because B is
+compact). Grönwall’s lemma then implies that ∥ẏn (t)∥E remains bounded for all
+n ⩾ 1 and t ∈ [0, T ]. Hence, the sequence (yn )n⩾1 is equicontinuous on [0, T ]. Since
+the initial values yn,0 are convergent and thus relatively compact, the Arzelà–Ascoli
+theorem implies that (yn )n⩾1 is relatively compact in C 0 ([0, T ], E).
+To prove uniqueness of the limit point in C 0 ([0, +∞), E), assume that (yn ) converges
+to y along a subsequence {n′ } ⊂ {n}. From the equality
+                    √                      
+           ẏn (t) = n gn (xn (t)) − g(x(t))
+                    √                     √                      
+                   = n(gn − g)(xn (t)) + n g(xn (t)) − g(x(t))
+                    √                     Z 1
+                   = n(gn − g)(xn (t)) + (dx(t)+u(xn (t)−x(t)) g)(yn (t)) du,
+                                                  0
+
+
+                                                  26
+                           √
+the uniform convergences n(gn − g) → h on B and xn → x, together with the
+continuity of x 7→ dx g, imply that ẏn (t) converges uniformly on [0, T ] along the
+subsequence {n′ } to
+                             (dx(t) g)(y(t)) + h(x(t)).
+As a consequence, the limit function y is continuously differentiable with derivative
+
+                            ẏ(t) = (dx(t) g)(y(t)) + h(x(t)).
+
+The convergence yn → y thus holds in C 1 ([0, T ], E) along the subsequence {n′ }.
+The existence and uniqueness of the solution to this differential equation with initial
+condition y(0) = y0 imply uniqueness of the limit point y, hence the convergence
+of the entire sequence yn → y in C 1 ([0, T ], E). Since T is arbitrary, the proof is
+complete.
+
+Proof of Corollary 2.3. The law of large numbers stated in point (i) is a direct ap-
+plication of Proposition 2.1. Let Ω′ ⊂ Ω denote the subset on which the convergence
+             a.s.
+(X0,n , Gn ) → (x0 , g) holds; by assumption, P(Ω′ ) = 1. For each fixed ω ∈ Ω′ , we can
+apply the deterministic statement of Proposition 2.1 and deduce the convergence
+Xn (ω) → x. This holds for all ω ∈ Ω′ , which implies almost sure convergence.
+The functional central limit theorem stated in point (ii) is proved similarly by a
+direct application of Proposition 2.2. We appeal to a Skorokhod representation in
+the Banach space E × Cb0 (E, E) to represent the convergence in distribution
+                     √                   √            
+                                                           d
+                         n(X0,n − x0 ),                 → (X0 , G )
+                                              n(Gn − g) −
+
+by an almost sure convergence on a suitable probability space. Then, for each fixed
+ω in a subset of probability 1, we apply Proposition 2.2 to deduce the almost sure
+convergence                        √           a.s.
+                            Xn := n(Xn − x) −−→ X ,
+which implies convergence in distribution on the original probability space. Finally,
+the fact that the limit X is Gaussian follows directly from the assumption that
+(X0 , G ) is Gaussian and from the linearity of the differential equation (9).
+
+5.3    Proofs related to Section 3
+Proof of Lemma 3.1. We first establish that Ln and L defined in Equations (3)
+and (2) are twice continuously differentiable on H. By the reproducing kernel prop-
+erty, the gradient of the evaluation map F 7→ F (x), x ∈ X , is given by the feature
+map Φ(x) = k(x, ·) ∈ H, since F (x) = ⟨Φ(x), F ⟩H . As a consequence, and by As-
+sumption 1.1, for each fixed (x, y) the map F 7→ ℓ(F (x), y) is twice continuously
+differentiable with gradient
+
+                          ∇F ℓ(F (x), y) = ∂1 ℓ(F (x), y) Φ(x)
+
+and Hessian
+                     ∇2F ℓ(F (x), y) = ∂12 ℓ(F (x), y) Φ(x) ⊗ Φ(x),
+
+                                              27
+where Φ(x) ⊗ Φ(x) : H → H is the rank-one operator
+
+                              G 7→ ⟨Φ(x), G⟩H Φ(x) = G(x) Φ(x).
+
+The operator norm of the Hessian at F is bounded by
+
+       ∥∂12 ℓ(F (x), y) Φ(x) ⊗ Φ(x)∥op ⩽ L ∥Φ(x) ⊗ Φ(x)∥op = L ∥Φ(x)∥2H = L κ,
+
+where L is the uniform
+               q        bound on ∂12 ℓ from Assumption 1.1 and κ the uniform bound
+on ∥Φ(x)∥H = k(x, x) from Assumption 1.2. Since this bound is independent of F
+and integrable with respect to both Pn and P, we deduce that Ln and L are twice
+continuously differentiable with
+
+     ∇F Ln = Pn [∂1 ℓ(F (x), y) Φ(x)],            ∇2F Ln = Pn [∂12 ℓ(F (x), y) Φ(x) ⊗ Φ(x)],
+
+and similarly for L with Pn replaced by P.
+Proof of (i). This follows directly from the fact that Ln and L are twice continuously
+differentiable on H with Hessians uniformly bounded in operator norm:
+
+                   ∥∇2F Ln ∥op ⩽ L Pn [k(x, x)],       ∥∇2F L∥op ⩽ L P[k(x, x)],
+
+for all F ∈ H.
+Proof of (ii). Point (i) implies that the gradient vector fields (∇F Ln )F ∈H and
+(∇F L)F ∈H are complete, hence the flows (Ftn )t⩾0 and (Ft )t⩾0 are well defined for
+all t ⩾ 0. It remains to check that, for n ⩾ 1, F n depends continuously on the
+training sample. Let (xi , yi )1⩽i⩽n and (x′i , yi′ )1⩽i⩽n be two training samples, and let Pn
+and P′n denote the corresponding empirical measures, Ln and L′n the corresponding
+empirical risks, and (Ftn )t⩾0 and (Ftn ′ )t⩾0 the corresponding gradient flows. Then,
+for any F ∈ H,
+
+      ∥∇F Ln − ∇F L′n ∥H = Pn [∂1 ℓ(F (x), y) Φ(x)] − P′n [∂1 ℓ(F (x′ ), y ′ ) Φ(x′ )]
+                                                                                              H
+                                 1X n
+                               ⩽       ∂1 ℓ(F (xi ), yi ) Φ(xi ) − ∂1 ℓ(F (x′i ), yi′ ) Φ(x′i ) .
+                                 n i=1                                                         H
+
+
+Let M > 0 be fixed; Equation 5 implies that
+
+        sup      max ∥F (xi ) − F (x′i )∥H ⩽ M max (k(xi , xi ) + k(x′i , x′i ) − 2k(xi , x′i ))
+     ∥F ∥H ⩽M 1⩽i⩽n                                1⩽i⩽n
+
+
+which tends to 0 as (x′i )ni=1 → (xi )ni=1 by continuity of k. Since ∂1 ℓ is supposed
+uniformly continuous by Assumption 1.1, it follows
+
+                        sup    max ∂1 ℓ(F (xi ), yi ) − ∂1 ℓ(F (x′i ), yi′ ) → 0,
+                      ∥F ∥H ⩽M 1⩽i⩽n
+
+
+as (x′i )ni=1 → (xi )ni=1 . Likewise,
+
+         max ∥Φ(xi ) − Φ(x′i )∥H = max (k(xi , xi ) + k(x′i , x′i ) − 2k(xi , x′i )) → 0.
+         1⩽i⩽n                           1⩽i⩽n
+
+
+                                                  28
+The last two computations therefore show that
+
+                             sup ∥∇F Ln − ∇F L′n ∥H → 0,
+                           ∥F ∥H ⩽M
+
+and Proposition 2.1 implies that (Ftn ′ )t⩾0 → (Ftn )t⩾0 in C 1 ([0, +∞), H), which con-
+cludes the proof.
+
+Proof of Theorem 3.2. The theorem is an application of Corollary 2.3, and we need
+to check the assumptions of this corollary. Here the ambient space is E = E = H, the
+vector fields are Gn = ∇Ln and g = ∇L, and the initial positions are X0,n = x0 = 0.
+Proof of (i). We must check that
+                                      a.s.
+                            ∇Ln −−→ ∇L in Cb0 (H, H).
+
+By Lemma 3.1, the vector fields belong to Cb0 (H, H), and it remains to prove that
+                                                             a.s.
+                             sup        ∇ F Ln − ∇ F L       −−→ 0                 (37)
+                           ∥F ∥H ⩽M                      H
+
+
+for all M ⩾ 0. Note that the supremum is measurable because H is separable and
+the vector fields are continuous.
+To prove (37), observe that the left-hand side may be written as
+
+                            sup Pn [φ(x, y)] − P[φ(x, y)] ,
+                           φ∈CM
+
+where CM is the class of functions introduced in Lemma 5.1. Since this class is
+Glivenko–Cantelli, the empirical process (Pn (φ))φ∈CM , converges ∗-a.s. to (P(φ))φ∈CM
+in ℓ∞ (CM ). Hence the supremum above converges to 0 ∗-a.s., proving (37) and com-
+pleting the proof of (i).
+Proof of (ii). We must check that ∇L ∈ C 1 (H, H) (which follows from Lemma 3.1),
+and that               √            
+                                       d
+                         n ∇Ln − ∇L −  → G in Cb0 (H, H),                   (38)
+for a centered Gaussian limit G. The left-hand side is indeed in Cb0 (H, H). For
+∥F ∥H ⩽ M and ∥G∥H ⩽ 1, we have
+                 D√                E       √
+                     n ∇F Ln − ∇F L , G = n (Pn − P)(φ),
+                                                  H
+
+where
+                             φ(x, y) = ∂1 ℓ(F (x), y) G(x)
+belongs to
+         √ the class CM . By Lemma 5.1, the class CM is Donsker, so the empirical
+process ( n(Pn −P)(φ))φ∈CM , converges (in outer distribution) to the tight centered
+Gaussian limit (GP (φ))φ∈CM in ℓ∞ (CM ), with covariance structure given by
+
+          Cov(GP (φ), GP (φ′ )) = P[φ(x, y)φ′ (x, y)] − P[φ(x, y)]P[φ′ (x, y)],
+
+see van der Vaart (1998, Section 19.2). This yields the weak convergence (38) in
+outer distribution, and, since Cb0 (H, H) is a Polish space, convergence in distribution
+
+                                             29
+(in the usual sense) follows. Furthermore, we get the following covariance structure
+for G:
+   Cov(⟨G(F ), G⟩H , ⟨G(F ′ ), G′ ⟩H ) = Cov(GP (φ), GP (φ′ ))
+                                       = P[∂1 ℓ(F (x), y)∂1 ℓ(F ′ (x), y)G(x)G′ (x)]
+                                         − P[∂1 ℓ(F (x), y)G(x)]P[∂1 ℓ(F ′ (x), y)G′ (x)],
+with obvious notation for φ and φ′ . In other words, the Gaussian family (G(F ))F ∈H
+has the same covariance structure as (∂1 ℓ(F (x), y)Φ(x))F ∈H under the probability
+measure P.
+Equation (17), with Gt := G(Ft ), can be deduced from (9), since the operator At
+defined in (18) is precisely the Fréchet derivative at Ft of ∇L, that is ∇2Ft L. Fur-
+thermore, the computations above show that the covariance structure of the process
+(Gt )t⩾0 is the same as that of (∂1 ℓ(Ft (x), y)Φ(x))t⩾0 , which concludes the proof.
+
+Proof of Theorem 3.3. The proof of (i) is a consequence of the law of large numbers
+(LLN) and the central limit theorem (CLT) for square-integrable random Hilbert-
+valued random variables, see Theorem 7.9 combined with Theorem 10.5 in Ledoux
+and Talagrand (1991). Indeed, the space (H ⊗ H) × H is a separable Hilbert space
+and the pair (Bn , Cn ), defined in (19), is simply the empirical mean of i.i.d. random
+variables (Φ(xi ) ⊗ Φ(xi ), yi Φ(xi ))ni=1 . Furthermore, by Assumption 1.2,
+                     ∥Φ(x) ⊗ Φ(x)∥HS = ∥Φ(x)∥2H = k(x, x) ⩽ κ2 ,
+and we have also
+                        P[∥yΦ(x)∥2H ] = P[y 2 k(x, x)] ⩽ κ2 P[y 2 ],
+which is finite by Assumption 1.1 – note that, for the square loss ℓ(z, y) = 12 (z − y)2 ,
+we have ∂1 ℓ(0, y) = y. This implies that the (Φ(xi ) ⊗ Φ(xi ), yi Φ(xi ))i⩾1 are i.i.d. and
+square-integrable random variables with values in a separable Hilbert space, so the
+LLN and CLT apply and we get directly (i).
+In order to prove (ii), we use the explicit form
+                                             X (−tBn )k
+                 Ftn = texp(−tBn )Cn = t                    Cn ,       t ⩾ 0,
+                                             k⩾0 (k + 1)!
+                        g
+
+
+given in (20). Using Skorokhod’s representation theorem, let us assume that the
+CLT convergence from (i) holds almost surely. It is not too hard to see that the
+                                        Ak
+mapping exp g : H → H, A 7→ ∞     k=0 (k+1)! is Fréchet differentiable with a derivative
+                                 P
+
+at A that we denote by dA exp(·)
+                               g    and that for all T > 0, it holds a.s. uniformly in
+t ∈ [0, T ] that
+              √
+                n(Ftn − Ft ) n→∞
+                             −→ Ft := t g  exp(−tB)C − t2 d(−tB) g exp(B)C.
+
+We now leverage this convergence in C 0 ([0, ∞), H) and the fact that dtd Ftn = −Bn Ftn +
+Cn and dtd Ft = −BFt + C to deduce that similarly:
+                       d√
+                          n(Ftn − Ft ) n→∞
+                                       −→ −BFt − BFt + C ,
+                       dt
+
+                                             30
+                                                                 √
+uniformly for t in compact sets. Therefore the convergence n(F n − F ) → F
+holds in C 1 ([0, ∞), H) and we can identify the derivative dtd Ft as the right-hand
+side above. This concludes the proof of (ii).
+
+5.4     Proofs related to Section 4
+5.4.1   Preliminaries: splitting schemes and partitions
+We recall the formal definition of splitting schemes introduced in Dombry and
+Duchamps (2024a, Section 2.2).
+The binary rooted tree with depth d ⩾ 1 (from graph theory) is defined on the vertex
+set Td = ∪dl=0 {0, 1}l . A vertex v ∈ {0, 1}l is seen as a word of size l in the letters 0
+and 1. The empty word v = ∅ corresponds to the tree root. The vertex set is divided
+into the internal nodes v ∈ Td−1 and the terminal nodes v ∈ {0, 1}d , also called
+leaves. Each internal node v has two children denoted v0 and v1 (concatenation of
+words) while the terminal nodes have no offspring.
+A regression tree is encoded by a splitting scheme
+
+                        ξ = (jv , uv )v∈Td−1 ∈ ([[1, p]] × (0, 1))Td−1
+
+giving the splits at each internal node, and its leaf values (r̄v )v∈{0,1}d . The splitting
+scheme ξ allows to associate to each vertex v ∈ Td a region Av = Aξv defined
+recursively by A∅ = [0, 1]p and, for v ∈ Td−1 ,
+
+                  Av0 = Av ∩ {x ∈ [0, 1]p : xjv < av + uv (bv − av )},
+                                                                                        (39)
+                  Av1 = Av ∩ {x ∈ [0, 1]p : xjv ⩾ av + uv (bv − av )},
+
+with av = inf x∈Av xjv and bv = supx∈Av xjv . Note that Av depends only on the splits
+attached to the ancestors of v. For each level l = 0, . . . , d, (Av )v∈{0,1}l is a partition
+of [0, 1]p into 2l hypercubes. The leaf values are then
+
+                                               1 X   n
+                               r̄n (Av ) =              ri 1Av (xi ).
+                                             n(Av ) i=1
+
+Finally, the tree associated with the sample (xi , ri )1⩽i⩽n and splitting scheme ξ =
+(jv , uv )v∈Td−1 is the piecewise constant function
+
+                      T (x; (xi , ri )1⩽i⩽n , ξ) =              r̄n (Av )1Av (x).       (40)
+                                                       X
+
+                                                     v∈{0,1}d
+
+
+For self-containedness, we provide the expression for the Radon–Nikodym derivative
+dQn,F /dQ0 that was derived in Dombry and Duchamps (2024a, Proposition 2.1).
+The notation ∆n (j, u; A) stands for the score of the binary split A = A0 ∪A1 resulting
+from the choice of covariate j and threshold u — see Equation (39) — and defined
+by
+                         Pn [∂1 ℓ(F (x), y)1A0 (x)]2 Pn [∂1 ℓ(F (x), y)1A1 (x)]2
+          ∆n (j, u; A) =                            +                            .
+                                   Pn (A0 )                    Pn (A1 )
+
+                                                 31
+Proposition 5.2. For all measurable bounded F : [0, 1]p → R, the splitting scheme
+distribution Qn,F is absolutely continuous with respect to Q0 with Radon-Nikodym
+derivative
+   dQn,F       Z Y
+                            exp(β∆n (jv1 , u1v ; Aξv ))
+         (ξ) =                                          ξ Q0 (dξ2 ) · · · Q0 (dξK ),      (41)
+    dQ0                  −1
+                              k=1 exp(β∆n (jv , uv ; Av ))
+                              K                  k    k
+                            P
+                v∈Td−1 K
+
+with ξk = (jvk , ukv )v∈Td−1 , 2 ⩽ k ⩽ K, and for k = 1, we take ξ1 = (jv1 , u1v )v∈Td−1 =
+ξ. Note that the Radon-Nikodym derivative (41) is bounded from above by K 2 −1 .
+                                                                                       d
+
+          dQ
+Similarly, dQ∞,F0
+                    (ξ) is obtained by replacing Pn by P in the definition of ∆n .
+
+5.4.2   Preliminaries: an integral representation for Tn (F ) and T (F )
+As a preliminary step in our analysis, we establish an integral representation for the
+random forest predictors defined in Equations (25), and show that they belong to
+the RKHS H with kernel k defined in Equation (26).
+We begin with a integral representation of general elements of the RKHS. We denote
+by S = ([[1, p]] × (0, 1))Td−1 the space of splitting schemes, equipped with the prob-
+ability measure Q0 . Recall that Q0 is the reference splitting-scheme distribution in
+the totally random case (see Definition 4.1). Because softmax selection involves K
+random candidate splits at each node, we introduce K-tuples of splitting schemes
+ξ¯ = (ξ 1 , . . . , ξ K ) and endow S K with the product measure QK    0 . We denote by ν
+the counting measure on {0, 1} and consider L (Q0 ⊗ ν), the space of measurable
+                                        d             2  K
+
+functions
+                                ¯ v) 7−→ Ψ(ξ,
+                           Ψ : (ξ,         ¯ v),  ξ¯ ∈ S K , v ∈ {0, 1}d ,
+that are square-integrable with respect to QK
+                                            0 ⊗ ν.
+
+
+Lemma 5.3. For every Ψ ∈ L2 (QK
+                              0 ⊗ ν), the function
+
+                                ¯ v) 1 ξ1 (z) QK (dξ)
+                                                   ¯ ν(dv),
+                          Z
+               Φ(z) =         Ψ(ξ,    A        0                          z ∈ [0, 1]p ,
+                                            v
+
+
+belongs to H and satisfies
+                                       ∥Φ∥H ⩽ ∥Ψ∥L2 (QK
+                                                      0 ⊗ν)
+                                                            .
+Moreover, the linear operator Ψ 7→ Φ is surjective, and its restriction to
+                                                                       oL2 (QK
+                                                                             0 ⊗ν)
+                                ¯ v) 7→ 1 ξ1 (z) : z ∈ [0, 1]p
+                                   n
+                     H̊ = span (ξ,       A          v
+
+
+defines an isomorphism H̊ → H.
+
+Proof of Lemma 5.3. This follows directly from (Hsing and Eubank, 2015, Theo-
+rem 2.7.7), since the kernel k defined by Equation (26) can be written as
+                                       Z
+                        k(z, z ) =
+                               ′
+                                           1Aξv (z)1Aξv (z ′ ) Q0 (dξ) ν(dv)
+                                                                    ¯
+                                       Z
+                                   =       1Aξ1 (z)1Aξ1 (z ′ ) QK
+                                                                0 (dξ) ν(dv),
+                                                v            v
+
+
+     ¯ v) 7→ 1 ξ1 (z) belongs to L2 (QK ⊗ ν) for every z ∈ [0, 1]p .
+and (ξ,       A  v
+                                      0
+
+
+                                                        32
+We now provide explicit integral representations of Tn (F ), showing that they belong
+to H, and also define the limit T (F ) thanks to a similar integral representation.
+Note that the following Lemma implies in particular Lemma 4.2.
+
+Lemma 5.4. (i) For any measurable F : [0, 1]p → R and any n ⩾ 1, Tn (F ) ∈ H
+   and can be written as
+                                                ¯ v, F, Pn ) 1 ξ1 (z) QK (dξ)
+                                                                           ¯ ν(dv),
+                                          Z
+                        Tn (F )(z) =          Ψ(ξ,            A        0
+                                                                       v
+
+
+      with
+                               ¯ v, F, Pn ) = Ψ1 (ξ 1 , v, F, Pn )Ψ2 (ξ,
+                             Ψ(ξ,                                     ¯ F, Pn ),                              (42)
+      where
+                                                         Pn [∂1 ℓ(F (x), y)1Aξ1 (x)]
+                                Ψ1 (ξ 1 , v, F, Pn ) =                    1
+                                                                                       v
+                                                                                                              (43)
+                                                                   Pn (Aξv )
+      and                                                                                      
+                                                          exp β ∆n (jw1 , u1w ; Aξw )
+                                                                                            1
+
+                        ¯ F, Pn ) =
+                    Ψ2 (ξ,                                                                                    (44)
+                                              Y
+                                                                                                   1
+                                                                                                         .
+                                                            k=1 exp            β ∆n (jwk , ukw ; Aξw )
+                                                     −1
+                                                          PK
+                                          w∈Td−1 K
+
+      We recall that (jwk , ukw ) denotes the split at node w in the splitting scheme ξ k and
+      ∆n (j, u, A) denotes the score of the split (j, u) of A as defined in Equation (22).
+ (ii) In the infinite-population case, for any F ∈ L2 (P), we define T (F ) ∈ H by
+      the formula
+                                                ¯ v, F, P) 1 ξ1 (z) QK (dξ)
+                                                                         ¯ ν(dv),
+                                          Z
+                           T (F )(z) =        Ψ(ξ,          A        0
+                                                                   v
+
+
+               ¯ v, F, P) ∈ L2 (QK ⊗ ν) is defined by Equations (42), (43), (44) with
+      where Ψ(ξ,                 0
+      Pn replaced by P.
+
+Proof of Lemma 5.4. From Equation (25) and the absolute continuity of Qn,F with
+respect to Q0 , we have
+                       Z    Pn [∂1 ℓ(F (x), y)1Aξv (x)] dQn,F
+        Tn (z; F ) =                                                       (ξ) 1Aξv (z) Q0 (dξ) ν(dv).
+                                       Pn (Aξv )              dQ0
+On the other hand, the Radon-Nikodym derivative is expressed, thanks to Proposi-
+tion 5.2, as
+              dQn,F      Z
+                    (ξ) = Ψ2 ((ξ, ξ 2 , . . . , ξ K ), F, Pn ) QK−1 (dξ 2 , . . . , dξ K ).
+               dQ0                                              0
+
+
+Setting ξ = ξ1 , these two Equations together imply
+                                                        ¯ F, Pn ) 1 ξ1 (z) QK (dξ)
+                                                                                ¯ ν(dv).
+                            Z
+             Tn (z; F ) =       Ψ1 (ξ 1 , v, F, Pn )Ψ2 (ξ,         A        0  v
+
+
+For fixed F, Pn , the function (ξ, ¯ v) 7→ Ψ(ξ,¯ v, F, Pn ) belongs to L2 (QK ⊗ν) because Ψ2
+                                                                             0
+is bounded (by K    2d −1
+                          ) and ( ¯
+                                 ξ, v) 7→ Ψ1 ( ¯
+                                              ξ, v, F, Pn ) takes finitely many values. Hence
+Lemma 5.3 implies Tn (F ) ∈ H. The proof for the infinite-population case follows the
+same argument, and we use Assumption 1.1 to bound (ξ,             ¯ v) 7→ Ψ1 (ξ 1 , v, F, P).
+
+                                                     33
+5.4.3    Proofs related to Subsection 4.1
+We now prove Lemma 4.4 stating that the vector fields Tn : H → H, n ⩾ 1, are
+continuously differentiable and satisfy a linear growth condition. As a consequence,
+these vector fields are complete, and the infinitesimal gradient boosting processes
+(Ftn )t⩾0 , n ⩾ 1, are well defined and continuously differentiable. We further show
+that the finite-sample trajectory t 7→ Ftn depends continuously on the input sample
+(xi , yi )1⩽i⩽n .
+
+Proof of Lemma 4.4. Proof of (i). Using the integral representation of Tn (F ) from
+Lemma 5.4, it is enough to prove that F 7→ Ψ(·, ·, F, Pn ) is continuously Fréchet
+differentiable as a map H → L2 (QK0 ⊗ ν). Composition with the continuous linear
+operator Ψ 7→ Φ from Lemma 5.3 then yields that Tn : H → H is continuously
+Fréchet differentiable.
+We now use a technical fact whose proof is deferred to the appendix in Lemma A.1(ii).
+                ¯ v), the map F 7→ Ψ(ξ,
+For each fixed (ξ,                        ¯ v, F, Pn ) is continuously Fréchet differen-
+tiable as a map H → R, with a derivative F 7→ dF Ψ( ¯     ξ, v, Pn ) whose operator norm
+is uniformly bounded on bounded sets {F : ∥F ∥H ⩽ M }. Therefore by integrating
+with respect to QK0 ⊗ ν, it is readily checked that
+
+
+        Ψ(·, ·, F + G, Pn ) − Ψ(·, ·, F, Pn ) − dF Ψ(·, ·, Pn ) · G                   = o(∥G∥H )
+                                                                        L2 (QK
+                                                                             0 ⊗ν)
+
+
+as ∥G∥H → 0, uniformly when F and G are taken in bounded sets of H. Therefore
+F 7→ Ψ(·, ·, F, Pn ) is continuously Fréchet differentiable as a map H → L2 (QK
+                                                                              0 ⊗ ν),
+with a bounded derivative on bounded sets. This proves that Tn ∈ Cb (H, H).
+                                                                        1
+
+
+We now check the linear growth condition. In the decomposition Ψ = Ψ1 Ψ2
+from (42), the factor Ψ2 corresponds to the Radon–Nikodym derivative dQn,F /dQ0
+and is uniformly bounded by K 2 −1 , this is clear from its definition in (44). We
+                                      d
+
+
+again use a technical fact whose proof is found in Lemma A.1(i): the map F 7→
+Ψ1 (ξ 1 , v, F, Pn ) has gradient norm bounded by the constant Lκ. Using this fact, we
+obtain the linear growth bound
+
+                     |Ψ1 (ξ 1 , v, F, Pn )| ⩽ |Ψ1 (ξ 1 , v, 0, Pn )| + Lκ ∥F ∥H .
+
+Consequently, the norm of Ψ(·, ·, F, Pn ) in L2 (QK   0 ⊗ ν) grows at most linearly in
+∥F ∥H , and thus the vector field Tn (F ) satisfies the linear growth condition.
+Proof of (ii). By point (i), the vector field Tn is complete, i.e. the differential
+equation (27) admits a unique global solution (Ftn )t⩾0 . To show that this solution
+depends continuously on the input sample (xi , yi )1⩽i⩽n , by Proposition 2.1 we need
+only show that the initial condition F0n and the vector field Tn both depend con-
+tinuously on (xi , yi )1⩽i⩽n . Concerning the initial condition, note that because we
+assumed that the maps z 7→ ℓ(z, y) are strictly convex and C 2 , any sample such
+that (21) is well-defined admits a neighborhood such that the initial condition F0n
+is given by
+                                                                n                
+                  (xi , yi )1⩽i⩽n 7−→ unique zero of z 7→              ∂1 ℓ(z, yi ) ,
+                                                                 X
+
+                                                                 i=1
+
+
+                                                 34
+which is well-defined and continuous by the implicit function theorem. Let us now
+prove that the mapping (xi , yi )1⩽i⩽n 7→ Tn ∈ Cb0 (H, H) is continuous. For this, we
+exploit the expression for Tn given in Lemma 5.4. Consider two samples (xi , yi )1⩽i⩽n
+and (x′i , yi′ )1⩽i⩽n and write P′n = n1 ni=1 δ(x′i ,yi′ ) , and Tn and Tn′ for the vector fields
+                                        P
+
+defined from (25) respectively using Pn and P′n . Then for any F ∈ H,
+                                   Z                                         2
+                                         Ψ( ¯
+                                           ξ, v, F, Pn ) − Ψ( ¯                         ¯
+    ∥Tn (F ) − Tn′ (F )∥H =                                  ξ, v, F, P′n )         0 (dξ) ν(dv),
+                                                                                   QK                  (45)
+
+for Ψ the mapping defined by Equations (42), (43) and (44). Considering the first
+sample (xi , yi )1⩽i⩽n as fixed, note that by the assumption (23), for Q0 -almost every
+tentative splitting schemes ξ and every leaf v ∈ {0, 1}d , there are no points among
+the (xi )1⩽i⩽n at the boundary of any Aξv , i.e. the 1Aξv are continuous at all points
+of the input sample – let us call such a splitting scheme a good splitting scheme.
+Fixing M > 0, F ∈ H with ∥F ∥H ⩽ M and a collection of good splitting schemes
+ξ¯ = (ξ 1 , . . . , ξ K ), the mapping (x′i , yi′ )1⩽i⩽n 7→ Ψ(ξ,
+                                                              ¯ v, F, P′ ) is a composition of
+                                                                       n
+elementary functions that are analytical on a neighborhood of (xi , yi )1⩽i⩽n , applied
+to the following terms:
+
+  ∂1 ℓ(F (x′i ), yi′ ),   yi′ ,   and 1Aξj (x′i ),         for 1 ⩽ i ⩽ n, 1 ⩽ j ⩽ K, v ∈ {0, 1}d .
+                                             v
+
+
+Using the bound (5) and Assumption 1.1, the first of these terms is continuous at
+each sample point (xi , yi ), and one can find a modulus of continuity that depends
+only on M , and not on F . For the same reason, there is a uniform bound on Ψ
+that does not depend on F . Therefore, we can apply the dominated convergence
+theorem in (45) to get
+
+             sup ∥Tn (F ) − Tn′ (F )∥H −→ 0                 as (x′i , yi′ )1⩽i⩽n → (xi , yi )1⩽i⩽n ,
+          ∥F ∥H ⩽M
+
+
+which concludes the proof.
+
+For future reference, we state an analog of Lemma 4.4 in the infinite population
+case, which implies that the vector field T : H → H is complete and that the
+ODE (30) has a unique solution (Ft )t⩾0 which is continuously differentiable. The
+proof is omitted for the sake of brevity, because it is a straightforward adaptation
+of the one of Lemma 4.4(i) with Pn replaced by P.
+
+Lemma 5.5. The operator F 7→ T (F ) defined in Lemma 5.4(ii) belongs to Cb1 (H, H)
+and satisfies the linear growth condition.
+
+5.4.4     Proofs related to Subsection 4.2: law of large numbers.
+Proof of Theorem 4.5. Proof of (i). We want to prove the almost sure uniform
+convergence Tn (F ) → T (F ) on bounded sets {F : ∥F ∥H ⩽ M } for all M > 0.
+Lemma 5.3 together with Lemma 5.4 imply
+
+                                              ¯ v, F, Pn ) − Ψ(ξ,
+                                                               ¯ v, F, P) 2 QK (dξ)ν(dv),
+                                                                                 ¯
+                                      Z                                       
+        ∥Tn (F ) − T (F )∥2H ⩽              Ψ(ξ,                             0
+
+
+
+                                                      35
+so that we need to prove that, for all M > 0, as n → ∞,
+
+                                 ¯ v, F, Pn ) − Ψ(ξ,                ¯
+                                                  ¯ v, F, P) 2 QK (dξ)ν(dv)
+                         Z                                    
+                                                                             a.s.
+                  sup          Ψ(ξ,                             0           −−→ 0.            (46)
+              ∥F ∥H ⩽M
+
+
+By the Glivenko–Cantelli property stated in point (ii) of Lemma 5.1, the class CM
+is P-Glivenko–Cantelli, so that
+                                                                                      a.s.∗
+                  sup         Pn [∂1 ℓ(F (x), y)1A (x)] − P[∂1 ℓ(F (x), y)1A (x)] −→ 0.
+         ∥F ∥H ⩽M, A∈R
+
+
+Since the class R of hyperrectangles is also P-Glivenko–Cantelli (it is a VC class),
+we also have
+                                                a.s.∗
+                            sup |Pn (A) − P(A)| −→ 0.
+                                        A∈R
+
+Outer almost sure convergence implies the existence of Ω0 ⊂ Ω with P∗ (Ω \ Ω0 ) = 0
+such that all above convergences hold on Ω0 ; see Chapter 1.9 in van der Vaart and
+Wellner (1996). On this set Ω0 , for all fixed A ∈ R such that P(A) > 0,
+
+                      Pn [∂1 ℓ(F (x), y)1A (x)] P[∂1 ℓ(F (x), y)1A (x)]
+                  sup                          −                        −→ 0.
+             ∥F ∥H ⩽M          Pn (A)                   P(A)
+
+Similarly,
+
+                      Pn [∂1 ℓ(F (x), y)1A (x)]2 P[∂1 ℓ(F (x), y)1A (x)]2
+              sup                               −                         −→ 0.
+             ∥F ∥H ⩽M           Pn (A)                    P(A)
+
+The same converges hold when P(A) = 0 with the convention 0/0 = 0. Next, we
+               ¯ v, F, Pn ) can be written as a continuous function of the ratios
+observe that Ψ(ξ,
+
+                        Pn [∂1 ℓ(F (x), y)1A (x)]      Pn [∂1 ℓ(F (x), y)1A (x)]2
+                                                  ,                               ,
+                                 Pn (A)                          Pn (A)
+
+where A ranges over a finite collection of hyperrectangles (Aξ̄i )i∈I that depend only
+    ¯ v) (see Equations (58)–(59) and Lemma A.2 and its proof for details). As a
+on (ξ,
+consequence, we deduce that, on Ω0 ,
+
+                               sup        ¯ v, F, Pn ) − Ψ(ξ,
+                                        Ψ(ξ,               ¯ v, F, P) −→ 0
+                             ∥F ∥H ⩽M
+
+
+for each fixed ( ¯
+                ξ, v).
+We finally establish the uniform integrability condition
+
+                                       ¯ v, F, Pn )2 QK (dξ)ν(dv)
+                                                          ¯
+                         Z
+                             sup sup Ψ(ξ,             0           < ∞,                        (47)
+                             n⩾1 ∥F ∥H ⩽M
+
+
+which entails
+                                 ¯ v, F, Pn ) − Ψ(ξ,
+                                                  ¯ v, F, P) 2 QK (dξ)ν(dv)
+                                                                    ¯
+              Z
+                    sup        Ψ(ξ,                             0           −→ 0,
+                  ∥F ∥H ⩽M
+
+
+                                                      36
+and proves a strengthened version of (46). Lemma A.3 from the Appendix implies
+that
+                                  ¯ v, F, Pn )|2 QK (dξ)ν(dv)
+                                                      ¯
+                  Z
+                E sup sup |Ψ(ξ,                   0           < ∞,
+                               n⩾1 ∥F ∥H ⩽M
+
+which proves that the integral in (47) is finite almost surely and concludes the proof.
+Proof of (ii). We apply Corollary 2.3 with E = H, X0,n = F0n and Gn = Tn . The
+almost sure convergence of the initial positions F0n → F0 in H is assumed as an
+hypothesis. The almost sure convergence of the vector fields Tn → T in Cb (H, H)
+has just been established in point (i). The limit vector field T is complete by
+Lemma 5.5. Therefore, Corollary 2.3 implies the almost sure convergence F n → F
+in C 1 ([0, +∞), H), where the limit F is the solution of the ODE (30) started at F0
+at time t = 0.
+
+5.4.5    Proofs related to Subsection 4.2: functional central limit theorem.
+
+We begin with the definition of a family of RKHSs (H
+                                                   f )
+                                                     γ γ∈(0,γmax ) defined by their
+reproducing kernels
+
+                               wγ ( ¯                           ¯
+                           Z
+         k̃γ (z, z ′ ) =           ξ) 1Aξ1 (z) 1Aξ1 (z ′ ) QK
+                                                            0 (dξ) ν(dv),              z, z ′ ∈ [0, 1]p ,
+                                         v          v
+
+
+with weights given by
+                                             ¯ = max wγ (Aξ̄i )
+                                                                       
+                                         wγ (ξ)
+                                                            i∈I
+
+where (Aξ̄i )i∈I denotes the collection of hypercubes appearing in the definition of
+   ¯ v, F, Pn ) – see Equation (59) in the discussion preceding Lemma A.2 – and
+Ψ(ξ,
+wγ (A) is defined in Equation (31).
+
+Lemma 5.6. For γ ∈ [0, γmax ), the kernel k̃γ is continuous and bounded. Moreover,
+the family (H
+            f )
+              γ γ∈[0,γmax ) of associated RKHSs satisfies the following properties:
+
+     f = H is the RKHS with reproducing kernel k defined in Equation (26);
+   - H 0
+
+   - for all 0 ⩽ γ1 < γ2 < γmax ,
+
+                           H
+                           f ⊂H
+                            γ1
+                               f
+                                γ2            and   ∥F ∥Heγ ⩽ ∥F ∥Heγ ,               F ∈H
+                                                                                         f ,
+                                                                                          γ1
+                                                                  2         1
+
+
+        and H
+            f is dense in H
+             γ1
+                          f .
+                           γ2
+
+As we will see during the proof, we can take H    f = H f in Theorem 4.8, for any
+                                                         γ
+γ ∈ (2 − γmax , γmax ). The condition γmax > 1 ensures that this choice is non empty.
+
+Proof of Lemma 5.6. Each cell of the collection (Aξ̄i )i∈I appears among the cells
+  ξ̃ 1
+(Awj )j∈J ,w∈Td generated by the splitting scheme ξ˜j1 obtained from ξ 1 by replacing at
+most one split with a candidate split taken from ξ¯ (this replacement is parametrized
+by J ). Since cells at inner nodes are further partitioned into leaf cells, we have
+                                                        1
+                      ¯ ⩽ max max wγ (Aξ̃wj ) = max wγ (ξ˜1 ) ⩽
+                  wγ (ξ)                                                              wγ (ξ˜i1 ).
+                                                                                X
+                                                          j
+                                  j∈J w∈Td                        j∈J
+                                                                                j∈J
+
+
+                                                            37
+Then we can deduce that
+
+                                                         wγ (ξ˜j1 ) QK   ¯
+                                                   XZ
+                    sup        |k̃γ (z, z ′ )| ⩽                     0 (dξ) ν(dv)
+               z,z ′ ∈[0,1]p                       j∈J
+                                                            Z
+                                             = card(J )         wγ (ξ) Q0 (dξ)ν(dv) < ∞.
+
+The equality holds because all terms in the sum are identical: under QK          ˜1
+                                                                        0 , each ξj has
+distribution Q0 since the splits are i.i.d. The finiteness follows from the definition
+of γmax , as we assume γ < γmax .This proves that k̃γ is bounded. Continuity of k̃γ
+follows from the same arguments as in the proof of Proposition 8 in Dagdoug et al.
+(2025), using that the map
+
+                                    (z, z ′ ) 7−→ wγ ( ¯
+                                                      ξ) 1Aξ1 (z) 1Aξ1 (z ′ )
+                                                                v           v
+
+
+is continuous at every (z, z ′ ) ∈ [0, 1]p × [0, 1]p for QK   ¯                        ¯
+                                                          0 (dξ) ⊗ ν(dv)-almost every (ξ, v),
+together with the dominated convergence theorem.
+                                                   ¯ and, for 0 ⩽ γ1 < γ2 < γmax ,
+Since γ 7→ wγ (A) is nondecreasing, so is γ 7→ wγ (ξ),
+
+                                               ¯ − wγ (ξ)                       ¯
+                                                       ¯ 1 ξ (z)1 ξ (z ′ ) QK (dξ)ν(dv)
+                                    Z                          
+      (k̃γ2 − k̃γ1 )(z, z ) =
+                           ′
+                                          wγ2 (ξ)    1    Av     Av         0              (48)
+
+defines a positive semidefinite kernel. The inclusion H
+                                                      f ⊂ H
+                                                       γ1
+                                                            f together with the
+                                                             γ2
+norm comparison then follows from a direct application of Theorem 2.7.11 in Hsing
+and Eubank (2015).
+When γ = 0, w0 (A) ≡ 1 and therefore w0 (γ̄) ≡ 1, so that k̃0 = k and H
+                                                                      f = H.
+                                                                       0
+
+To prove the density of Hf in H
+                           γ1
+                                f , it is sufficient to show that H
+                                  γ2
+                                                                  f is dense in H
+                                                                   0
+                                                                                f for
+                                                                                 γ
+all γ ∈ (0, γmax ). By Theorem 2.7.7 in Hsing and Eubank (2015) (see also Lemma 5.3
+and its proof), any function F ∈ H f admits a representation of the form
+                                     γ
+
+
+                                          ¯ v) wγ (ξ)
+                                                   ¯ 1/2 1 ξ1 (z) QK (dξ)
+                                                                       ¯ ν(dv)
+                                    Z
+                      F (z) =           Ψ(ξ,              A        0v
+
+
+
+for some Ψ ∈ L2 (QK
+                  0 ⊗ ν). For τ > 0, we define
+
+                                   ¯ v) wγ (ξ)
+                                            ¯ 1/2 1                            ¯
+                           Z
+             F (z) =
+                τ
+                                 Ψ(ξ,               {wγ (ξ̄)⩽τ } 1Aξ1 (z) Q0 (dξ) ν(dv).
+                                                                           K
+                                                                        v
+
+
+It is clear that
+                      ¯ v) 7→ Ψ(ξ,
+                     (ξ,        ¯ v) wγ (ξ)
+                                         ¯ 1/2 1
+                                                 {wγ (ξ̄)⩽τ } ∈ L (Q0 ⊗ ν)
+                                                                 2  K
+
+
+
+so that F τ ∈ H
+              f . Moreover,
+               0
+
+
+                                                   Ψ( ¯                        ¯
+                                              Z
+                     ∥F − Fτ ∥2He ⩽
+                                        γ
+                                                                           0 (dξ) ν(dv)
+                                                     ξ, v)2 1{wγ (ξ̄)>τ } QK
+
+converges to 0 as τ → ∞, proving the convergence F τ → F in H
+                                                            f . This proves the
+                                                              γ
+density of H
+           f in H
+            0
+                 g.
+                   γ
+
+
+                                                         38
+The following lemma explains the role played by the RKHS H
+                                                         f and will be used in
+                                                          γ
+the proof of Theorem 4.8.
+
+Lemma 5.7. Let γmax > 1. Then, for any bounded functions φi ∈ L∞ (QK
+                                                                   0 ⊗ ν),
+i ∈ I, satisfying
+                     max     sup          ¯ v)| ⩽ C,
+                                     |φi (ξ,
+                               i∈I ξ̄∈S K , v∈{0,1}d
+
+the function F defined by
+
+                             ¯ v)
+                                              
+                       X φi (ξ,
+                                                                ¯
+               Z
+     F (z) =       
+                                                            0 (dξ) ν(dv),
+                                    1{P(Aξ̄ )>0} 1Aξ1 (z) QK                      z ∈ [0, 1]p ,
+                       i∈I P(Ai )
+                              ξ̄           i            v
+
+
+
+           f for all γ ∈ (2 − γ
+belongs to H γ                 max , γmax ), and its norm satisfies
+
+                                                       ¯ L2 (QK ⊗ν) .
+                          ∥F ∥Heγ ⩽ C card(I) ∥w1−γ/2 (ξ)∥    0
+
+
+
+In other words, the lemma states a continuity property of the linear map
+                                                           I
+                           (φi )i∈I ∈ L∞ (QK
+                                           0 ⊗ ν)                7−→ F ∈ H
+                                                                         f .
+                                                                          γ
+
+
+Proof of Lemma 5.7. Using the definition (48) of the kernel k̃γ and applying The-
+orem 2.7.7 in Hsing and Eubank (2015), we obtain that F ∈ H         f as soon as the
+                                                                     γ
+function
+                               X φi ( ¯
+                                                       
+                                     ξ, v)
+                  Ψ( ¯
+                     ξ, v) =              1{P(Aξ̄ )>0} wγ ( ¯
+                                                             ξ)−1/2
+                               i∈I P(Ai )
+                                        ξ̄      i
+
+
+
+belongs to L2 (QK
+                0 ⊗ ν).
+
+By the uniform bound on the φi and the definition of the weights wγ , we have
+                                 ¯ v)| ⩽ C card(I) w1−γ/2 (ξ).
+                              |Ψ(ξ,                        ¯
+
+By definition of γmax , this upper bound is square integrable whenever 2 − γ < γmax .
+Hence, for γ ∈ (2 − γmax , γmax ), we obtain F ∈ H
+                                                 f with
+                                                   γ
+
+
+               ∥F ∥Heγ ⩽ ∥Ψ∥L2 (QK
+                                 0 ⊗ν)
+                                       ⩽ C Card(I) ∥w1−γ/2 ( ¯
+                                                            ξ)∥L2 (QK
+                                                                    0 ⊗ν)
+                                                                          .
+
+This concludes the proof.
+
+Proof of Theorem 4.8 (i). Throughout the proof, we fix γ ∈ (2 − γmax , γmax ) and
+establish (i) with H
+                   f=Hf .
+                        γ
+
+Strategy for the proof. Because H ⊂ H
+                                    f , we can view the scaled difference
+                                     γ
+
+ √                    Z √ 
+                              ¯ v, F, Pn ) − Ψ(ξ,
+                                               ¯ v, F, P) 1 ξ1 (·) QK (dξ)ν(dv),
+                                                                        ¯
+                                                        
+  n Tn (F ) − T (F ) =    n Ψ(ξ,                           A        0          v
+
+
+
+as an element of Cb0 (B, H
+                         f ), where B = {F : ∥F ∥ ⩽ M } with arbitrary M > 0.
+                          γ                      H
+
+
+
+                                                   39
+To avoid arbitrarily small denominators, we introduce the following notion:
+
+                       ξ¯ is εn -regular if P(Aξ̄i ) ⩾ εn             for all i ∈ I,             (49)
+
+where (Aξ̄i )i∈I denotes the (finite) collection of all hypercubes involved in the defi-
+nition of Ψ(ξ,¯ v, F, Pn ) – details are given in the Appendix, see Equation (59). The
+integration domain D = S K × {0, 1}d is partitioned accordingly as
+
+          D = Dεn ∪ (D \ Dεn ),                 Dεn = {( ¯
+                                                        ξ, v) ∈ D : ξ¯ is εn -regular}.
+
+We introduce the decomposition
+
+                                     Tn (F ) = Tnεn (F ) + Rεnn (F ),
+
+with
+                                          ¯ v, F, Pn ) 1 ξ1 (·) QK (dξ)ν(dv),
+                                                                     ¯
+                                 Z
+                  Tnεn (F ) =           Ψ(ξ,            A        0
+                                 Dεn                        v
+
+
+                                               ¯ v, F, Pn ) 1 ξ1 (·) QK (dξ)ν(dv).
+                                                                          ¯
+                                 Z
+                  Rεnn (F ) =                Ψ(ξ,            A        0
+                                 D\Dεn                          v
+
+
+Similarly, with obvious notation,
+
+                                     T (F ) = T εn (F ) + Rεn (F ).
+
+We will
+      √ seeεnthat, εfor a suitable choice of the truncation sequence
+                                                                √  εnεn →εn0,  the
+term n Tn − T         n
+                          captures the main contribution, while n Rn − R          is a
+negligible remainder. More precisely, we prove below that, for γ ∈ (2 − γmax , γmax )
+and a suitable choice of δ ∈ (0, 1/2), the truncation level εn = n−δ ensures that
+                     "                                     #
+                  nE    sup ∥Rεnn (F ) − Rεn (F )∥2He           −→ 0 as n → ∞,                   (50)
+                                                     γ
+                        F ∈B
+
+and                       √  εn       
+                                         d
+                           n Tn − T ε n −→ W                   in Cb0 (B, H
+                                                                          f ),
+                                                                           γ                     (51)
+with a Gaussian limit W . Equation (50) implies the convergence in probability
+√      εn
+  n Rn − R   εn
+                  → 0 in Cb0 (B, H
+                                 f ). Then, Equation (51), together with Slutsky’s
+                                   γ
+lemma, yields
+                        √           
+                                       d
+                         n Tn − T −    → W in Cb0 (B, H
+                                                      f ).
+                                                        γ
+
+Since the bounded set B ⊂ H is arbitrary, this establishes convergence in distribu-
+tion in Cb0 (H, H
+                f ). In the sequel, we prove Equations (50) and (51) successively.
+                  γ
+
+Proof of Equation (50). It is enough to prove that
+                                        
+           nE     sup ∥Rεnn (F )∥2He         −→ 0 and n sup ∥Rεn (F )∥2He −→ 0.                  (52)
+                                    γ                                               γ
+                  F ∈B                                          F ∈B
+
+The RKHS squared norm satisfies, for F ∈ B,
+
+                                           ¯ v, F, Pn )|2 min P(Aξ̄i )                ¯
+                             Z                                             γ
+         ∥Rεnn (F )∥2He =               |Ψ(ξ,                                     0 (dξ)ν(dv).
+                                                                                 QK
+                       γ      D\Dεn                             i∈I
+
+
+                                                    40
+Considering the supremum over F ∈ B and taking expectations, we obtain
+                                                      
+                   nE           sup ∥Rεnn (F )∥2He
+                                                  γ
+                                F ∈B
+                                                                   
+                                             ¯ v, F, Pn )|2                                         ¯
+                        Z                                                                 γ
+               ⩽n                   E sup |Ψ(ξ,                          min P(Aξ̄i )           0 (dξ)ν(dv).
+                                                                                               QK
+                         D\Dεn             F ∈B                          i∈I
+
+
+By Lemma A.3, the expectation is uniformly bounded by some constant CM > 0,
+and we obtain a bound of the form
+                                                 
+                                                                                                        ¯
+                                                               Z                           γ
+           nE          sup ∥Rεnn (F )∥2He             ⩽ CM n                 min P(Aξ̄i )           0 (dξ)ν(dv).
+                                                                                                   QK
+                       F ∈B              γ                     D\Dεn         i∈I
+
+
+Since mini∈I P(Aξ̄i ) < εn on the domain of integration, we can bound, for any γ ′ ∈
+(0, γmax ),
+     Z                               γ
+                                                ¯           γ+γ ′
+                                                                             Z
+                                                                                               1                ¯
+ n                 min P(Aξ̄i )             0 (dξ)ν(dv) ⩽ nεn
+                                           QK                                                      γ ′    0 (dξ)ν(dv)
+                                                                                                           QK
+       D\Dεn       i∈I                                                       D
+                                                                                     mini∈I P(Aξ̄i )
+                                                                             ′
+                                                           ⩽ Cnεγ+γ
+                                                                n
+
+for some constant C > 0, where the integral on D is finite because γ ′ < γmax . Setting
+εn = n−δ , convergence to 0 follows provided (γ + γ ′ )δ > 1. By the restrictions on δ
+and γ ′ , this condition can be satisfied as soon as
+                                          γ + γmax
+                                                   > 1,        i.e., γ > 2 − γmax .
+                                             2
+The proof of the second convergence in Equation (52) is analogous (with Pn replaced
+by P) and is omitted for brevity. This concludes the proof of Equation (50).
+Proof of Equation (51). We observe that, for F in a bounded set B, Ψ(ξ,   ¯ v, F, P)
+and hence T (F ) depend on P only through the collection (P[φ])φ∈G , indexed by the
+class
+                                   G = G1 ∪ G2                                  (53)
+with
+
+                            G1 = {(x, y) 7→ ∂1 ℓ(F (x), y)1A (x) : A ∈ R, F ∈ B},
+                            G2 = {(x, y) 7→ 1A (x) : A ∈ R}.
+
+The collection (P[φ])φ∈G is uniformly bounded and can therefore be viewed as an
+element of ℓ∞ (G). The same observation applies to Ψ(ξ,¯ v, F, Pn ) and Tn (F ), which
+can be expressed as a function of (Pn [φ])φ∈G viewed as an element of ℓ∞ (G).
+By Lemma 5.1(ii), the class G is Donsker so that the normalized empirical process
+                               √
+                       Gn f = n(Pn [f ] − P[f ]), f ∈ G,
+
+converges in outer distribution in ℓ∞ (G) to a tight P-Brownian bridge denoted by
+GP . We then appeal to the non-measurable version of Skorokhod representation, for
+which we refer to van der Vaart and Wellner (1996), abbreviated vdVW96 below.
+
+                                                               41
+By Theorem 1.10.4 in vdVW96, we may assume without loss of generality that the
+empirical processes Pn , n ⩾ 1, the population measure P, and the Brownian bridge
+GP , viewed as mappings Ω → ℓ∞ (G), are such that:
+                      √              au
+                Gn = n(Pn − P) −→ GP in ℓ∞ (G) as n → ∞,
+        au
+where −→ denotes outer almost-uniform convergence as defined in vdVW96 Defini-
+tion 1.9.1. More precisely, we may consider the construction with perfect maps as
+in vdVW96, Addendum 1.10.5.
+Using this Skorokhod representation, we prove that
+             √  εn                  
+               n Tn (F ) − T εn (F )
+                 √ 
+                   n Ψ( ¯ξ, v, F, Pn ) − Ψ( ¯                        ¯
+             Z                                        
+           =                               ξ, v, F, P) 1Aξ1 (·) QK
+                                                                 0 (dξ)ν(dv)                                         (54)
+                 Dεn                                                                  v
+
+
+
+satisfies                     √  εn      
+                                            a.s.
+                               n Tn − T εn −→ W                      in Cb0 (B, Kγ ).                                (55)
+Let us stress that the left-hand side is measurable (as a function of the input sample)
+in the Polish space Cb0 (B, Kγ ), so that almost sure convergence is understood here
+in the usual sense. Almost sure convergence under the Skorokhod representation
+implies convergence in distribution in the original probability space. Therefore,
+Equation (55) implies Equation (51).
+The remainder of the proof is devoted to the proof of Equation (55). Using Equa-
+tion (54) and Lemma A.2 from the appendix, we introduce, for F ∈ B,
+
+                                        Γi GP [φAξ̄ ] + Γ′i GP [φAξ̄ ,F ]
+                                                                                   
+                                                                                     1 ξ1 (·) QK (d ¯
+                       Z
+        W εn (F ) =
+                              X
+                                                      i                      i
+                                                                                                   ξ)ν(dv).
+                                                                                                          0
+                       Dεn i∈I                            P(Aξ̄i )                          Av
+
+
+
+Note that both the numerators and the denominators are bounded (because ξ¯ is
+εn -regular) so that Wεn (F ) ∈ H ⊂ H
+                                    f . According to Lemma A.2, this definition
+                                     γ
+ensures that
+                                                                                           
+    √  εn                                                                 o(1)                              ¯
+                                  Z
+     n Tn (F ) − T (F ) − W (F ) =
+                  εn       εn
+                                                                                                1Aξ1 (·) QK
+                                                                                                          0 (dξ)ν(dv),
+                                                                     X
+                                                                         
+                                                               Dεn i∈I           P(Aξ̄i )         v
+
+
+
+
+with a o(1) term uniform for F ∈ B, ξ¯ ∈ Dεn and i ∈ I. Therefore we deduce
+                              √  εn                
+                                                                                                  a.s.
+                   sup         n Tn (F ) − T εn (F ) − W εn (F )                                 −→ 0.
+                   F ∈B                                                                     H
+                                                                                            eγ
+
+On the other hand, Lemma 5.7 implies that
+
+                                       Γi GP [φAξ̄ ] + Γ′i GP [φAξ̄ ,F ]
+                                                                                 
+                                                                                   1 ξ1 (·) QK (d ¯
+                       Z X
+            W (F ) =                             i                      i
+                                                                                                  ξ)ν(dv)
+                                                                                                      0
+                           D i∈I                      P(Aξ̄i )                            Av
+
+
+
+
+                                                              42
+defines an element of H
+                      f . Moreover, with similar arguments as in the proof of
+                       γ
+Lemma 5.7, we obtain
+
+    ∥W (F ) − W εn (F )∥Heγ ⩽ card(I) max Γi GP [φAξ̄ ] + Γ′i GP [φAξ̄ ,F ]
+                                         i∈I                                  L∞ (QK
+                                                                                   0 ⊗ν)
+                                                        i              i
+
+
+                                                   ¯ QK (dξ)ν(dv),
+                                                          ¯
+                                     Z
+                                 ×           w2−γ (ξ) 0
+                                     D\Dεn
+
+which converges to 0 uniformly in F ∈ B as n → ∞. Altogether, in Equation (55),
+we have proven the almost sure convergence
+           √  εn                 
+                                    a.s.
+             n Tn (F ) − T εn (F ) −→ W (F ) in H
+                                                f uniformly on B.
+                                                 γ
+
+Since the left-hand side is continuous in F and uniformly bounded on B, the con-
+vergence takes place in Cb0 (B, H
+                                f ), concluding the proof of Equation (55).
+                                 γ
+
+
+Proof of Theorem 4.8 (ii). In order to apply Corollary 2.3 (ii), it is sufficient to
+prove that
+          √              √          
+                                       d
+             n(F0n − F0 ), n(Tn − T ) −→ (F0 , W ) in Hf × C 0 (H, H
+                                                        γ     b
+                                                                     f ),
+                                                                      γ         (56)
+
+and that
+                                          e (H, H).                                        (57)
+                                          1
+                                     T ∈ CH
+                                               γ
+
+
+We first comment on (56). The convergence of the second marginal,
+                              √            d
+                                n(Tn − T ) −
+                                           →W,
+
+has just been established in the proof of point (i), using the Donsker property of
+the function class CM and functional delta-method computations. The convergence
+of the first marginal,
+                               √              d
+                                 n(F0n − F0 ) −
+                                              → F0 ,
+is a direct consequence of Equation (33), together with the central limit theo-
+rem applied to Pn [f0 (y)], yielding a centered Gaussian limit F0 with variance
+P[f0 (y)2 ] − P[f0 (y)]2 . Note that this convergence in distribution holds in R and
+that the embedding R ,→ H    f is continuous.
+                               γ
+
+Since the enlarged class CM ∪ {f0 } remains Donsker, the two convergences can be
+combined within the same functional delta-method argument, which yields the joint
+convergence stated in (56).
+We next consider (57). We prove in fact that we can extend the definition of T
+into a continuously Fréchet differentiable extension T : H   f → H, which clearly
+                                                               γ
+implies (57). In Lemma 5.4(ii) the definition of T (F ) and Ψ(ξ, ¯ v, F, P) holds for all
+F ∈ L (P), and in particular for all F ∈ Hγ for 0 < γ < γmax , because the RKHS
+       2                                   f
+contains bounded continuous functions. A straightforward adaptation of Lemma A.1
+                         ¯ v, the function F 7→ Ψ(ξ,
+then shows that, for all ξ,                         ¯ v, F, P) is continuously Fréchet
+differentiable on Hγ with a uniformly bounded gradient
+                  f
+
+                               ∥f  ¯ v, F, P)∥ ⩽ CeM
+                                ∇Ψ(ξ,         H
+                                              eγ
+
+                                             43
+on the ball ∥F ∥Heγ ⩽ M . The only modification in the proof is to replace the feature
+map x 7→ Φ(x) ∈ H by the feature map x 7→ Φ(x)  e     ∈Hf and the upper bound κ
+                                                           γ
+for the kernel k by the upper bound κ̃ for the kernel k̃γ . Then, differentiating the
+relation
+                                                        ¯
+                                ¯ v, F, P)1 ξ1 (·) QK (dξ)ν(dv),
+                            Z
+                    T (F ) = Ψ(ξ,           A       0
+                                                   v
+
+we obtain
+                                f Ψ( ¯                               ¯
+                           Z
+              dF T (G) =       ⟨∇F                               0 (dξ)ν(dv)
+                                    ξ, v, F, P), G⟩Heγ 1Aξ1 (·) QK
+                                                            v
+
+
+with
+                                          ¯ v, F, P), G⟩2 QK (dξ)ν(dv)
+                                Z
+             ∥dF T (G)∥2H ⩽          ∇F Ψ(ξ,
+                                    ⟨f                  H  0
+                                                        e   γ
+
+                                     f Ψ( ¯
+                                Z
+                           ⩽        ∥∇ F ξ, v, F, P)∥2He ∥G∥2He QK
+                                                                 0 (dξ)ν(dv)
+                                                       γ            γ
+
+                           ⩽ 2d CeM
+                                  2
+                                    ∥G∥2He .
+                                          γ
+
+
+
+The Fréchet differentiability of T : H
+                                     f → H follows. The continuity of the differen-
+                                      γ
+tial F 7→ dF T is a consequence of the continuity of F 7→ f    ¯ v, F, P) and of the
+                                                          ∇F Ψ(ξ,
+dominated convergence Theorem. This concludes the proof of Equation (57) and of
+part (ii) of the Theorem.
+
+
+A      Technical computations
+In two technical Lemmas, we analyze how the function Ψ(ξ,         ¯ v, F, P) defined in
+Lemma 5.4 depends on F and P respectively. We provide in a third lemma an
+uniform integrability property for Ψ. In all of Appendix A, we work in the setting
+of infinitesimal gradient boosting, as defined in Section 4.1, and we use the notation
+of Lemma 5.4.
+
+A.1      Dependency of Ψ with respect to F
+Lemma A.1. Let Ψ, Ψ1 , Ψ2 be defined as in Equations (42), (43), (44). Then:
+  (i) For all fixed (ξ 1 , v), the mapping F 7→ Ψ1 (ξ 1 , v, F, P) is Fréchet differentiable
+      on H and its gradient norm is bounded by Lκ, where L and κ are respectively
+      defined in Assumptions 1.1 and 1.2.
+                     ¯ v), the mapping F 7→ Ψ(ξ,
+ (ii) For all fixed (ξ,                         ¯ v, F, P) is Fréchet differentiable on
+      H and its gradient satisfies, for all M ⩾ 0,
+
+                                 sup           ¯ v, F, P)
+                                          ∇F Ψ(ξ,                   ⩽ CM ,
+                               ∥F ∥H ⩽M                         H
+
+
+                                                         ¯ v).
+       for some constant CM > 0 that does not depend on (ξ,
+       Furthermore, when P is replaced by Pn , similar uniform bounds hold with
+       constants that may depend on n ⩾ 1.
+
+                                              44
+Proof of Lemma A.1. We present the proof only for P, since the argument for Pn
+follows the same lines and is in fact simpler, as it involves only finite sums.
+Recall from Lemma 5.4 that
+                        ¯ v, F, P) = Ψ1 (ξ 1 , v, F, P) Ψ2 (ξ,
+                      Ψ(ξ,                                  ¯ F, P).
+
+For clarity we divide the argument into four steps. During the proof, the constant
+CM > 0 does not depend on (ξ, ¯ v) and may change from line to line.
+
+Step 1. Bounding the gradient norm of the scores. The map F 7→ F (x) is linear
+and continuous on H, with gradient Φ(x). By composition, for fixed (x, y), the
+map F 7→ ∂1 ℓ(F (x), y)1A (x) is continuously differentiable on H with gradient F 7→
+∂12 ℓ(F (x), y)1A (x)Φ(x). This gradient has norm bounded by
+
+                          sup |∂12 ℓ(z, y)| sup ∥Φ(x)∥H = Lκ,
+                          z,y                 x
+
+and therefore the map
+                                F 7→ P[∂1 ℓ(F (x), y)1A (x)]
+is continuously differentiable with gradient
+                                      h                                i
+                          F 7→ P ∂12 ℓ(F (x), y)1A (x)Φ(x) ,
+
+whose norm is bounded by Lκ.
+For any split A = A0 ∪ A1 , the score
+                                          X P[∂1 ℓ(F (x), y)1A (x)]2
+                   ∆(A0 , A1 , F, P) =                                     l
+
+                                          l=0,1             P(Al )
+
+is continuously differentiable in F , with gradient
+                              X P[∂1 ℓ(F (x), y)1A (x)] P[∂12 ℓ(F (x), y)1A (x)Φ(x)]
+   ∇F ∆(A0 , A1 , F, P) = 2                             l                          l
+                                                                                       .
+                              l=0,1                           P(Al )
+
+Thus
+               ∥∇F ∆(A0 , A1 , F, P)∥H ⩽ 4Lκ P[|∂1 ℓ(F (x), y)|] ⩽ CM ,
+where the last inequality holds for some constant CM > 0 when ∥F ∥H ⩽ M .
+                                                                               ¯ v),
+Step 2. Proof of (i). The term Ψ1 is directly controlled by Step 1. For fixed (ξ,
+                                                  P[∂1 ℓ(F (x), y)1Aξ1 (x)]
+                   F 7→ Ψ1 (ξ 1 , v, F, P) =                     1
+                                                                           v
+
+                                                            P(Aξv )
+is Fréchet differentiable on H, with gradient
+                                          P[∂12 ℓ(F (x), y)1Aξ1 (x)Φ(x)]
+                  ∇F Ψ1 (ξ , v, F, P) =
+                          1
+                                                              1
+                                                                   v
+                                                                               ,
+                                                         P(Aξv )
+and norm bounded by
+                                ∥∇F Ψ1 (ξ 1 , v, F, P)∥H ⩽ Lκ.
+
+                                              45
+                                                        ¯ F, P) consists of a
+Step 3. Bounding the gradient norm of Ψ2 . The term Ψ2 (ξ,
+product over v ∈ Td−1 of β-softmax functions
+                                                     eβu1
+                     softmaxβ (u1 , . . . , uK ) = PK βu ∈ (0, 1),
+                                                    k=1 e
+                                                          k
+
+
+whose gradient has norm at most β/2. Each argument uk is a score of the form
+                                           1     1
+                                    ∆(Aξv0 , Aξv1 , F, P),
+                                                                            ¯ F, P)
+which is continuously differentiable by Step 1. By the product rule, ∇F Ψ2 (ξ,
+is a sum (indexed by v ∈ Td−1 ) of products involving uniformly bounded β-softmax
+factors and exactly one gradient term, whose norm is bounded by CM by Step 1.
+Hence,
+                    ∥∇F Ψ2 ( ¯
+                             ξ, F, P)∥H ⩽ CM ,     ∥F ∥H ⩽ M,
+for a suitable constant CM > 0.
+Step 4. Conclusion. Finally,
+                       Ψ( ¯
+                         ξ, v, F, P) = Ψ1 (ξ 1 , v, F, P) Ψ2 ( ¯
+                                                              ξ, F, P)
+is continuously differentiable with gradient
+       ¯ v, F, P) = Ψ2 (ξ,
+  ∇F Ψ(ξ,               ¯ F, P) ∇F Ψ1 (ξ 1 , v, F, P) + Ψ1 (ξ 1 , v, F, P) ∇F Ψ2 (ξ,
+                                                                                  ¯ F, P).
+
+Since the functions and their gradients in the right hand side are uniformly bounded
+for ∥F ∥H ⩽ M , the same holds for ∇F Ψ, proving the claim.
+
+A.2     Dependency of Ψ with respect to P
+According to the proof of Theorem 4.8(i), we see the empirical processes Pn , n ⩾ 1,
+and P as elements of ℓ∞ (G), with G the class of function defined in Equation (53).
+Using Lemma 5.1 stating that G is Donsker together with a (non-measurable) Sko-
+rokhod representation (Theorem 1.10.4 in van der Vaart and Wellner (1996)), we
+assume without loss of generality the outer almost-uniform convergence
+                      √             au
+                Gn = n(Pn − P) −→ GP in ℓ∞ (G) as n → ∞.
+This representation makes it possible to consider the convergence as deterministic
+on an event of outer probability 1 and to compute asymptotic expansions, similarly
+as in the functional delta-method.
+The next Lemma provides an asymptotic expansion, as n → ∞, for Ψ( ¯  ξ, v, F, Pn )
+defined in Equation (42). The definition involves ratios of the form
+                  Pn [∂1 ℓ(F (x), y)1A (x)]      Pn [∂1 ℓ(F (x), y)1A (x)]2
+                                            ,                               ,          (58)
+                           Pn (A)                          Pn (A)
+for a collection of hyperrectangles (or cells) A that we need to describe more precisely.
+It depends on the splitting schemes ξ¯ = (ξ 1 , . . . , ξ K ) and can be indexed by i =
+(w, k, l) in the index set
+                               I = Td−1 × [[1, K]] × {0, 1}.                           (59)
+
+                                                46
+The index w refers to an internal node of the binary tree in the recursive construction.
+At this node, the cell Aξw is split using K candidate splits (jwk , ukw ), k = 1, . . . , K,
+                           1
+
+
+taken from the splitting schemes; each candidate split generates a left and a right
+daughter cell, indexed by l = 0 and l = 1, respectively. We denote by (Aξ̄i )i∈I the
+                                              ¯ v, F, Pn ).
+resulting collection of cells appearing in Ψ(ξ,
+
+Lemma A.2. Assume that Pn , n ⩾ 1, and P are deterministic elements of ℓ∞ (G)
+such that the convergence
+                          √
+                 Gn [φ] = n (Pn [φ] − P[φ]) −→ G[φ], φ ∈ G,              (60)
+
+holds in ℓ∞ (G) as n → ∞. Then there exist functions
+                         ¯ v, F, P) and Γ′ = Γ′ (ξ,
+                Γi = Γi (ξ,                      ¯ v, F, P),         i ∈ I,
+                                         i    i
+
+uniformly bounded for ∥F ∥H ⩽ M , such that
+
+                                      X Γi G[φAξ̄ ] + Γi G[φAξ̄ ,F ]
+                                                               ′                    
+   √                                                                   o(1) 
+        ¯ v, F, Pn ) − Ψ(ξ,
+                         ¯ v, F, P) =
+                                   
+    n Ψ(ξ,                                    i             i
+                                                                     +          ,
+                                      i∈I         P(Ai )
+                                                      ξ̄
+                                                                       P(Aξ̄i )
+
+where we use the notation
+
+              φA (x, y) = 1A (x) and φA,F (x, y) = ∂1 ℓ(F (x), y)1A (x).
+                                                 √
+Furthermore, given a sequence εn → 0 such that nεn → +∞, the o(1) terms are
+uniform for ∥F ∥H ⩽ M and ξ¯ such that mini∈I P(Aξ̄i ) ⩾ εn .
+
+Proof of Lemma A.2. For clarity we divide the proof into four steps.
+
+Step 1. We first consider asymptotic expansions for the ratios (58) involved in the
+                ¯ v, F, Pn ).
+definition of Ψ(ξ,
+We define
+                            Rεn = {A ∈ R : P(A) ⩾ εn }
+                √          √
+and note that       nP(A) ⩾ nεn tends to infinity uniformly for A ∈ Rεn .
+Equation (60) ensures that
+
+                                        G[φ] + o(1)
+                      Pn [φ] = P[φ] +      √        ,     as n → ∞,
+                                              n
+
+with the o(1) term uniform in φ ∈ G. Considering the functions
+
+              φA (x, y) = 1A (x) and φA,F (x, y) = ∂1 ℓ(F (x), y)1A (x),
+
+we deduce the asymptotic expansion
+
+                       Pn [φA,F ]   P[φA,F ]    γ1      o(1)
+                                  =          +√      +√      ,
+                        Pn (A)       P(A)      nP(A)   nP(A)
+
+                                             47
+where
+                                                      P[φA,F ]
+                               γ1 = G[φA,F ] −                 G[φA ],                             (61)
+                                                       P(A)
+is uniformly bounded and the o(1) is uniform in ∥F ∥ ⩽ M and A ∈ Rεn .
+Similarly,
+                      Pn [φA,F ]2   P[φA,F ]2    γ2      o(1)
+                                  =           +√      +√      ,
+                       Pn (A)        P(A)       nP(A)   nP(A)
+where
+                                                            P[φA,F ]2
+                         γ2 = 2P[φA,F ] G[φA,F ] −                    G[φA ],                      (62)
+                                                             P(A)
+is uniformly bounded and the o(1) is uniform in ∥F ∥ ⩽ M and A ∈ Rεn .
+
+Step 2. We provide an asymptotic expansion for Ψ1 (ξ 1 , v, F, Pn ). Using Equa-
+tion (43) and the expansion from Step 1, we obtain
+
+                                                          γ1 (Aξv , F, P, G)
+                                                                1
+                                                                                 o(1)
+          Ψ1 (ξ 1 , v, F, Pn ) = Ψ1 (ξ 1 , v, F, P) +         √        ξ1
+                                                                             +√       1 .          (63)
+                                                                nP(Av )         nP(Aξv )
+
+Note that the cell Aξv is equal to Aξ̄i for some well chosen index i ∈∈ I, see the
+                         1
+
+
+definition (59).
+
+                                                   ¯ F, Pn ). From Equation (44),
+Step 3. We provide an asymptotic expansion for Ψ2 (ξ,
+    ¯
+Ψ2 (ξ, F, Pn ) can be written as
+
+                                                                         Pn [φAξ̄ ,F ]2
+                      ¯ F, Pn ) = ψ2 (un,i )i∈I ,
+                                                     
+                  Ψ2 (ξ,                                        un,i =           i
+                                                                                          .
+                                                                           Pn (Aξ̄i )
+
+By Step 1,
+                                           γ2 (Aξ̄i , F, P, G)     o(1)
+                         un,i = ui +           √               + √           ,
+                                                 nP(Aξ̄i )         nP(Aξ̄i )
+with an obvious notation for ui . Since ψ2 is continuously differentiable with bounded
+partial derivatives – it is a product of softmax functions –, we obtain
+
+                                                           γ2 (Aξ̄i , F, P, G)     o(1)
+                                                                                              
+      ¯ F, Pn ) = ψ2 ((ui )i∈I ) +
+  Ψ2 (ξ,                                 ∂i ψ2 ((ui )i∈I )                     +
+                                     X
+                                                               √                 √
+                                     i∈I                        nP(Aξ̄i )         nP(Aξ̄i )
+                                     X  ∂i ψ2 ((ui )i∈I )γ2 (Aξ̄i , F, P, G)           o(1)
+                                                                                               
+                      ¯ F, P) +
+                = Ψ2 (ξ,                                  √                          +√          . (64)
+                                     i∈I                   nP(Aξ̄i )                   nP(Aξ̄i )
+
+The o(1) terms are uniform for ∥F ∥H ⩽ M and ξ¯ such that Aξ̄i ∈ Rεn for all i ∈ I.
+
+Step 4. We conclude the proof of the Lemma. By Equation (42), Ψ(ξ,     ¯ v, F, Pn )
+is the product of the terms analyzed in Steps 2 and 3. Multiplying Equations (63)
+
+
+
+                                                   48
+and (64), plugging the expression of γ1 and γ2 from Equations (61) and (62), and
+rearranging terms, we obtain
+                                            Γi G[φAξ̄ ] + Γ′i G[φAξ̄ ,F ]
+                                                                                                                   
+      ¯                 ¯                                                    o(1) 
+    Ψ(ξ, v, F, Pn ) = Ψ(ξ, v, F, P) +                                     +√
+                                                  X
+                                                   i              i
+                                          
+                                                  √                                    ,
+                                      i∈I             nP(Ai ) ξ̄
+                                                                             nP(Aξ̄i )
+                                              ¯ v, F, P) and Γ′ = Γ′ (ξ,
+for some uniformly bounded functions Γi = Γi (ξ,                         ¯ v, F, P).
+                                                               i     i
+The o(1) terms are uniform provided ∥F ∥H ⩽ M and mini∈I P(Aξ̄i ) ⩾ εn .
+
+A.3       Uniform integrability for Ψ
+                          ¯ v, and M > 0, there exists a constant CM > 0 that
+Lemma A.3. For all fixed ξ,
+depends only on M and such that
+                                 "                                             #
+                                           ¯ v, F, Pn )|2 ⩽ CM .
+                              E sup sup |Ψ(ξ,
+                                     n⩾1 ∥F ∥H ⩽M
+
+
+Proof of Lemma A.3. Recall from Lemma 5.4 that
+                             ¯ v, F, Pn ) = Ψ1 (ξ 1 , v, F, Pn )Ψ2 (ξ,
+                           Ψ(ξ,                                     ¯ F, Pn )
+
+with Ψ1 and Ψ2 defined respectively in Equations (43) and (44). The inequality
+            |∂1 ℓ(y, F (x))| ⩽ |∂1 ℓ(y, 0)| + L|F (x)| ⩽ |∂1 ℓ(y, 0)| + Lκ∥F ∥H
+implies
+                                                                        h                           i
+                                                                   Pn |∂1 ℓ(y, 0)| 1Aξ1 (x)
+            sup |Ψ1 (ξ 1 , v, F, Pn )| ⩽               sup                           1
+                                                                                            v
+                                                                                                        + LκM.
+          ∥F ∥H ⩽M                                ∥F ∥H ⩽M                    Pn (Aξv )
+                       ¯ F, Pn ) ⩽ K 2d −1 . Thus,
+On the other hand, Ψ2 (ξ,
+                                                                    h                           i
+                                                              P
+                                                                   n |∂1 ℓ(y, 0)|1Aξ1 (x)
+                                                                                                                
+            sup |Ψ( ¯
+                   ξ, v, F, Pn )| ⩽ K                 2d −1
+                                                                                   1
+                                                                                        v
+                                                                                                    + LκM .
+          ∥F ∥H ⩽M                                                          Pn (Aξv )
+By a backward martingale argument combined with Doob’s maximal inequality
+(argument taken from the proof of Theorem 2.10 in Dombry and Duchamps (2024b)),
+we obtain
+                             h                                i 2            h                            i
+                           Pn |∂1 ℓ(y, 0)|1Aξ1 (x)                           P |∂1 ℓ(y, 0)|2 1Aξ1 (x)
+             
+
+            E sup                         1
+                                                  v             ⩽4                            1
+                                                                                                        v
+                                                                                                                ,
+                     n⩾1              Pn (Aξv )                                         P(Aξv )
+
+where the right hand side is uniformly bounded by Equation (29). This concludes
+the proof.
+
+Acknowledgments
+The second author acknowledges funding through the ANR project GARP (ANR-24-
+CE40-7154). The LmB receives support from the EIPHI Graduate School (contract
+ANR-17-EURE-0002)
+
+                                                              49
+References
+Aronszajn, N. (1950). Theory of reproducing kernels. Transactions of the American
+  Mathematical Society, 68(3):337–404. doi:10.1090/S0002-9947-1950-0051437-7.
+Blanchard, G., Lugosi, G., and Vayatis, N. (2004). On the rate of conver-
+  gence of regularized boosting classifiers. J. Mach. Learn. Res., 4(5):861–894.
+  doi:10.1162/1532443041424319.
+Breiman, L. (2004). Population theory for boosting ensembles.         Ann. Statist.,
+  32(1):1–11. doi:10.1214/aos/1079120126.
+Breiman, L., Friedman, J. H., Olshen, R. A., and Stone, C. J. (1984). Classification
+  and Regression Trees. Chapman & Hall. doi:10.1201/9781315139470.
+Bühlmann, P. and Yu, B. (2003). Boosting with the L2 loss: regression and classifi-
+  cation. J. Amer. Statist. Assoc., 98(462):324–339. doi:10.1198/016214503000125.
+Chen, T. and Guestrin, C. (2016). XGBoost: A scalable tree boosting system. In
+ Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge
+ Discovery and Data Mining, pages 785–794, San Francisco California USA. ACM.
+ doi:10.1145/2939672.2939785.
+Dagdoug, M., Dombry, C., and Duchamps, J.-J. (2025). An RKHS perspective on
+ tree ensembles. arXiv preprint. doi:10.48550/arXiv.2512.00397.
+Dombry, C. and Duchamps, J.-J. (2024a). Infinitesimal gradient boosting. Stochastic
+ Processes and their Applications, 170. doi:10.1016/j.spa.2024.104310.
+Dombry, C. and Duchamps, J.-J. (2024b). A large-sample theory for infinitesimal
+ gradient boosting. Bernoulli, 30(3):1894–1920. doi:10.3150/23-BEJ1657.
+Dombry, C. and Esstafa, Y. (2024).     The vanishing learning rate asymp-
+ totic for linear l2 -boosting. ESAIM: Probability and Statistics, 28:227–257.
+ doi:10.1051/ps/2024006.
+Friedman, J. H. (2001). Greedy function approximation: a gradient boosting ma-
+  chine. Ann. Statist., 29(5):1189–1232. doi:10.1214/aos/1013203451.
+Hsing, T. and Eubank, R. L. (2015). Theoretical Foundations of Functional Data
+  Analysis, with an Introduction to Linear Operators. Wiley Series in Probability
+  and Statistics. John Wiley and Sons, Inc, Chichester, West Sussex, UK.
+Jiang, W. (2004). Process consistency for AdaBoost. Ann. Statist., 32(1):13–29.
+  doi:10.1214/aos/1079120128.
+Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., Ye, Q., and Liu,
+  T.-Y. (2017). LightGBM: a highly efficient gradient boosting decision tree. In
+  Guyon, I., von Luxburg, U., Bengio, S., Wallach, H., Fergus, R., Vishwanathan,
+  S., and Garnett, R., editors, Advances in Neural Information Processing Systems
+  30, pages 3146–3154. Curran Associates, Inc.
+
+                                        50
+Ledoux, M. and Talagrand, M. (1991). Probability in Banach Spaces. Springer,
+  Berlin, Heidelberg. doi:10.1007/978-3-642-20212-4.
+
+Lugosi, G. and Vayatis, N. (2004). On the Bayes-risk consistency of regularized
+  boosting methods. Ann. Statist., 32(1):30–55. doi:10.1214/aos/1079120129.
+
+Marcus, D. J. (1985). Relationships between Donsker classes and Sobolev spaces.
+ Zeitschrift für Wahrscheinlichkeitstheorie und Verwandte Gebiete, 69:323–330.
+ doi:10.1007/BF00532737.
+
+van der Vaart, A. W. (1998). Asymptotic statistics, volume 3 of Cambridge Se-
+  ries in Statistical and Probabilistic Mathematics. Cambridge University Press,
+  Cambridge. doi:10.1017/CBO9780511802256.
+
+van der Vaart, A. W. and Wellner, J. A. (1996). Weak convergence and empirical pro-
+  cesses. Springer Series in Statistics. Springer-Verlag, New York. doi:10.1007/978-
+  1-4757-2545-2. With applications to statistics.
+
+Zhang, T. and Yu, B. (2005). Boosting with early stopping: convergence and con-
+  sistency. Ann. Statist., 33(4):1538–1579. doi:10.1214/009053605000000255.
+
+
+
+
+                                        51
+

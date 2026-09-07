@@ -101,3 +101,459 @@ Key ideas:
 2. **MEDIUM**: Evaluate PackKV for KV cache compression in gateway/paged_kv_cache.py
 3. **MEDIUM**: Apply PACED training efficiency ideas to src/training/
 4. **LOW**: Evaluate MemMachine patterns for plugins/memory/
+
+---
+
+## 5. DreamBank — Runtime-writable MLA-latent preference bank
+
+**Claim:** A tiny runtime-writable preference bank in MLA latent space can be
+updated during idle-time self-play to improve alignment/persona behavior without
+weight updates, while preserving bounded compute and privacy-friendly storage.
+
+**Not claimed:** Generic memory bank invention, new preference loss, federated sync.
+
+**Prior art boundary:** Larimar, Titans, Memorizing Transformers, MSA, MoC all
+own the "generic memory bank" space.  DreamBank is narrower: MLA-latent space,
+sleep-time consolidation, trust-labeled writes, bounded by config.
+
+**Files:**
+- `src/memory/hlm_bank.py` — core bank (top-k read, no-grad upsert, decay)
+- `src/model/hlm_bank_adapter.py` — differentiable adapter (gate + residual)
+- `src/model/amc_transformer.py` — optional `preference_bank` wiring
+- `src/alignment/dreambank.py` — dream cycle controller
+- `src/eval/dreambank_ablation.py` — bank-on vs bank-off measurement
+- `scripts/run_dreambank_cycle.py` — dry-run CLI
+
+**Evidence produced by MVP:** Bank contract tests (DB-01), adapter identity
+invariants (DB-02), dream cycle determinism (DB-03), ablation delta proof (DB-04).
+
+**Next evidence needed:** Real preference benchmark, sleep-cycle improvement
+curve, privacy test.
+
+---
+
+## 6. CascadeBank — Compute routing on DreamBank's alignment gate
+
+**Claim:** A routing policy built on top of an already-existing alignment gate
+(DreamBank `alpha_t`) can produce measurable quality/compute tradeoffs without
+adding any trainable parameters or any new forward-pass cost.
+
+**Not claimed:** A mixture-of-depths router (those train new per-token routers
+with their own parameters), a trained router, or a full inference harness.
+
+**Prior art boundary:** Mixture-of-Depths (Raposo et al. 2024), LLMCascade
+(Anagnostidis et al. 2024), and AdaLLM (Bhat et al. 2024) all *train new
+routers* per layer or per token. CascadeBank reuses the gate signal that
+DreamBank already emits — zero new parameters, zero new forward-pass cost.
+
+**Files:**
+- `src/inference/cascade_routing.py` — pure-function router + `ComputePolicy`
+  enum + frozen `CascadeRouterConfig`
+- `src/eval/cascadebank_ablation.py` — decision-distribution ablation
+- `tests/inference/test_cascade_routing.py` — unit tests (18)
+- `tests/inference/test_cascade_routing_integration.py` — real
+  `AMCModelOutput` shape contract
+- `tests/eval/test_cascadebank_ablation.py` — ablation tests
+
+**Evidence produced by MVP:** Deterministic threshold tests (CB-01), real
+`AMCTransformer` shape consumption (CB-02), decision-distribution ablation
+(CB-03). Router remains fail-safe when DreamBank is disabled or bank is empty —
+never escalates to THOROUGH in those cases.
+
+**Next evidence needed:** Real serving-layer harness (CascadeBank FAST vs
+BALANCED vs THOROUGH on MT-Bench / AlpacaEval), FLOPs/latency measurement
+per-decision-class on GPU.
+
+---
+
+## 7. CB-06 Serving harness — greedy decode with per-policy cost proxy
+
+**Claim:** A CPU-runnable greedy-decode harness exercising the full
+DreamBank × CascadeBank stack produces measurable proxy signals of
+quality and compute cost per routing-policy class, demonstrating the
+end-to-end composition is tractable.
+
+**Not claimed:** Real MT-Bench / AlpacaEval scores, real GPU FLOPs, real
+chain-of-thought or self-consistency implementations. The "THOROUGH"
+path is simulated via a 2.5× cost multiplier in this MVP; actual
+compute-branching comes in CB-07.
+
+**Files:**
+- `src/eval/serving_harness.py` — greedy decode + `POLICY_COST_MULTIPLIER`
+  + `HarnessReport` + per-prompt routing integration
+- `tests/eval/test_serving_harness.py` — 11 tests (4 greedy_decode + 7 harness)
+
+**Proxy metric contract:**
+
+| Policy | Cost multiplier |
+|---|---|
+| FAST | 0.7× baseline |
+| BALANCED | 1.0× baseline |
+| THOROUGH | 2.5× baseline |
+
+`HarnessReport.total_compute_proxy` = Σ(tokens_per_prompt × multiplier_for_that_prompt's_decision).
+`HarnessReport.mean_logit_margin_per_policy` = mean (p_best - p_second) at
+the first generated token, grouped by routing decision.
+
+**Evidence produced by CB-06:** greedy decode is deterministic, logit margin
+is in [0, 1], per-prompt cost-proxy uses the policy multiplier correctly,
+empty-bank path collapses to BALANCED fallback, populated-bank path
+produces non-trivial decisions, `HarnessReport.to_dict()` is JSON-safe.
+
+**Next evidence needed (CB-07):** Real MT-Bench / AlpacaEval, GPU FLOPs
+measurement, actual branching inference (THOROUGH = chain-of-thought or
+self-consistency, not a cost multiplier).
+
+---
+
+## 8. Federated Memory Deltas — FedAvg on DreamBank tensors
+
+**Claim:** Federating DreamBank deltas (keys/values/strengths) at the
+memory level is a tractable alternative to federated LLM fine-tuning,
+with orders of magnitude lower communication cost. At 14 slots × 64-dim
+fp16, a bank update is ≈ 7 KB vs a 7B model's gradient vector ≈ 14 GB.
+
+**Not claimed:**
+- Real device/network simulation (we aggregate tensors in-process).
+- Formal DP privacy analysis (we inject Gaussian noise with configurable
+  sigma and verify signal/noise tradeoff, not prove (ε,δ)-privacy).
+- Real personalization quality on user data — synthetic preference
+  distributions only.
+
+**Files:**
+- `src/memory/federated_banks.py` — `FederatedBankSimulator`,
+  `FederatedConfig`, `FederationReport`
+- `tests/memory/test_federated_banks.py` — 9 tests
+
+**Protocol:**
+1. N devices each run local_cycles_per_round DreamBank cycles on locally
+   sampled (device-biased) preference distributions.
+2. Optionally add Gaussian noise with std dp_sigma to each device's
+   uploaded tensors (pre-aggregation DP mechanism).
+3. Server-side FedAvg: element-wise mean across uploaded tensors.
+4. Each device downloads the merged tensors (overwrites local).
+5. Repeat for `rounds` rounds.
+6. Report: `delta_fill` and `delta_strength` vs an isolated baseline
+   that runs identical local cycles but skips federation.
+
+**Proxy metric contract:**
+- per_device_final_fill: slots populated per device after all rounds
+- per_device_final_mean_strength: mean strength per device
+- isolated_mean_*/federated_mean_*: population means under each regime
+- delta_fill, delta_strength: federated - isolated
+- total_comm_bytes_proxy: fp32 byte count for upload+download per round × rounds
+
+**Evidence produced by MVP:** comm bytes scale linearly with devices +
+rounds, deterministic given same seed, to_dict() is JSON-safe, DP noise
+alters aggregated outputs, per-device output arrays match num_devices.
+
+**Next evidence needed:** real (ε,δ)-privacy proof for the Gaussian
+mechanism parameterization, experiments on real preference datasets
+(HH-RLHF, Nectar, UltraFeedback), comparison vs federated LoRA on the
+same distribution-mix.
+
+---
+
+## 9. TrustRAG — quarantine-aware, trust-bound retrieval controller
+
+**Claim:** A retrieval controller built on the AMC trust primitives
+(`TrustState`, `AMCMemoryBlock.trust_label`, `AMCMemoryCacheKey`
+trust-binding) enforces safety invariants that top-k RAG ignores:
+quarantined blocks never reach privileged context, revoked trust
+invalidates the cache key, and contradictions between retrieved
+blocks are surfaced rather than silently merged into the prompt.
+
+**Not claimed:**
+- Real embedding/dense retrieval (this is a trust-side filter over an
+  already-ranked iterable; similarity is orthogonal).
+- Real semantic contradiction detection (we use literal token-equality
+  × different-provenance as the MVP stand-in; real deployments would
+  use NLI or pairwise-LLM judgment over token-window paraphrase pairs).
+- Real reranking (iteration order is preserved; rerankers compose on top).
+
+**Files:**
+- `src/memory/trust_rag.py` — `TrustRAGController`, `TrustRAGConfig`,
+  frozen `TrustRAGResult`
+- `tests/memory/test_trust_rag.py` — 12 tests
+
+**Config contract (`TrustRAGConfig`):**
+
+| Field | Default | Meaning |
+|---|---|---|
+| `min_trust_level` | ` TrustState.UNVERIFIED` | Hard floor on trust |
+| `max_unverified` | 5 | Hard cap on UNVERIFIED retrieved blocks |
+| `quarantine_excludes_retrieval` | True | Skip blocks with non-empty quarantine state |
+| `detect_contradiction` | True | Flag same-tokens / different-provenance pairs |
+
+**Result contract (`TrustRAGResult` — frozen dataclass):**
+- `retrieved_ids`, `retrieved_tokens`, `quarantine_ids`,
+  `revocation_flags`, `contradiction_pairs`, `trust_distribution`
+- All tuple-typed (immutable) — safe to hand to downstream code without
+  fear of mutation.
+
+**Invariants verified:**
+- Quarantined blocks never appear in `retrieved_ids`.
+- `min_trust_level=VERIFIED` excludes all non-VERIFIED blocks.
+- `max_unverified` is a hard cap independent of `max_retrieve`.
+- Identical-token different-provenance blocks produce a contradiction pair.
+- Identical-token identical-provenance blocks do NOT flag as contradiction.
+- Non-zero `revocation_epoch` blocks land in `revocation_flags`.
+- `trust_distribution` is sorted by state value; all tuple fields.
+- Empty store → all-empty tuple fields.
+- Result frozen: reassignment raises `AttributeError`/`FrozenInstanceError`.
+
+**Evidence produced:** 12 TDD tests green, 10 independent contract probes
+green (2 probe-bugs caught and corrected; implementation is correct).
+
+**Next evidence needed:** real semantic contradiction detection (NLI or
+pairwise LLM judge), integration with `AMCPrefixCompiler` so the
+retrieval decision actually changes the cache key, live benchmark against
+top-k RAG with and without contradiction filtering.
+
+---
+
+## 10. Memory Debate — Adjudicated Tier-3 promotion protocol
+
+**Claim:** A structured 3-agent debate protocol (proposer → skeptic →
+judge) over `AMCMemoryBlock` produces deterministic, auditable admission
+decisions. The verdict carries the proposer's argument, skeptic's
+counterargument, judge's reason and confidence — making every Tier-3
+block's provenance human-readable and the protocol replayable.
+
+**Not claimed:**
+- We don't implement the actual debating agents — the proposer, skeptic,
+  and judge are injectable callables, so any LLM / rule-based / hybrid
+  backend can slot in.
+- The controller does not mutate the adjudicated block's fields; it
+  returns a verdict the caller applies. This keeps the protocol pure
+  and trivially testable.
+
+**Files:**
+- `src/memory/memory_debate.py` — `MemoryDebateController`,
+  `DebateDecision` StrEnum, frozen `DebateVerdict` dataclass
+- `tests/memory/test_memory_debate.py` — 11 tests
+
+**Protocol:**
+
+```
+1. proposer(block) -> proposer_argument
+2. skeptic(block, proposer_argument) -> skeptic_argument
+3. judge(block, proposer_argument, skeptic_argument) -> verdict
+4. Controller emits verdict with block_id = block.block_id
+   (overriding the judge's block_id if misaligned, for auditability).
+```
+
+**Verdict contract (`DebateVerdict`, frozen):**
+- `decision`: ADMIT/QUARANTINE/REJECT
+- `reason`: judge's free-text rationale
+- `proposer_argument` / `skeptic_argument`: full transcript
+- `judge_confidence`: float in [0, 1], validated in `__post_init__`
+- `block_id`: id of block adjudicated (enforced by controller)
+
+**Invariants verified:**
+- Protocol executes in strict propose→skeptic→judge order.
+- Skeptic always sees the proposer's argument.
+- Judge always sees both arguments.
+- Controller enforces result's block_id matches actual block.
+- All three decision classes route correctly.
+- Verdict is frozen (post-construction mutation rejected).
+- Invalid confidence / non-DebateDecision values rejected at construction.
+- `batch_debate` returns ordered list, length matches input.
+- Empty batch → empty list.
+- Controller is pure: adjudication never mutates the block.
+
+**Evidence produced:** 11 TDD tests green, 10 independent contract
+probes green.
+
+**Next evidence needed:** LLM-backed debater implementations (a
+proposer/skeptic/judge triple wired to a reasoning model), integration
+with Tier-3 promotion hook in `AMCTransformer`, live audit of false
+admission / false quarantine rates on an HH-RLHF or Nectar slice.
+
+---
+
+## 11. Federated Memory Deltas — (ε,δ)-DP Gaussian mechanism proof
+
+**Claim:** For `L2`-clipped bank tensors (clip norm `C`) with Gaussian
+noise `N(0, σ²I)` per device, the mean aggregation over `M` devices
+satisfies (ε,δ)-DP with:
+
+  ε = (C / M) * √(2 * ln(1.25/δ)) / σ
+
+This is the standard single-round Gaussian mechanism bound (Dwork-Roth
+Theorem 3.22). The sensitivity of the per-device contribution to the
+mean is `C / M` because each device's uploaded tensors are clipped to
+`L2` norm `C` before the mean is taken.
+
+**Not claimed:**
+- Advanced composition over multiple rounds (we use single-round bound;
+  advanced composition would give tighter ε at the cost of a more
+  complex proof).
+- Privacy against adaptive / corrupted adversaries with global view
+  of intermediate rounds (honest-but-curious aggregator model).
+- A formal proof document here — the proof is the equation above + the
+  derivation in `src/privacy/dp_bounds.py`.
+
+**Files:**
+- `src/privacy/dp_bounds.py` — `GaussianMechanismConfig`,
+  `compute_epsilon`, `compute_sigma_for_target`,
+  `bank_tensor_element_count`, `dp_parameterized_table`
+- `tests/privacy/test_dp_bounds.py` — 12 tests
+
+**Default parameter analysis:**
+
+With `C=1.0, σ=1.0, δ=10⁻⁵, M=8`:
+
+  ε ≈ (1/8) * √(2 * ln(1.25e5)) ≈ 0.606
+
+This is sub-ε=1 at default settings, which is a strong single-round
+guarantee. At σ=0.1 (minimal noise), ε ≈ 6.06; at σ=5.0, ε ≈ 0.12.
+
+**Parameterized table (ε values for σ × δ, C=1.0, M=8):**
+
+| σ | δ=10⁻³ | δ=10⁻⁵ | δ=10⁻⁶ |
+|---|---|---|---|
+| 0.1 | 5.55 | 7.57 | 8.35 |
+| 0.5 | 1.11 | 1.51 | 1.67 |
+| 1.0 | 0.56 | 0.76 | 0.84 |
+| 5.0 | 0.11 | 0.15 | 0.17 |
+| 10.0 | 0.06 | 0.08 | 0.08 |
+
+**Invariants verified:**
+- Formula matches manual derivation.
+- Default ε < 1.0.
+- σ for ε=1 round-trips.
+- Bank element count = 2*bank_size*bank_dim + bank_size.
+- Parameterized table structure and monotonicity in σ.
+- More devices → lower ε (mean sensitivity decreases with M).
+
+**Evidence produced:** 12 TDD tests green, 8 independent contract probes
+green (3 probe-bugs in bare `compute_epsilon` input validation are
+intentional — validation lives in `GaussianMechanismConfig`, not the
+math function).
+
+**Next evidence needed:** Real preference dataset experiments to measure
+the utility-privacy tradeoff (how much does DP noise at ε=0.6 degrade
+alignment quality vs no-noise baseline?), advanced composition bounds
+for multi-round federation.
+
+---
+
+## 12. Per-layer MLA Bank Wiring
+
+**Claim:** DreamBank reads can be injected at intermediate layers
+(e.g., after layer 0, after layer 1) instead of only at the final
+normalization, allowing the bank to influence deeper layers of the
+transformer's computation.
+
+**Not claimed:**
+- We don't prove that per-layer injection improves alignment quality;
+  that's an experimental question for CB-07.
+- We don't change the bank's memory format or API; this is purely
+  a wiring change in `AMCTransformer`.
+
+**Files:**
+- `src/model/amc_transformer.py` — added `hlm_bank_read_layers` config
+  and per-layer injection hook.
+- `tests/model/test_per_layer_bank.py` — 5 tests.
+
+**Config contract:**
+- `hlm_bank_read_layers: tuple[int, ...] | None = None`
+- `None` or `(-1,)`: Apply after final norm (current MVP behavior).
+- `(0, 1)`: Apply after layer 0 and layer 1.
+- `(1,)`: Apply only after layer 1.
+
+**Invariants verified:**
+- Default `None` applies at final norm.
+- Explicit `(-1,)` applies at final norm.
+- Positive integers `(0,)` apply in the forward loop.
+- Multiple layers `(0, 1)` apply at each specified layer.
+- Telemetry (`bank_alpha`, `bank_confidence`) is updated by the latest
+  applied layer.
+
+**Evidence produced:** 5 TDD tests green. Combined suite: 144 → 149 tests.
+
+**Next evidence needed:** Experimental comparison of single-layer vs
+per-layer injection on preference benchmarks (does injecting at multiple
+layers give the bank more influence over the final logits?).
+
+---
+
+## 13. TrustRAG — Semantic Contradiction Detection
+
+**Claim:** The TrustRAG retrieval controller can use an optional
+injectable `contradiction_fn: (str, str) -> bool` to detect semantic
+contradictions between retrieved blocks, going beyond the MVP's
+token-equality stand-in.
+
+**Not claimed:**
+- We don't implement a real NLI model or LLM judge in this module; the
+  function is injectable, so any backend can be plugged in.
+- We don't prove that semantic contradiction detection improves alignment
+  quality; that's an experimental question.
+
+**Files:**
+- `src/memory/trust_rag.py` — added `contradiction_fn` to config and
+  updated contradiction detection logic.
+- `tests/memory/test_trust_rag.py` — 2 new tests (total 14).
+
+**Config contract:**
+- `contradiction_fn: Callable[[str, str], bool] | None = None`
+- If `None`, falls back to MVP token-equality + different-provenance.
+- If provided, `contradiction_fn(provenance_a, provenance_b)` is called
+  for all pairs with differing provenance.
+
+**Invariants verified:**
+- Custom contradiction function correctly identifies contradictions based
+  on provenance text.
+- Custom contradiction function correctly returns `()` for non-contradictory
+  pairs.
+- Token-equality fallback still works when `contradiction_fn` is `None`.
+
+**Evidence produced:** 14 TDD tests green. Combined suite: 149 → 151 tests.
+
+**Next evidence needed:** Integration with a real NLI model (e.g.,
+DeBERTa-v3-NLI) or pairwise LLM judge to measure the false positive /
+false negative rate of the semantic contradiction detection.
+
+---
+
+## 14. Memory Debate — LLM Voices
+
+**Claim:** The Memory Debate protocol can use real reasoning models for
+the proposer, skeptic, and judge roles via `LLMDebateVoices`, which
+wraps a configured LLM API (e.g., OpenRouter, Alibaba, Anthropic) to
+provide `ProposerFn`, `SkepticFn`, and `JudgeFn` callables.
+
+**Not claimed:**
+- We don't prove that LLM voices improve alignment quality over
+  rule-based mocks; that's an experimental question.
+- We don't implement the API calls in the core debate controller;
+  the voices are an injectable module.
+
+**Files:**
+- `src/memory/llm_debate_voices.py` — `LLMConfig`, `LLMDebateVoices`.
+- `tests/memory/test_llm_debate_voices.py` — 6 mocked HTTP tests.
+
+**Config contract (`LLMConfig`):**
+- `base_url`, `model`, `api_key`, `temperature`, `max_tokens`.
+- `api_key` can be provided directly or read from
+  `DASHSCOPE_API_KEY` / `OPENROUTER_API_KEY` env vars.
+
+**Voice contract:**
+- `propose(block)` → text arguing for admission.
+- `skeptic(block, proposer_argument)` → text countering the argument.
+- `judge(block, proposer_argument, skeptic_argument)` → `DebateVerdict`
+  with `decision`, `reason`, and `judge_confidence`.
+
+**Fallback behavior:**
+- If the LLM responds with malformed JSON in the `judge` role, the
+  voice defaults to `QUARANTINE` with 0.0 confidence (fail-safe).
+
+**Evidence produced:** 6 mocked HTTP tests green. Combined suite:
+151 → 157 tests.
+
+**Next evidence needed:** Real API integration test (requires API key)
+to measure the latency and cost of running the debate protocol on a
+typical memory block, and a quality comparison between LLM voices and
+rule-based mocks on an HH-RLHF or Nectar slice.

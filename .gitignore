@@ -44,6 +44,8 @@ wandb/
 # Agent / cycle artifacts
 .aurelius-*.log
 aurelius_loop_v*.json
+.aurelius_index/
+.aurelius_checkpoints/
 .ruff_cache/
 .pytest_cache/
 aurelius.egg-info/
@@ -165,3 +167,5 @@ adapter_config.json
 ai_ml_frontier_master_400.json
 ai_architecture_technical_papers.md
 ai_pdf_seed_library_300.md
+docs/training/spike_artifacts/
+aurelius-research-offload-2026-07-15/

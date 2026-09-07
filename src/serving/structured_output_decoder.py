@@ -677,3 +677,13 @@ STRUCTURED_OUTPUT_REGISTRY: dict[str, type] = {
     "json_schema": StructuredOutputDecoder,
     "grammar": GrammarConstrainedDecoder,
 }
+
+# Additive: register into the shared API_SHAPE_REGISTRY so structured-output
+# shapes are discoverable alongside existing validators/handlers.
+try:
+    from .openai_api_validator import API_SHAPE_REGISTRY  # type: ignore[import]
+
+    API_SHAPE_REGISTRY["structured_output.json_schema"] = StructuredOutputDecoder
+    API_SHAPE_REGISTRY["structured_output.grammar"] = GrammarConstrainedDecoder
+except Exception:  # noqa: S110
+    pass

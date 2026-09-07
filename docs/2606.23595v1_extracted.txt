@@ -1,0 +1,1585 @@
+                                                    SPIRAL: LEARNING TO SEARCH AND AGGREGATE
+
+                                                                           Jubayer Ibn Hamid*, Ifdita Hasan Orney*,
+                                                                           Michael Y. Li, Omar Shaikh, Yoonho Lee,
+                                                                          Dorsa Sadigh, Chelsea Finn, Noah Goodman
+
+                                                                                          Stanford University
+                                                         ∗
+                                                             Equal contribution. Correspondence to {jubayer, ifdi1101}@stanford.edu.
+
+
+
+
+arXiv:2606.23595v1 [cs.AI] 22 Jun 2026
+                                                                                           Abstract
+
+                                              Language model reasoning can be substantially improved at test time via scaffolds that scale
+                                              inference compute across different primitives—sequential reasoning within a trace, independently
+                                              sampled parallel traces, and aggregation of multiple reasoning traces into a final response. During
+                                              post-training, however, language models are optimized only for sequential reasoning within a
+                                              single trace. We introduce Sequential-Parallel-Aggregative Reinforcement Learning
+                                              (Spiral), a framework in which a language model is trained to use all three primitives, as part
+                                              of a unified inference compute pipeline. Concretely, the language model first samples a set of
+                                              independent traces in parallel, each produced through sequential chain-of-thought reasoning, and
+                                              then generates a final aggregation trace conditioned on those traces; all components are optimized
+                                              end-to-end against the reward of the final aggregated response. To train this system, Spiral uses
+                                              set reinforcement learning to teach models to produce a set of traces that are collectively useful
+                                              for an aggregator and standard reinforcement learning to teach models to aggregate the set into
+                                              improved final responses. Our experiments on reasoning tasks show that Spiral effectively scales
+                                              with inference compute, outperforming GRPO by up to 11× scaling efficiency and 15% higher
+                                              performance when all three compute primitives are scaled.
+
+                                                                                     1.   Introduction
+
+                                              Language models exhibit a distinct jagged edge in intelligence during open-ended discovery. When
+                                         inference compute is scaled, these systems can resolve highly complex challenges, such as the 70-year-old
+                                         open Erdős unit distance problem [ABG+ 26]. Yet, on other rigorous tasks, such as certain First Proof
+                                         problems [ABH+ 26, ASWW26], models struggle to make progress as their performance fails to scale with
+                                         additional compute. Crucially, these failures do not occur because the unsolved problems are strictly more
+                                         difficult, but because of an inability to effectively utilize the inference compute available.
+                                             This stagnation highlights a critical bottleneck. When sequential compute is scaled—allowing the model
+                                         to allocate thinking tokens before producing a final answer—models frequently misallocate this budget,
+                                         extensively detailing routine operations while glossing over complex, decisive logical leaps [ASWW26].
+                                         When parallel compute is scaled through the independent sampling of multiple reasoning traces, models
+                                         often fail to explore the solution space broadly, collapsing instead into redundant, highly correlated attempts.
+                                         Finally, when tasked with aggregative compute—synthesizing a set of candidate traces into a refined
+                                         generation—models struggle to natively verify, filter, and combine disparate ideas. Consequently, translating
+                                         raw compute into effective search currently requires practitioners to hand-design elaborate scaffolds that
+                                         orchestrate separately trained agents for verification and revision [NVE+ 25, Lop26, FTB+ 26].
+                                              We argue that a critical step toward overcoming this challenge is enabling models to learn how to optimally
+                                         utilize and coordinate all primitives of inference compute for effective exploration and exploitation. Current
+                                         reinforcement learning paradigms predominantly optimize reasoning models for sequential compute alone:
+                                         the model must succeed by generating a single, high-quality chain of thought that is rewarded based on
+                                         its final answer [SWZ+ 24, GYZ+ 25]. Yet, at test time, practitioners routinely scale other primitives of
+                                         inference compute, such as independently sampled parallel traces and cross-trace aggregation. During
+                                         training, models are completely blind to these additional primitives and, therefore, never learn to actively
+
+
+                                         Preprint (ongoing work). Date: June 23, 2026
+                         Sequential Compute
+                                                                                          Aggregative
+                                           y1                                              Compute
+                                                 Parallel Compute
+
+                                           y2            Concatenate
+ Problem
+    x
+                                                       Problem + Traces                            y∗          r(x, y∗ )
+                                           y3            x, y1 , . . . , yn
+                                            ..                                                                 Reward
+                                             .
+              Language                                                        Language
+                                           yn
+               Model                                                           Model
+
+                         Optimize via Set RL                                        Optimize via Standard RL
+
+
+
+
+Figure 1: Overview of Spiral. Top: Spiral trains a language model (LM) to use sequential, parallel,
+and aggregative inference compute end-to-end. Given an input x, we independently sample n parallel
+reasoning traces. The LM then synthesizes these into a final aggregation trace y∗ . Using only the final
+reward r(x, y∗ ), Spiral optimizes the parallel generations via set RL and the aggregation trace via standard
+RL. Consequently, the model jointly learns to generate traces that aggregate usefully and to synthesize
+them effectively. Bottom: Spiral scales significantly better than GRPO as we scale all three primitives at
+test-time, particularly under hybrid strategies that blend these primitives like recursive self-aggregation.
+
+
+coordinate them. As such, the orchestration of these diverse computing primitives into a cohesive strategy
+across the full inference pipeline is instead left to hand-designed scaffolds and harnesses.
+    In this paper, we expose the model to three primitives of inference compute during training: sequential
+compute within an individual trace (e.g., reasoning tokens and tool calls), parallel compute across indepen-
+dently sampled traces, and aggregative compute, wherein the model synthesizes a set of candidate traces into
+a final output (fig. 1). By optimizing these primitives in a unified framework against the reward of the final
+output, we bridge the gap between training and test-time deployment, enabling the model to discover search
+procedures that surpass rigid, hand-designed heuristics. We propose Sequential-Parallel-Aggregative
+Reinforcement Learning (Spiral), a reinforcement learning framework that optimizes all three primi-
+tives end-to-end. To optimize aggregation traces, Spiral uses standard reinforcement learning algorithms
+[SMSM99], such as GRPO [SWZ+ 24], to train a model to synthesize a set of traces into an improved gen-
+eration. Parallel traces, on the other hand, must be optimized collectively to facilitate optimal aggregation.
+Credit assignment to each individual trace must recognize that useful and diverse ideas might not yield a
+correct solution in isolation, yet can be coupled with other attempts to do so during the aggregation phase.
+Spiral leverages set reinforcement learning [HOX+ 26, OHR+ 26], which naturally enables this joint credit
+assignment via a low-variance marginal advantage. Finally, we introduce a scalable recipe for optimizing a
+language model within this framework, with sample complexity comparable to standard RL paradigms for
+reasoning.
+   We empirically evaluate Spiral and compare against other standard reinforcement learning methods
+under an equal training compute budget. We fine-tune Qwen3-4b-Instruct-2507 using Spiral and
+compare against GRPO [SWZ+ 24, GYZ+ 25] on mathematical reasoning. At test-time, we scale various
+axes of inference compute and find that Spiral excels at using complex test-time compute. Under parallel
+compute scaling, we see the pass@k performance gaining up to 11× scaling efficiency on test-sets. When
+
+
+                                                          2
+scaling parallel and aggregative compute, we see that Spiral achieves up to 15% higher performance on
+test-sets.
+
+                                              2.   Preliminaries
+
+2.1.   Set Reinforcement Learning
+     Set reinforcement learning (set RL) [HOX+ 26] is a framework that assigns a reward to a set of sampled
+actions, all of which are coupled under a shared learning signal. In the sequential formulation, we inde-
+pendently sample a set of n actions (where n > 1) at every state from πθ (· | s). Given the sampled set
+               i.i.d.
+a1 , . . . , an ∼ πθ (· | s), we assign a single reward f (s, a1:n ) to the entire set. Unlike standard RL, which
+samples a single trajectory, this scheme samples a set of actions at every timestep, thereby generating a tree
+                                                                                         (1)       (nt )        (i)
+of states visited by the policy. At depth t, the tree contains nt states, denoted by st , . . . , st . Let (at )1:n
+                                                 (i)
+be the set of n actions sampled from πθ (· | st ). The goal of set RL is to solve the following problem:
+                                                             t
+                                                     ∞ X
+                                                       n                            
+                                                                        (i)      (i)
+                                                     X
+                      max Vπ♯θ (s; f ) = max Eπθ [               γ t f st , (at )1:n | s0 = s].                     (1)
+                       θ                  θ
+                                                     t=0 i=1
+
+    By definition, f must be an objective such that one can never write Ea1:n ∼πθ (·|s) [f (s, a1:n )] as
+Ea∼πθ (·|s) [g(s, a)] for any function g that is independent of θ for all policy parameters θ ∈ Θ. This
+ensures the objective provides a joint learning signal, preventing the problem from trivially reducing to
+standard RL with individualized credit assignment. Intuitively, the sequential formulation of set RL encour-
+ages the policy to maximize the expected score of the tree it induces, whereas standard RL maximizes the
+expected reward of a single trajectory.
+
+
+Language Model Formulation. For language model training (and bandit settings), a more practical
+formulation is obtained by applying a set-level objective over n i.i.d. generations from the same prompt.
+                                                             i.i.d.
+Let y1:n := (y1 , . . . , yn ) be the multiset where each yi ∼ πθ (· | x), and let f (x, y1:n ) be our set-level
+objective. The goal of set RL is to solve:
+
+                                      max Ex∼D Ey1:n ∼πθ (·|x) [f (x, y1:n )].                                      (2)
+                                        θ
+
+In this setting, a set-level reward is shared by all generations
+                                                              Pwithin the set. An example of such an objective
+                                                                 n
+is the polychromic objective defined as f (x, y1:n ) = n1 i=1 r(x, yi ) · d(x, y1:n ), where d(x, y1:n ) is a
+measure of the diversity of the generations [HOX+ 26, OHR+ 26]. This objective directly encourages the
+model to sample generations that balance exploration and exploitation. In this paper, we will use a different
+objective under set reinforcement learning; in particular, our objective will not require access to any auxiliary
+objective or diversity function.
+    The objective in eq. (2) yields the following policy gradient:
+                                                                                          n
+                                                                                          X
+  ∇θ Ex∼D Ey1:n ∼πθ (·|x) [f (x, y1:n )] = Ex∼D Ey1:n ∼πθ (·|x) [(f (x, y1:n ) − fˆ(x))         ∇θ log πθ (yi | x)] (3)
+                                                                                          i=1
+
+
+where fˆ(x) is a set-level baseline. The defining feature of eq. (3) is that all generations in the sampled set
+y1:n share the identical scalar learning signal, f (x, y1:n ) − fˆ(x). Consequently, fˆ(x) must be independent
+of any proper subset of y1:n . This fundamentally differs from standard RL—where each generation receives
+its own advantage—because the objective f couples the samples, and the gradient assigns equal credit to all
+elements via the shared signal. Because this shared credit assignment must not be broken, techniques like
+leave-one-out estimators are strictly precluded.
+
+
+
+
+                                                         3
+General Recipe. [OHR+ 26] propose a practical recipe for approximating the set RL gradient in eq. (3)
+by amortizing over a pool of samples. For a prompt x, first sample N > n independent generations
+y1:N ∼ πθ (· | x). From this pool, construct subsets G ⊆ {y1 , . . . , yN } of size n, either by enumerating
+all Nn such subsets or by uniformly sampling K subsets without replacement. Each subset is scored using
+the set objective f (x, G). Given the resulting collection G of evaluated subsets, define the set-level baseline
+fˆ(x) = |G|
+          1
+             P                                                                                               ˆ
+                G∈G f (x, G), and the corresponding set advantage of each set A(x, G) = f (x, G) − f (x).
+To obtain a learning signal for each sampled generation yj , average the advantages of all evaluated subsets
+that contain it. Equivalently,   letting Gj = {G ∈ G : yj ∈ G}, define the marginal set advantage as
+Amarg (x, yj ) = |G1j | G∈Gj A(x, G). This marginal set advantage assigns credit to an individual generation
+                       P
+
+according to the average utility of the sets in which it participates, while preserving the set-level structure of
+the objective. In this work, we use this recipe to train parallel candidate traces according to their collective
+usefulness for downstream aggregation.
+
+             3.    Learning Sequential, Parallel and Aggregative Inference
+
+   We aim to train a language model to optimize its usage of three fundamental primitives of inference
+compute. Specifically, during training, we expose the model to the following:
+   1. Sequential compute. Sequential inference refers to computation allocated within an individual trace,
+      including intermediate reasoning tokens, self-correction, verification, revision, and tool calls. The
+      model must learn to optimally use this compute within a single chain of thought and acquire useful
+      behaviors such as decomposing problems, setting intermediate subgoals, rigorously developing ideas,
+      verifying partial solutions, and backtracking when necessary [GCS+ 25].
+   2. Parallel compute. Parallel inference refers to independently sampled traces conditioned on the same
+      problem. This primitive provides the model an opportunity to explore a diverse range of plausible
+      approaches, conjectures, intermediate hypotheses, and solution paths that can be combined or refined
+      later [MTG+ 23, BJE+ 24, SLXK24]. The model must learn for itself to search broadly across traces
+      while developing each attempt sufficiently for downstream aggregation to recover useful information.
+   3. Aggregative compute. Aggregative inference refers to computation that conditions on multiple
+      candidate traces along with the original problem to produce a final output. This primitive allows
+      the model to inspect, compare, verify, refine, and synthesize information from previous generations.
+      Through training, the model must learn to effectively utilize information within and across generations
+      to output an optimal final response [LFC+ 25, VJM+ 25]. Crucially, when no candidate trace is
+      promising, the model should learn to recognize this failure mode and make a fresh attempt rather than
+      merely recombining poor solutions.
+
+    These primitives can be combined in various ways to build scaffolds and algorithm loops, potentially
+involving multiple language models, such as AlphaEvolve [NVE+ 25] and Mixture-of-Agents [WWA+ 25].
+
+3.1.   Problem Formulation
+    We formulate learning to effectively use inference compute as a reinforcement learning problem. For a
+given problem x, our objective is:
+                                                                               
+                             max Ey1:n ∼πθ (·|x) Ey∗ ∼πϕ (·|x,y1:n ) [r(x, y∗ )] .                    (4)
+                                θ,ϕ
+
+Crucially, this objective only rewards the final output and our aim is to optimize the language model’s
+performance across the entire inference compute pipeline (fig. 1). Optimizing this formulation requires the
+model to learn how to allocate sequential compute within a single chain of thought (i.e., each yi ∼ πθ (· | x)),
+how to sample high-quality parallel traces that broadly explore the solution space (i.e., y1:n ∼ πθ (· | x)),
+and how to aggregate these traces effectively to arrive at a correct answer (i.e., y∗ ∼ πϕ (· | x)). This
+formulation naturally permits using a different model for aggregation (ϕ ̸= θ) or the same model for both
+stages (ϕ = θ).
+
+
+                                                        4
+                                                                                                         Output y1G1                Reward r(x, y1G1 )
+                                 Trace y1                                                                Output y2G1                Reward r(x, y2G1 )
+                                                                 Set G1
+                                                                                                                 ...
+                                 Trace y2                                                                        G1                              G1
+                                                                                                         Output yN2
+                                                                                                                                    Reward r(x, yN 2
+                                                                                                                                                     )
+                                 Trace y3
+                                                                                                         Output y1G2                Reward r(x, y1G2 )
+                                 Trace y4
+       Problem x                                                 Set G2                                  Output y2G2                Reward r(x, y2G2 )
+                                                                                                                 ...
+                                 Trace y5
+                                                                                                                 G2                              G2
+                                                                                                         Output yN2
+                                                                                                                                    Reward r(x, yN 2
+                                                                                                                                                     )
+                                                                                               ...
+                                          ...
+                                                                                                         Output y1GK                Reward r(x, y1GK )
+
+                                 Trace yN1                       Set GK                                  Output y2GK                Reward r(x, y2GK )
+                                                                                                                 ...
+                                                                                                                 GK                              GK
+                                                                     Set of n search traces              Output yN2
+                                                                                                                                    Reward r(x, yN 2
+                                                                                                                                                     )
+
+
+                                Search Traces                                                            Aggregation Traces
+
+                              Set RL advantage:                                                        Standard RL advantage:
+                                     1     X                                                                              N2
+                   A♯marg (x, yi ) =                         A♯ (x, G)                                                1 X
+                                       |G(yi )|                                               A(x, yjGi ) = r(x, yjGi ) −    r(x, ykGi )
+                                                  G∈G(yi )                                                            N2 k=1
+              where G(yi ) is the collection of sets containing yi
+
+
+Figure 2: Spiral consists of two levels of generation. First, the model samples N1 search traces,
+y1 , . . . , yN1 ∼ πθ (· | x), from the problem x. It then uniformly samples K sets, each consisting of n
+search traces. For each set, it samples N2 aggregation traces conditioned on both the problem and the set
+Gi , y1Gi , . . . , yN
+                     Gi
+                      2
+                        ∼ πθ (· | x, Gi ). Rewards are evaluated only at the end of this full inference compute
+pipeline compute pipeline, using the aggregation trace r(x, yjGi ). For the aggregation traces, Spiral uses a
+                                                                          PN2
+standard within-set centered advantage, A(x, yjGi ) = r(x, yjGi )− N12 k=1       r(x, ykGi ). For the search traces,
+Spiral uses set reinforcement learning: each trace yi receives a marginal set advantage  P obtained     by averaging
+                                                                                  1                  ♯
+the advantages of all sampled sets that contain it (G(yi )), A♯marg (x, yi ) = |G(y i )|  G∈G(yi ) A   (x, G). Thus,
+search traces are optimized according to how much they help induce successful downstream aggregation
+traces when used as part of a conditioning set.
+
+
+    Optimizing this objective via reinforcement learning allows the model to internalize general search strate-
+gies that subsume several rigid, hand-designed pipelines. Indeed, existing test-time scaling methods can be
+viewed as instantiations of the objective in eq. (4). For example, self-consistency [WWS+    P22]  can be ex-
+                                                                                                n
+pressed as πϕ (y | x, y1:n ) = 1 {y = yi for some i ∈ arg maxj N (a(yj ))} , where N (a) = j=1 1{a(yj ) =
+a} and a(yi ) is the final answer extracted from yi . Similarly, self-aggregation [LFC+ 25, VJM+ 25] can be
+instantiated with πϕ = πθ . However, optimizing this objective end-to-end teaches the model to proactively
+generate parallel traces that are highly useful for aggregation, while simultaneously mastering a more robust
+synthesis strategy.
+    Optimizing eq. (4) using standard reinforcement learning faces two immediate obstacles. First, the
+objective function is defined over a set of trajectories, whereas standard reinforcement learning utilizes an
+objective (i.e., the reward) defined over a single trajectory. Second, the objective function itself is possibly
+differentiable.
+
+3.2.    Spiral
+   In this section, we introduce our algorithm, Sequential-Parallel-Aggregative Reinforcement
+Learning (Spiral), for optimizing the following objective:
+                                                                             
+                               Ey1:n ∼πθ (·|x) Ey∗ ∼πϕ (·|x,y1:n ) [r(x, y∗ )] .           (5)
+
+
+
+                                                                                   5
+Throughout the remainder of this paper, we will refer to the parallel generations y1 , . . . , yn ∼ πθ (· | x) as
+the search traces and the final generation y∗ ∼ πϕ (· | x, y1:n ) as the aggregation trace.
+    We first introduce the recipe for when the same model is used to generate both the search traces and the
+aggregation trace (i.e., θ = ϕ). In §B, we discuss how our algorithm can also be extended to optimize two
+distinct models for the two levels of generation. Taking the derivative of the objective in eq. (5), we get:
+                                                                
+               ∇θ Ey1:n ∼πθ (·|x) Ey∗ ∼πθ (·|x,y1:n ) [r(x, y∗ )]
+               = Ey1:n ∼πθ (·|x) Ey∗ ∼πθ (·|x,y1:n ) [r(x, y∗ )∇θ log (πθ (y1:n | x)πθ (y∗ | x, y1:n ))]
+                                                                                    
+               = Ey1:n ∼πθ (·|x) ∇θ log πθ (y1:n | x) Ey∗ ∼πθ (·|x,y1:n ) [r(x, y∗ )]
+                 |                                   {z                              }
+                                                   Term 1
+                                                                                              
+                   + Ey1:n ∼πθ (·|x) Ey∗ ∼πθ (·|x,y1:n ) [∇θ log πθ (y∗ | x, y1:n ) r(x, y∗ )] .
+                      |                                     {z                                }
+                                                            Term 2
+
+Note that Term 2 is the policy gradient used in standard reinforcement learning, where we optimize the
+performance of the aggregation trace with respect to its own reward. The key insight is that Term 1 represents
+a policy gradient under set reinforcement learning [HOX+ 26, OHR+ 26]. To highlight this, we define the
+following set-level objective function:
+
+                                   fspiral (x, y1:n ) = Ey∗ ∼πθ (·|x,y1:n ) [r(x, y∗ )].                        (6)
+
+Notice that the search traces y1:n enter the set-level objective via the conditional expectation. This objective
+rewards a set of search traces based on their collective ability to enable the aggregation stage to synthesize
+a high-quality generation. In particular, since all generations in the set receive the same shared learning
+signal, there is a natural coupling effect allowing the model to learn to explore several strategies in parallel
+insofar as the agent can synthesize them to arrive at a correct answer. With this definition, we can now
+rewrite the gradient of eq. (5) as follows:
+                                                                      
+                     ∇θ Ey1:n ∼πθ (·|x) Ey∗ ∼πθ (·|x,y1:n ) [r(x, y∗ )]
+                                    "                   n
+                                                                               #
+                                                        X
+                   = Ey1:n ∼πθ (·|x) fspiral (x, y1:n )      ∇θ log πθ (yi | x)
+                                                          i=1
+                     |                             {z                              }
+                                              Set RL gradient
+                                                                                                  
+                         + Ey1:n ∼πθ (·|x) Ey∗ ∼πθ (·|x,y1:n ) [r(x, y∗ )∇θ log πθ (y∗ | x, y1:n )] .           (7)
+                           |                                   {z                                  }
+                                                         Standard RL gradient
+
+These two gradient terms emerge naturally because we are jointly optimizing both the search traces within a
+set and the aggregation trace conditioned on that set. The set RL gradient updates the policy to generate an
+optimal set y1:n that the policy can effectively aggregate. Simultaneously, the standard RL gradient updates
+the policy to reliably synthesize a given set of generations into the optimal aggregation solution, y∗ . As such,
+this framework captures a co-evolutionary procedure. Next, we discuss a scalable algorithm for optimizing
+eq. (7).
+
+On-policy Data Collection. During each data collection step, we first sample a batch of prompts x ∼ D.
+We then sample N1 search traces conditioned on the prompt: y1 , . . . , yN1 ∼ πθ (· | x). Next, we construct
+sets of size n, following the set reinforcement learning recipe in [OHR+ 26]. In particular,           we uniformly
+sample K sets without replacement, G1 , . . . , GK , from the collection of all Nn1 unordered sets of size
+                                                                                             
+
+n. In other words, each set Gi = {yi,1 , . . . , yi,n } contains n unique generations and no two sets in
+{G1 , . . . , GK } are identical. Finally, we sample aggregation traces: conditioned on each set Gi , we sample
+y1Gi , . . . , yN
+                Gi
+                 2
+                   ∼ πθ (· | x, yi,1 , . . . , yi,n ). Each aggregation trace is evaluated using the reward function
+         Gi
+r(x, yj ) for trace index j ∈ {1, . . . , N2 } and set index i ∈ {1, . . . , K}. This data collection pipeline is
+illustrated in fig. 2.
+
+
+
+                                                                6
+Policy Updates. The policy gradient of Spiral relies exclusively on the reward assigned to the aggregation
+traces. Each search trace is optimized via set reinforcement learning, and each aggregation trace is optimized
+via standard reinforcement learning.
+    To optimize the search traces, we apply the general set reinforcement learning recipe proposed by
+[OHR+ 26]. First, we score each set Gi under the empirical objective function:
+                                                     N
+                                                     2
+                                                1 X
+                            fˆspiral (x, Gi ) =        r(x, yjGi ),        ∀i ∈ {1, . . . , K}.
+                                                N2 j=1
+
+We construct a Monte Carlo estimate of the baseline score across sets:
+                                                          K
+                                                       1 Xˆ
+                                        fˆspiral (x) =       fspiral (x, Gi ).
+                                                       K i=1
+
+This allows us to compute the set advantage of each set Gi as:
+
+                                 A♯ (x, Gi ; fspiral ) = fˆspiral (x, Gi ) − fˆspiral (x).
+
+Finally, we compute the marginal set advantage for each individual search trace:
+                                                           1    X
+                             A♯marg (x, y; fspiral ) =            A♯ (x, G; fspiral ),                              (8)
+                                                         |G(y)|
+                                                                G∈G(y)
+
+
+where G(y) = {G ∈ {G1 , . . . , GK } | y ∈ G} is the collection of sets containing y.
+   To optimize the aggregation traces, we compute the standard RL advantage. The advantage of each
+aggregation trace is computed within its respective set, rather than across all sets:
+                                                                     2 N
+                                                                  1 X
+                                   A(x, yjGi ) = r(x, yjGi ) −         r(x, ykGi ).                                 (9)
+                                                                  N2
+                                                                       k=1
+
+We observe that using a per-set baseline leads to significantly lower variance, which helps the model learn
+how to reliably aggregate traces.
+    Having computed the advantages for each generation across both levels, we can now plug the advantages
+into standard reinforcement learning algorithms to optimize the model, following the recipe proposed in
+[OHR+ 26]. In our implementations, we substitute the standard advantage function in REINFORCE with
+importance sampling using Tinker [Lab26]. The pseudocode and additional implementation details for our
+final algorithm can be found in §A.
+
+3.3.    Discussion
+     In Spiral, we optimize the search traces using the set RL recipe proposed in [OHR+ 26]. However,
+[OHR+ 26] prove that their gradient estimator is unbiased under the assumption that the set objective is sym-
+metric in its arguments. In our case, this is not necessarily true; fspiral (x, y1:n ) = Ey∗ ∼πθ (·|x,y1:n ) [r(x, y∗ )]
+need not be equal to fspiral (x, yσ(1),··· ,σ(n) ) where σ is some permutation of {1, · · · , n}, since the language
+model’s distribution can depend on the ordering of the candidate search traces in its context. In fact, prior
+works have observed that language models are notorious for ordering biases [PH24]. In our implementation
+of Spiral, we uniformly sample K sets from the collection of unordered tuples, which implicitly assumes
+that fspiral is symmetric. This is to ensure that the model is forced to aggregate sets of higher variety in
+terms of their constituents. Nevertheless, in this section, we extend the analysis in [OHR+ 26] to show that
+our set RL gradient estimator is still unbiased if we sample K sets from all (NN−n)!   !
+                                                                                            possible ordered tuples
+of size n. We show this via the following proposition (the proof, following a similar strategy to [OHR+ 26],
+is in §C):
+
+
+
+                                                            7
+                                                                 i.i.d.
+Proposition 3.1. Fix a prompt x, and let y1 , · · · , yN ∼ πθ (· | x) be our independently sampled N
+generations and let f : X × Y ⊕n → R be our set objective. Then,
+                    N
+                    X                        \
+                          ∇θ log πθ (yi | x) A♯marg (x, yi ; f )] = M ∇θ Ey1:n ∼πθ (·|x) N f (x, y1:n ) ,
+                                                                                                      
+               E[
+                    i=1
+
+where M ∈ R>0 is a scaling factor. In particular, when we sample, uniformly, K > 1 sets without
+replacement from Kall := (NN−n)!
+                             !
+                                 sets, we have that
+
+                                                           N
+                                                    M=       qK − 1,
+                                                           n
+                                            ((N −1) n
+                                                      )
+where qK := PrSK (Ci (SK ) > 0) = 1 −           K
+                                              (N )n     and (N )n := (NN−n)!
+                                                                         !
+                                                                             . Consequently, after scaling the
+                                             ( K )
+learning rate, the estimator is an unbiased estimator of the set RL gradient.
+
+    Additionally, observe that we fixed the size of the sets of search traces to be n even though, at test-
+time, we can scale the number of parallel generations that we put into the context of the model when
+sampling its aggregate generation. This is done so that our training is stable and not sample expensive.
+                                              (n)
+However, in principle, one could define fspiral (x, y1 , · · · , yn ) = Ey∗ ∼πθ (·|x,y1:n ) [r(x, y∗ )] and optimize
+                PN      (n)
+f (x, y1:N1 ) = n=1 fspiral (x, y1:n ) with N not exceeding the total number of search traces sampled; this
+objective trains the model to generate and aggregate sets of varying size (from n = 1 to n = N ). The recipe
+for optimizing this objective would be the same as Spiral, although one would require constructing a large
+number of sets of varying sizes and sampling aggregation traces from each which would be expensive. On
+the other hand, one can also scale the pipeline illustrated in fig. 1 by allowing the model to recursively sample
+and aggregate for more than just two steps. In our empirical evaluations, we will show that Spiral, despite
+training on two steps, enables significantly better scaling under recursive self-aggregation [VJM+ 25], by
+training the model to sample useful search traces and effective aggregation traces at any step.
+
+
+                                                  4.   Experiments
+
+    In this section, we empirically evaluate Spiral. In particular, we evaluate on mathematical reasoning
+tasks. Our goal is to study whether Spiral enables the model to use test-time compute more effectively.
+We use Qwen3-4b-Instruct-2507 as our base model and train on a filtered subset of POLARIS-53k
+[AXL+ 25], a dataset of mathematical reasoning problems. We use 256 problems per batch, 24 rollouts per
+problem, and 2 epochs of RL training. We compare against GRPO [SWZ+ 24, GYZ+ 25, LCL+ 25]. During
+data collection, we dynamically sample data until our effective batch size 256 problems (i.e. all 256 problems
+have non-zero advantage generations that will receive gradient updates). To make our comparisons fair, we
+ensure that all methods use the same amount of inference compute (i.e. token budget) per problem during
+training. While Spiral uses inference compute that is divided across sequential, parallel, and aggregative
+compute, GRPO only uses sequential inference compute. We discuss the training compute available to each
+method in greater detail, along with other implementation details in §A.
+    We first evaluate the methods’ pass@k performance, which is summarized in 3. In these evaluations,
+we independently sample k attempts per problem and evaluate the average number of problems the model
+can solve at least once. Note that in this setting, none of the models get the chance to aggregate their
+generations—we are only scaling independently sampled parallel inference compute. One can view this
+as an evaluation of each model’s performance under parallel compute scaling with an oracle verifier. We
+observe that the pass@k performance of Spiral scales more strongly compared to GRPO, showing a gain
+of up to 11× higher efficiency.
+    The pass@k performance suggests that Spiral achieves higher effective diversity in its search traces.
+Recall that the search traces are optimized via set reinforcement learning, which rewards all generations in
+a set equally based on the model’s ability to generate a correct aggregation trace when conditioning on that
+
+
+                                                             8
+Figure 3: Pass@k evaluation on test sets. The x-axis is the number of independent attempts, k, used in the
+evaluation and the y-axis is the coverage of the test set.
+
+
+
+
+Figure 4: Pass@1 evaluation under recursive self-aggregation [VJM+ 25]. The x-axis is the number of
+recursive self-aggregation steps used and the y-axis is the pass@1 rate.
+
+
+set. As such, the model is not encouraged to immediately collapse its entropy on a generation; search traces
+that are incorrect but still enable the model to craft high quality aggregation traces are explicitly encouraged
+by Spiral. In fact, as fig. 5 shows, the token-level entropy under Spiral does not collapse as readily as it
+does under GRPO. Such diversity in parallel samples is particularly helpful in cases where the model can
+use an oracle verifier (for example, LEAN) to verify each trace and return the optimal one. However, in
+many practical cases, models may not have access to such oracle verifiers, in which case the model must
+be good at verifying and refining its own traces. We now evaluate our model’s ability to self-aggregate
+[LFC+ 25, VJM+ 25].
+    Recursive self-aggregation (RSA) [VJM+ 25] is a test-time compute method that repeatedly converts
+parallel candidate traces into a new aggregated trace. The results are shown in fig. 4. At the first level,
+we sample a population of independent candidate traces. At each subsequent level, we partition the traces
+from the previous level into groups, prompt the model with the original problem and the four candidate
+traces, and sample one aggregated solution for each group. We grade only the final aggregated traces at each
+level, yielding the pass@1 performance of the recursive aggregation pipeline as a function of the number
+of aggregation steps. In our experiments, we used a population size of 8 parallel traces at each step and set
+size 4. We find that Spiral benefits substantially more from recursive self-aggregation than both the base
+
+
+                                                       9
+Figure 5: Token-level entropy over training. For Spiral, we plot the entropy over the search traces only
+to make the comparison to GRPO fair.
+
+
+
+
+Figure 6: Comparison of models under scaling sequential compute. The x-axis is the maximum number
+of tokens the model is allowed to sample within a chain-of-thought and the y-axis is the pass@1 rate.
+
+
+model and GRPO, achieving up to 13.5% higher performance. This suggests that Spiral learns search and
+refinement behaviors that are better suited to scaling parallel and aggregative inference compute at test time.
+    Next, we ask how well each model performs as we only scale sequential compute. In this setting, we do
+not scale either parallel compute or aggregative compute. We evaluate each method’s accuracy on the test
+sets as we allow it to sample increasingly longer traces. The results are visualized in fig. 6. All methods
+perform approximately similarly under sequential compute scaling; however, the gap between either pass@k
+or self-aggregation scaling and sequential compute scaling is quite large for all models.
+    Intuitively, parallel and aggregative compute are helpful when a model needs to be able to reason over
+long sequences (larger number of recursive steps enables this), search across various parallel ideas (larger
+population size enables this), and iteratively determine which traces to revise or continue developing via
+aggregation. Next, we attempt to understand how important each of these components are. First, we ask:
+how much better is self-aggregation compared to rule-based aggregation. To study this, we compare the
+performance of each model under recursive self-aggregation with majority voting. Each test-time compute
+method is allowed to sample the same number of independent parallel traces. The majority@k performance
+is calculated by sampling k independent search traces and then grading the answer selected by a majority of
+the generations. As shown in fig. 7, recursive self-aggregation scales better with parallel inference compute
+than majority@k. Both GRPO and Spiral achieves similar results under majority voting, but Spiral
+achieves substantially better performance under recursive self-aggregation. This suggests that training a
+model to search and aggregate enables better test-time scaling than using rule-based aggregation.
+
+
+                                                      10
+Figure 7: Comparison of inference methods scaling parallel traces. The x-axis is the number of parallel
+traces sampled. GRPO is not trained to aggregate, whereas Spiral trains a model to search and aggregate.
+Majority voting is a rule-based aggregation procedure whereas self-aggregation is model-based. We plot
+pass@1 value for reference.
+
+
+
+
+Figure 8: Comparison of inference compute scaling and model pairs against token usage. The x-axis is
+the maximum token budget provided to each model and inference compute method pair. Sequential compute
+scaling is up to 32k tokens due to the context length of our base model.
+
+
+    Finally, we make a comparison of the various inference compute methods in terms of the efficiency in
+their token usage. In this comparison, we look at the performance of each model and inference compute
+method under a fixed token budget. The results are visualized in fig. 8. Sequential compute could be scaled
+only up to a certain limit beyond which there is significant performance degradation due to the context length
+of the base model (i.e. Qwen3-4b-Instruct-2507). In our experiments on majority voting, the minimum
+number of traces we sampled is 4 and maximum number of tokens we allowed the traces to use is 16k,
+which is why majority voting requires at least a 64k token budget. Similarly, for recursive self-aggregation,
+we sampled a population of 8 traces, constructed sets of size 4, and recursed over at least 1 step, leading to
+a minimum budget of 36k tokens. We observe that while sequential compute scaling can hit a wall, other
+methods that leverage parallel and aggregative compute like majority voting and recursive self-aggregation
+can be scaled for much longer with larger token budgets. Between these, recursive self-aggregation scales
+more favorably in terms of performance, showing that model-based aggregation can be more powerful than
+hand-designed rule based ones. Finally, Spiral scales significantly better under recursive self-aggregation
+than majority voting, suggesting that end-to-end learning of the primitives enable better performance.
+
+
+
+                                                     11
+                                           5.   Related Work
+
+Policy Gradient Methods. Policy gradient methods [SMSM99, SB18, Kak01] are a foundational class of
+reinforcement learning algorithms that directly optimize a policy to maximize expected reward. Advances
+in variance reduction and sample efficiency [BSGL09, DWS13, LHP+ 16, WBH+ 17, SLM+ 17, SWD+ 17]
+have made these methods widely adopted for language model (LM) fine-tuning. In the LM setting, policy-
+gradient methods often omit a learned critic and instead rely on empirical advantage estimates computed
+from sampled generations [GYZ+ 25, YZZ+ 25, ZLL+ 25, LCL+ 25, CLG+ 25, TZZ+ 26].
+
+
+Inference Compute. Inference compute has a rich history in artificial intelligence. In game-playing
+systems such as AlphaGo and AlphaZero, inference compute is scaled through simulation-based search
+for Go, chess, and shogi [SHS+ 17]. Similarly, [BS19] scale search algorithms for poker. More recently,
+reasoning models [ZWMG22, SWZ+ 24, OJ+ 26, CBS+ 25] scale inference compute through thinking tokens,
+allowing models to deliberate before producing a final answer [OJ+ 26, GYZ+ 25], as well as to perform
+other internal actions [LHFG26, MLF26, SSR+ 25, STG+ 26]. In this setting, inference compute is typically
+allocated sequentially within a single chain of thought.
+     A complementary approach scales inference compute across parallel traces [NLZ+ 24, YYZ+ 23, BJE+ 24,
+MTG+ 23, KYN+ 26, LCC+ 25]. Self-consistency samples multiple reasoning traces in parallel and aggre-
+gates them by selecting the answer that appears most frequently among the samples [WWS+ 22]. Best-of-N
+methods similarly sample several traces independently, but use a verifier or reward model to select the final
+output [CKB+ 21, WLS+ 24, BJE+ 24]. Both self-consistency and best-of-N are filtering-based methods:
+they reduce a set of parallel traces to a single sampled output. Self-Refine and Reflexion instead scale infer-
+ence compute sequentially, where a model first generates an attempt, critiques or reflects on that attempt, and
+then conditions on the resulting feedback to generate a revised solution [MTG+ 23, SCG+ 23]. In contrast
+to filtering-based approaches, self-aggregation allows the model to condition on a set of parallel traces and
+synthesize a new generation [LFC+ 25, VJM+ 25, TSY+ 26, SMLG25, LBF25]. When a value function is
+available, tree-search methods can further allocate inference compute by filtering or expanding partial traces
+[YYZ+ 23]. OpenDeepThink introduces additional structure into parallel reasoning by aggregating traces
+through pairwise Bradley–Terry comparisons [ZCL+ 26]. Several recent works also study parallel sam-
+pling followed by evolutionary refinement. For example, PopulationEvolve samples a population of parallel
+traces, evolves them over several steps using an evolution prompt, and then performs self-consistency-based
+answer extraction [ZDZ+ 25]. Other methods use feedback from the environment to support aggregation
+and refinement [LBF25, LNZ+ 26].
+    These methods primarily operate at test time. During training, the model is typically optimized only
+for sequential chain-of-thought reasoning, leaving the use of parallel and aggregative inference compute to
+hand-designed test-time procedures.
+    Another line of work scales parallel thinking by decomposing a task into subtasks rather than by sampling
+independent solution traces. In these methods, the model decomposes an overall objective into subproblems
+that can be solved in parallel. [YAL+ 25] and [PLL+ 25] train language models to decompose tasks into
+parallelizable subtasks, typically using supervised fine-tuning rather than reinforcement learning. Our work
+is complementary to this direction: rather than learning to decompose a problem into distinct subtasks, we
+train a model to generate and use sets of independently sampled reasoning traces.
+
+
+Training for Inference Compute. The closest line of work studies how to train models to use parallel
+inference compute. [WSZ+ 25] consider a setup closely related to ours: a model first generates several
+independent reasoning traces in parallel, and then conditions on all of them to synthesize a final answer.
+However, they train this behavior through supervised fine-tuning rather than reinforcement learning. In
+our setting, set reinforcement learning is the key ingredient that allows the model to learn how to generate
+effective sets of parallel traces, rather than merely learning how to aggregate a fixed set of traces [HOX+ 26,
+OHR+ 26]. PaCoRe also trains models with reinforcement learning for inference-compute scaling, but
+constrains learning to the synthesis step and does not train the model to generate optimal sets of parallel
+
+
+                                                      12
+traces [HZS+ 26]. Similarly, [QYT+ 25] and [VJM+ 25] train models to aggregate sets of traces effectively
+while treating the generation of the input set as fixed. [SLS+ 26] train a single model to both generate and
+verify. However, their framework provides an independent learning signal to each component, whereas
+our framework trains a unified inference pipeline whose search and aggregation components are coupled
+through the reward of the final synthesized solution (see fig. 1).
+
+
+Optimizing over Sets. Orthogonally, [TZSM25] introduce the problem of optimizing over n samples
+and propose algorithms for improving pass@k and self-consistency, or majority@k, performance. Since
+both pass@k and self-consistency are filtering-based objectives, the final selected output is one of the
+independently sampled generations. This structure enables leave-one-out estimators for reinforcement
+learning, in which the output selected by pass@k or self-consistency receives higher credit assignment
+than the other samples in the set. However, this approach does not directly apply to settings such as self-
+aggregation, where the final output is a new generation synthesized from the set and there is no canonical
+way to assign individualized credit to each input trace.
+    In contrast, [HOX+ 26] introduce set reinforcement learning, a framework for training models with
+set-level rewards where the objective does not necessarily provide individualized credit assignment; more
+specifically, given a set of n actions sampled, one cannot always leave k < n out to understand which specific
+generation provided credit, because the credit could emerge from more than one action appearing together
+in the set, as opposed to the existence of individual elements. In this setting, all actions or generations in
+a set are coupled through a shared learning signal: credit is assigned to the set as a whole, and the goal is
+to train a policy to sample sets of actions that are collectively useful. We use this framework to train our
+model to independently sample sets of parallel traces that can then be interleaved and aggregated into a final
+answer. [OHR+ 26] propose a general set-RL recipe for training language models, which we adopt in our
+work. Set-level optimization has also been studied by [GCAC+ 26], who use reward uncertainty to induce
+exploration.
+
+                                             6.   Next Steps
+
+    In this paper, we present early empirical results from our implementation of Spiral. The scale at which
+we trained is still relatively small; we aim to train a model with at least 8b parameters. There are several
+additional empirical investigations we plan to pursue. First, we aim to qualitatively analyze the behavior of
+Spiral. In particular, we will directly evaluate the diversity of both search traces and aggregation traces
+sampled by Spiral, and compare them against those produced by the base model and a GRPO-trained
+model. We will also examine how the model allocates the inference compute available to it. Our early
+experiments show that for difficult problems, the model often spends more tokens in search traces to study
+related problems or simplifications, and in aggregation traces, it spends more compute on verification; we
+will rigorously test these behaviors.
+    Second, we plan to independently evaluate the model’s verification capabilities. This will help isolate
+how much of the improvement in aggregation performance comes from changes in the model’s ability to
+identify correct or promising generations. Third, we aim to evaluate Spiral in combination with other
+training strategies. For example, one natural baseline is to train search traces with GRPO using their
+individual rewards, while separately training the model to aggregate over the resulting traces, as done in
+[VJM+ 25]. Finally, we plan to more rigorously study how performance scales with inference compute
+by evaluating these models under a variety of test-time harnesses that compose sequential, parallel, and
+aggregative primitives in different ways.
+
+                                             7.   Conclusion
+
+    We introduced Sequential-Parallel-Aggregative Reinforcement Learning (Spiral), a framework
+that combines set reinforcement learning with standard reinforcement learning to train a model to effectively
+use sequential, parallel, and aggregative inference compute. Our early results suggest that jointly training
+
+
+
+                                                     13
+a model to use these primitives enables it to better search, verify, and refine its generations, leading to
+improved scaling of performance at test time.
+
+                                       8.   Acknowledgments
+
+    We are grateful to Thinking Machines for supporting this research through the Tinker Research Grant.
+All of our experiments were conducted using Tinker [Lab26], which provided an exceptionally reliable
+infrastructure for RL training. We thank Satvik Sharma, Suvir Mirchandani, Jensen Gao, Hengyuan Hu,
+and Jonathan Yang for their feedback when this work was presented at ILIAD Lab, and Yuejiang Liu, Anish
+Muppidi, Lars Ankile, and Sarthak Kamat for their feedback when it was presented at IRIS Lab. We also
+thank Kanishk Gandhi for helpful suggestions on dataset curation for RL fine-tuning. We thank Joey Hejna
+for his insights that were invaluable to the development of the ideas behind our work, especially regarding
+credit assignment in set RL and scaling inference compute for coding agents. Finally, we thank Yuda Song
+and Fahim Tajwar — their advice on using reinforcement learning to train aggregation was very helpful in
+constructing our algorithm and their codebase in [SCT+ 26] was helpful in guiding our own implementation.
+  This work was supported by Schmidt Sciences, ONR grants N00014-22-1-2621, NSF Award #1941722,
+ONR YIP N00014-22-1-2293, DARPA YFA Award #W911NF2210214, NSF Award #2125511, and the
+DARPA ExpMath program. We also thank Google DeepMind for their support with a TPU grant.
+
+                                              References
+
+ [ABG+ 26] Noga Alon, Thomas F. Bloom, W. T. Gowers, Daniel Litt, Will Sawin, Arul Shankar, Jacob
+           Tsimerman, Victor Wang, and Melanie Matchett Wood. Remarks on the disproof of the unit
+           distance conjecture, 2026.
+
+ [ABH+ 26] Mohammed Abouzaid, Andrew J. Blumberg, Martin Hairer, Joe Kileel, Tamara G. Kolda,
+           Paul D. Nelson, Daniel Spielman, Nikhil Srivastava, Rachel Ward, Shmuel Weinberger, and
+           Lauren Williams. First proof, 2026.
+[ASWW26] Mohammed Abouzaid, Nikhil Srivastava, Rachel Ward, and Lauren Williams. First proof
+         second batch, 2026.
+
+ [AXL+ 25] Chenxin An, Zhihui Xie, Xiaonan Li, Lei Li, Jun Zhang, Shansan Gong, Ming Zhong, Jingjing
+           Xu, Xipeng Qiu, Mingxuan Wang, and Lingpeng Kong. Polaris: A post-training recipe for
+           scaling reinforcement learning on advanced reasoning models, 2025.
+  [BJE+ 24] Bradley Brown, Jordan Juravsky, Ryan Ehrlich, Ronald Clark, Quoc V Le, Christopher Ré,
+            and Azalia Mirhoseini. Large language monkeys: Scaling inference compute with repeated
+            sampling. arXiv preprint arXiv:2407.21787, 2024.
+     [BS19] Noam Brown and Tuomas Sandholm.              Superhuman ai for multiplayer poker.     Science,
+            365(6456):885–890, 2019.
+ [BSGL09] Shalabh Bhatnagar, Richard S. Sutton, Mohammad Ghavamzadeh, and Mark Lee. Natural
+          actor–critic algorithms. Automatica, 45(11):2471–2482, 2009.
+ [CBS+ 25] Gheorghe Comanici, Eric Bieber, Mike Schaekermann, Ice Pasupat, Noveen Sachdeva, Inderjit
+           Dhillon, Marcel Blistein, Ori Ram, Dan Zhang, Evan Rosen, et al. Gemini 2.5: Pushing the
+           frontier with advanced reasoning, multimodality, long context, and next generation agentic
+           capabilities. arXiv preprint arXiv:2507.06261, 2025.
+
+ [CKB+ 21] Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Heewoo Jun, Lukasz Kaiser,
+           Matthias Plappert, Jerry Tworek, Jacob Hilton, Reiichiro Nakano, Christopher Hesse, and
+           John Schulman. Training verifiers to solve math word problems, 2021.
+
+
+
+
+                                                    14
+ [CLG+ 25] Aili Chen, Aonian Li, Bangwei Gong, Binyang Jiang, Bo Fei, Bo Yang, Boji Shan, Changqing
+           Yu, Chao Wang, Cheng Zhu, et al. Minimax-m1: Scaling test-time compute efficiently with
+           lightning attention. arXiv preprint arXiv:2506.13585, 2025.
+ [CLZ+ 26] Zhiqi Chen, Rui Lu, Andrew Zhao, Zhaokai Wang, Yang Yue, Shiji Song, and Gao Huang.
+           Does reinforcement learning really incentivize reasoning capacity in llms beyond the base
+           model? Advances in Neural Information Processing Systems, 38:57654–57689, 2026.
+ [CZC+ 25] Ganqu Cui, Yuchen Zhang, Jiacheng Chen, Lifan Yuan, Zhi Wang, Yuxin Zuo, Haozhan Li,
+           Yuchen Fan, Huayu Chen, Weize Chen, Zhiyuan Liu, Hao Peng, Lei Bai, Wanli Ouyang,
+           Yu Cheng, Bowen Zhou, and Ning Ding. The entropy mechanism of reinforcement learning
+           for reasoning language models, 2025.
+ [DLT+ 24] Yilun Du, Shuang Li, Antonio Torralba, Joshua B Tenenbaum, and Igor Mordatch. Improv-
+           ing factuality and reasoning in language models through multiagent debate. In Forty-first
+           international conference on machine learning, 2024.
+  [DWS13] Thomas Degris, Martha White, and Richard S. Sutton. Off-policy actor-critic, 2013.
+ [FTB+ 26] Tony Feng, Trieu H Trinh, Garrett Bingham, Dawsen Hwang, Yuri Chervonyi, Junehyuk
+           Jung, Joonkyung Lee, Carlo Pagano, Sang-hyun Kim, Federico Pasqualotto, et al. Towards
+           autonomous mathematics research. arXiv preprint arXiv:2602.10177, 2026.
+[GCAC+ 26] Anthony GX-Chen, Ankit Anand, Gheorghe Comanici, Zaheer Abbas, Eser Aygün, David
+           Smalling, Shibl Mourad, Doina Precup, André Barreto, and Mark Rowland. Using reward
+           uncertainty to induce diverse behaviour in reinforcement learning, 2026.
+ [GCS+ 25] Kanishk Gandhi, Ayush Chakravarthy, Anikait Singh, Nathan Lile, and Noah D. Goodman.
+           Cognitive behaviors that enable self-improving reasoners, or, four habits of highly effective
+           stars, 2025.
+[GTM+ 25] Gabriel Grand, Joshua B Tenenbaum, Vikash K Mansinghka, Alexander K Lew, and Jacob
+          Andreas. Self-steering language models. arXiv preprint arXiv:2504.07081, 2025.
+ [GYZ+ 25] Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Peiyi Wang, Qihao Zhu, Runxin Xu,
+           Ruoyu Zhang, Shirong Ma, Xiao Bi, et al. Deepseek-r1: Incentivizing reasoning capability in
+           llms via reinforcement learning. arXiv preprint arXiv:2501.12948, 2025.
+ [HOX+ 26] Jubayer Ibn Hamid, Ifdita Hasan Orney, Ellen Xu, Chelsea Finn, and Dorsa Sadigh. Poly-
+           chromic objectives for reinforcement learning, 2026.
+    [HY25] Yichen Huang and Lin F Yang. Winning gold at imo 2025 with a model-agnostic verification-
+           and-refinement pipeline. arXiv preprint arXiv:2507.15855, 2025.
+ [HZS+ 26] Jingcheng Hu, Yinmin Zhang, Shijie Shang, Xiaobo Yang, Yue Peng, Zhewei Huang, Hebin
+           Zhou, Xin Wu, Jie Cheng, Fanqi Wan, Xiangwen Kong, Chengyuan Yao, Kaiwen Yan, Ailin
+           Huang, Hongyu Zhou, Qi Han, Zheng Ge, Daxin Jiang, Xiangyu Zhang, and Heung-Yeung
+           Shum. Pacore: Learning to scale test-time compute with parallel coordinated reasoning, 2026.
+   [Kak01] Sham M Kakade. A natural policy gradient. In T. Dietterich, S. Becker, and Z. Ghahramani,
+           editors, Advances in Neural Information Processing Systems, volume 14. MIT Press, 2001.
+ [KAP+ 25] Amirhossein Kazemnejad, Milad Aghajohari, Eva Portelance, Alessandro Sordoni, Siva
+           Reddy, Aaron Courville, and Nicolas Le Roux. Vineppo: Refining credit assignment in
+           rl training of llms, 2025.
+   [KL02a] Sham Kakade and John Langford. Approximately optimal approximate reinforcement learning.
+           In Proceedings of the Nineteenth International Conference on Machine Learning, ICML ’02,
+           page 267–274, San Francisco, CA, USA, 2002. Morgan Kaufmann Publishers Inc.
+
+
+                                                  15
+  [KL02b] Sham M. Kakade and John Langford. Approximately optimal approximate reinforcement
+          learning. In International Conference on Machine Learning, 2002.
+[KYN+ 26] Joongwon Kim, Wannan Yang, Kelvin Niu, Hongming Zhang, Yun Zhu, Eryk Helenowski,
+          Ruan Silva, Zhengxing Chen, Srinivasan Iyer, Manzil Zaheer, Daniel Fried, Hannaneh Ha-
+          jishirzi, Sanjeev Arora, Gabriel Synnaeve, Ruslan Salakhutdinov, and Anirudh Goyal. Scaling
+          test-time compute for agentic coding, 2026.
+   [Lab26] Thinking Machines Lab. Tinker, 2026.
+  [LBF25] Yoonho Lee, Joseph Boen, and Chelsea Finn. Feedback descent: Open-ended text optimization
+          via pairwise comparison, 2025.
+
+[LCC+ 25] Dacheng Li, Shiyi Cao, Chengkun Cao, Xiuyu Li, Shangyin Tan, Kurt Keutzer, Jiarong Xing,
+          Joseph E. Gonzalez, and Ion Stoica. S*: Test time scaling for code generation, 2025.
+[LCL+ 25] Zichen Liu, Changyu Chen, Wenjun Li, Penghui Qi, Tianyu Pang, Chao Du, Wee Sun Lee,
+          and Min Lin. Understanding r1-zero-like training: A critical perspective, 2025.
+
+ [LFC+ 25] Zichong Li, Xinyu Feng, Yuheng Cai, Zixuan Zhang, Tianyi Liu, Chen Liang, Weizhu Chen,
+           Haoyu Wang, and Tuo Zhao. Llms can generate a better answer by aggregating their own
+           responses, 2025.
+[LHFG26] Michael Y. Li, Jubayer Ibn Hamid, Emily B. Fox, and Noah D. Goodman. Neural garbage
+         collection: Learning to forget while learning to reason, 2026.
+
+[LHP+ 16] Timothy P. Lillicrap, Jonathan J. Hunt, Alexander Pritzel, Nicolas Heess, Tom Erez, Yuval
+          Tassa, David Silver, and Daan Wierstra. Continuous control with deep reinforcement learning.
+          In Yoshua Bengio and Yann LeCun, editors, 4th International Conference on Learning Repre-
+          sentations, ICLR 2016, San Juan, Puerto Rico, May 2-4, 2016, Conference Track Proceedings,
+          2016.
+
+[LNZ+ 26] Yoonho Lee, Roshen Nair, Qizheng Zhang, Kangwook Lee, Omar Khattab, and Chelsea Finn.
+          Meta-harness: End-to-end optimization of model harnesses, 2026.
+   [Lop26] Ryan Lopopolo. Harness engineering: Leveraging codex in an agent-first world. https:
+           //openai.com/index/harness-engineering/, February 2026. OpenAI.
+
+[LZY+ 25] Tianjian Li, Yiming Zhang, Ping Yu, Swarnadeep Saha, Daniel Khashabi, Jason Weston, Jack
+          Lanchantin, and Tianlu Wang. Jointly reinforcing diversity and quality in language model
+          generations, 2025.
+[MDG+ 25] Lovish Madaan, Aniket Didolkar, Suchin Gururangan, John Quan, Ruan Silva, Ruslan
+          Salakhutdinov, Manzil Zaheer, Sanjeev Arora, and Anirudh Goyal. Rethinking thinking
+          tokens: Llms as improvement operators, 2025.
+  [MLF26] Yuzhen Mao, Michael Y. Li, and Emily B. Fox. Forget, then recall: Learnable compression
+          and selective unfolding via gist sparse attention, 2026.
+[MTG+ 23] Aman Madaan, Niket Tandon, Prakhar Gupta, Skyler Hallinan, Luyu Gao, Sarah Wiegr-
+          effe, Uri Alon, Nouha Dziri, Shrimai Prabhumoye, Yiming Yang, Shashank Gupta, Bod-
+          hisattwa Prasad Majumder, Katherine Hermann, Sean Welleck, Amir Yazdanbakhsh, and
+          Peter Clark. Self-refine: Iterative refinement with self-feedback, 2023.
+[NLZ+ 24] Xuefei Ning, Zinan Lin, Zixuan Zhou, Zifu Wang, Huazhong Yang, and Yu Wang. Skeleton-
+          of-thought: Prompting llms for efficient parallel generation. In International Conference on
+          Learning Representations, volume 2024, pages 917–967, 2024.
+
+
+
+
+                                                16
+[NVE+ 25] Alexander Novikov, Ngân Vũ, Marvin Eisenberger, Emilien Dupont, Po-Sen Huang,
+          Adam Zsolt Wagner, Sergey Shirobokov, Borislav Kozlovskii, Francisco JR Ruiz, Abbas
+          Mehrabian, et al. Alphaevolve: A coding agent for scientific and algorithmic discovery. arXiv
+          preprint arXiv:2506.13131, 2025.
+
+[OHR+ 26] Ifdita Hasan Orney, Jubayer Ibn Hamid, Shreya S Ramanujam, Shirley Wu, Hengyuan Hu,
+          Noah Goodman, Dorsa Sadigh, and Chelsea Finn. Poly-epo: Training exploratory reasoning
+          models, 2026.
+  [OJ+ 26] OpenAI, :, Aaron Jaech, Adam Kalai, Adam Lerer, Adam Richardson, Ahmed El-Kishky,
+           Aiden Low, Alec Helyar, Aleksander Madry, Alex Beutel, Alex Carney, Alex Iftimie, Alex
+           Karpenko, Alex Tachard Passos, Alexander Neitz, Alexander Prokofiev, Alexander Wei, Alli-
+           son Tam, Ally Bennett, Ananya Kumar, Andre Saraiva, Andrea Vallone, Andrew Duberstein,
+           Andrew Kondrich, Andrey Mishchenko, Andy Applebaum, Angela Jiang, Ashvin Nair, Barret
+           Zoph, Behrooz Ghorbani, Bohan Zhang, Ben Rossen, Benjamin Sokolowsky, Boaz Barak,
+           Bob McGrew, Borys Minaiev, Botao Hao, Bowen Baker, Brandon Houghton, Brandon McK-
+           inzie, Brydon Eastman, Camillo Lugaresi, Cary Bassin, Cary Hudson, Chak Ming Li, Charles
+           de Bourcy, Chelsea Voss, Chen Shen, Chong Zhang, Chris Koch, Chris Orsinger, Christo-
+           pher Hesse, Claudia Fischer, Clive Chan, Dan Roberts, Daniel Kappler, Daniel Levy, Daniel
+           Selsam, David Dohan, David Farhi, David Mely, David Robinson, Dimitris Tsipras, Doug
+           Li, Dragos Oprica, Eben Freeman, Eddie Zhang, Edmund Wong, Elizabeth Proehl, Enoch
+           Cheung, Eric Mitchell, Eric Wallace, Erik Ritter, Evan Mays, Fan Wang, Felipe Petroski
+           Such, Filippo Raso, Florencia Leoni, Foivos Tsimpourlas, Francis Song, Fred von Lohmann,
+           Freddie Sulit, Geoff Salmon, Giambattista Parascandolo, Gildas Chabot, Grace Zhao, Greg
+           Brockman, Guillaume Leclerc, Hadi Salman, Haiming Bao, Hao Sheng, Hart Andrin, Hes-
+           sam Bagherinezhad, Hongyu Ren, Hunter Lightman, Hyung Won Chung, Ian Kivlichan, Ian
+           O’Connell, Ian Osband, Ignasi Clavera Gilaberte, Ilge Akkaya, Ilya Kostrikov, Ilya Sutskever,
+           Irina Kofman, Jakub Pachocki, James Lennon, Jason Wei, Jean Harb, Jerry Twore, Jiacheng
+           Feng, Jiahui Yu, Jiayi Weng, Jie Tang, Jieqi Yu, Joaquin Quiñonero Candela, Joe Palermo,
+           Joel Parish, Johannes Heidecke, John Hallman, John Rizzo, Jonathan Gordon, Jonathan Ue-
+           sato, Jonathan Ward, Joost Huizinga, Julie Wang, Kai Chen, Kai Xiao, Karan Singhal, Karina
+           Nguyen, Karl Cobbe, Katy Shi, Kayla Wood, Kendra Rimbach, Keren Gu-Lemberg, Kevin
+           Liu, Kevin Lu, Kevin Stone, Kevin Yu, Lama Ahmad, Lauren Yang, Leo Liu, Leon Maksin,
+           Leyton Ho, Liam Fedus, Lilian Weng, Linden Li, Lindsay McCallum, Lindsey Held, Lorenz
+           Kuhn, Lukas Kondraciuk, Lukasz Kaiser, Luke Metz, Madelaine Boyd, Maja Trebacz, Manas
+           Joglekar, Mark Chen, Marko Tintor, Mason Meyer, Matt Jones, Matt Kaufer, Max Schwarzer,
+           Meghan Shah, Mehmet Yatbaz, Melody Y. Guan, Mengyuan Xu, Mengyuan Yan, Mia Glaese,
+           Mianna Chen, Michael Lampe, Michael Malek, Michele Wang, Michelle Fradin, Mike Mc-
+           Clay, Mikhail Pavlov, Miles Wang, Mingxuan Wang, Mira Murati, Mo Bavarian, Mostafa
+           Rohaninejad, Nat McAleese, Neil Chowdhury, Neil Chowdhury, Nick Ryder, Nikolas Tezak,
+           Noam Brown, Ofir Nachum, Oleg Boiko, Oleg Murk, Olivia Watkins, Patrick Chao, Paul Ash-
+           bourne, Pavel Izmailov, Peter Zhokhov, Rachel Dias, Rahul Arora, Randall Lin, Rapha Gontijo
+           Lopes, Raz Gaon, Reah Miyara, Reimar Leike, Renny Hwang, Rhythm Garg, Robin Brown,
+           Roshan James, Rui Shu, Ryan Cheu, Ryan Greene, Saachi Jain, Sam Altman, Sam Toizer,
+           Sam Toyer, Samuel Miserendino, Sandhini Agarwal, Santiago Hernandez, Sasha Baker, Scott
+           McKinney, Scottie Yan, Shengjia Zhao, Shengli Hu, Shibani Santurkar, Shraman Ray Chaud-
+           huri, Shuyuan Zhang, Siyuan Fu, Spencer Papay, Steph Lin, Suchir Balaji, Suvansh Sanjeev,
+           Szymon Sidor, Tal Broda, Aidan Clark, Tao Wang, Taylor Gordon, Ted Sanders, Tejal Pat-
+           wardhan, Thibault Sottiaux, Thomas Degry, Thomas Dimson, Tianhao Zheng, Timur Garipov,
+           Tom Stasi, Trapit Bansal, Trevor Creech, Troy Peterson, Tyna Eloundou, Valerie Qi, Vineet
+           Kosaraju, Vinnie Monaco, Vitchyr Pong, Vlad Fomenko, Weiyi Zheng, Wenda Zhou, Wenting
+           Zhan, Wes McCabe, Wojciech Zaremba, Yann Dubois, Yinghai Lu, Yining Chen, Young Cha,
+           Yu Bai, Yuchen He, Yuchen Zhang, Yunyun Wang, Zheng Shao, and Zhuohan Li. Openai o1
+           system card, 2026.
+
+
+                                                 17
+   [PH24] Pouya Pezeshkpour and Estevam Hruschka. Large language models sensitivity to the order
+          of options in multiple-choice questions. In Kevin Duh, Helena Gomez, and Steven Bethard,
+          editors, Findings of the Association for Computational Linguistics: NAACL 2024, pages
+          2006–2017, Mexico City, Mexico, June 2024. Association for Computational Linguistics.
+
+ [PLL+ 25] Jiayi Pan, Xiuyu Li, Long Lian, Charlie Snell, Yifei Zhou, Adam Yala, Trevor Darrell, Kurt
+           Keutzer, and Alane Suhr. Learning adaptive parallel reasoning with language models, 2025.
+[QYT+ 25] Jianing Qi, Xi Ye, Hao Tang, Zhigang Zhu, and Eunsol Choi. Learning to reason across
+          parallel samples for llm reasoning, 2025.
+  [RC+ 26] Cursor Research, :, Aaron Chan, Ahmed Shalaby, Alexander Wettig, Aman Sanger, Andrew
+           Zhai, Anurag Ajay, Ashvin Nair, Charlie Snell, Chen Lu, Chen Shen, Emily Jia, Federico
+           Cassano, Hanpeng Liu, Haoyu Chen, Henry Wildermuth, Jacob Jackson, Janet Li, Jediah
+           Katz, Jiajun Yao, Joey Hejna, Josh Warner, Julius Vering, Kevin Frans, Lee Danilek, Less
+           Wright, Lujing Cen, Luke Melas-Kyriazi, Michael Truell, Michiel de Jong, Naman Jain,
+           Nate Schmidt, Nathan Wang, Niklas Muennighoff, Oleg Rybkin, Paul Loh, Phillip Kravtsov,
+           Rishabh Yadav, Sahil Shah, Sam Kottler, Alexander M Rush, Shengtong Zhang, Shomil Jain,
+           Sriram Sankar, Stefan Heule, Stuart H. Sul, Sualeh Asif, Victor Rong, Wanqi Zhu, William Lin,
+           Yuchen Wu, Yuri Volkov, Yury Zemlyanskiy, Zack Holbrook, and Zhiyuan Zhang. Composer
+           2 technical report, 2026.
+   [SB18] Richard S. Sutton and Andrew G. Barto. Reinforcement Learning: An Introduction. A
+          Bradford Book, Cambridge, MA, USA, 2018.
+
+[SCG+ 23] Noah Shinn, Federico Cassano, Ashwin Gopinath, Karthik Narasimhan, and Shunyu Yao. Re-
+          flexion: Language agents with verbal reinforcement learning. Advances in neural information
+          processing systems, 36:8634–8652, 2023.
+[SCT+ 26] Yuda Song, Lili Chen, Fahim Tajwar, Remi Munos, Deepak Pathak, J. Andrew Bagnell, Aarti
+          Singh, and Andrea Zanette. Expanding the capabilities of reinforcement learning via text
+          feedback, 2026.
+[SHS+ 17] David Silver, Thomas Hubert, Julian Schrittwieser, Ioannis Antonoglou, Matthew Lai, Arthur
+          Guez, Marc Lanctot, Laurent Sifre, Dharshan Kumaran, Thore Graepel, et al. Mastering
+          chess and shogi by self-play with a general reinforcement learning algorithm. arXiv preprint
+          arXiv:1712.01815, 2017.
+[SLM+ 17] John Schulman, Sergey Levine, Philipp Moritz, Michael I. Jordan, and Pieter Abbeel. Trust
+          region policy optimization, 2017.
+ [SLS+ 26] Harman Singh, Xiuyu Li, Kusha Sareen, Monishwaran Maheswaran, Sijun Tan, Xiaoxia Wu,
+           Junxiong Wang, Alpay Ariyak, Qingyang Wu, Samir Khaki, Rishabh Tiwari, Long Lian,
+           Yucheng Lu, Boyi Li, Alane Suhr, Ben Athiwaratkun, and Kurt Keutzer. v1 : Unifying
+           generation and self-verification for parallel reasoners, 2026.
+[SLXK24] Charlie Snell, Jaehoon Lee, Kelvin Xu, and Aviral Kumar. Scaling llm test-time compute opti-
+         mally can be more effective than scaling model parameters. arXiv preprint arXiv:2408.03314,
+         2024.
+
+[SMLG25] Philip Schroeder, Nathaniel Morgan, Hongyin Luo, and James Glass. Thread: Thinking deeper
+         with recursive spawning, 2025.
+[SMSM99] Richard S. Sutton, David McAllester, Satinder Singh, and Yishay Mansour. Policy gradient
+         methods for reinforcement learning with function approximation. In Proceedings of the
+         13th International Conference on Neural Information Processing Systems, NIPS’99, page
+         1057–1063, Cambridge, MA, USA, 1999. MIT Press.
+
+
+
+                                                  18
+     [SS25] David Silver and Richard Sutton. Welcome to the era of experience, 2025.
+  [SSR+ 25] Omar Shaikh, Shardul Sapkota, Shan Rizvi, Eric Horvitz, Joon Sung Park, Diyi Yang, and
+            Michael S. Bernstein. Creating general user models from computer use, 2025.
+ [STG+ 26] Omar Shaikh, Valentin Teutschbein, Kanishk Gandhi, Yikun Chi, Nick Haber, Thomas Robin-
+           son, Nilam Ram, Byron Reeves, Sherry Yang, Michael S. Bernstein, and Diyi Yang. Learning
+           next action predictors from human-computer interaction, 2026.
+ [SWD+ 17] John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford, and Oleg Klimov. Proximal
+           policy optimization algorithms, 2017.
+ [SWZ+ 24] Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang,
+           Mingchuan Zhang, Y. K. Li, Y. Wu, and Daya Guo. Deepseekmath: Pushing the limits of
+           mathematical reasoning in open language models, 2024.
+ [TSY+ 26] Fengwei Teng, Quan Shi, Zhaoyang Yu, Jiayi Zhang, Yuyu Luo, Chenglin Wu, and Zhijiang
+           Guo. Atom of thoughts for markov llm test-time scaling. Advances in Neural Information
+           Processing Systems, 38:74010–74040, 2026.
+ [TZSM25] Yunhao Tang, Kunhao Zheng, Gabriel Synnaeve, and Rémi Munos. Optimizing lan-
+          guage models for inference time objectives using reinforcement learning. arXiv preprint
+          arXiv:2503.19595, 2025.
+ [TZZ+ 26] Fahim Tajwar, Guanning Zeng, Yueer Zhou, Yuda Song, Daman Arora, Yiding Jiang, Jeff
+           Schneider, Ruslan Salakhutdinov, Haiwen Feng, and Andrea Zanette. Maximum likelihood
+           reinforcement learning. In Proceedings of the 43rd International Conference on Machine
+           Learning, Proceedings of Machine Learning Research. PMLR, 2026.
+ [VJM+ 25] Siddarth Venkatraman, Vineet Jain, Sarthak Mittal, Vedant Shah, Johan Obando-Ceron,
+           Yoshua Bengio, Brian R Bartoldson, Bhavya Kailkhura, Guillaume Lajoie, Glen Berseth,
+           et al. Recursive self-aggregation unlocks deep thinking in large language models. arXiv
+           preprint arXiv:2509.26626, 2025.
+ [VTS+ 25] Vivek Vajipey, Aditya Tadimeti, Justin Shen, Ben Prystawski, Michael Y. Li, and Noah
+           Goodman. Simple, scalable reasoning via iterated summarization. In ICML 2025 Workshop
+           on Long-Context Foundation Models, 2025.
+[WBH+ 17] Ziyu Wang, Victor Bapst, Nicolas Heess, Volodymyr Mnih, Remi Munos, Koray Kavukcuoglu,
+          and Nando de Freitas. Sample efficient actor-critic with experience replay, 2017.
+[WCAJ+ 26] David P Woodruff, Vincent Cohen-Addad, Lalit Jain, Jieming Mao, Song Zuo, Mohammad-
+           Hossein Bateni, Simina Branzei, Michael P Brenner, Lin Chen, Ying Feng, et al. Acceler-
+           ating scientific research with gemini: Case studies and common techniques. arXiv preprint
+           arXiv:2602.03837, 2026.
+   [WK25] Christian Walder and Deep Karkhanis. Pass@k policy optimization: Solving harder reinforce-
+          ment learning problems, 2025.
+ [WLS+ 24] Peiyi Wang, Lei Li, Zhihong Shao, Runxin Xu, Damai Dai, Yifei Li, Deli Chen, Yu Wu,
+           and Zhifang Sui. Math-shepherd: Verify and reinforce llms step-by-step without human
+           annotations. In Proceedings of the 62nd Annual Meeting of the Association for Computational
+           Linguistics (Volume 1: Long Papers), pages 9426–9439, 2024.
+ [WSZ+ 25] Hao Wen, Yifan Su, Feifei Zhang, Yunxin Liu, Yunhao Liu, Ya-Qin Zhang, and Yuanchun Li.
+           Parathinker: Native parallel thinking as a new paradigm to scale llm test-time compute, 2025.
+[WWA+ 25] Junlin Wang, Jue Wang, Ben Athiwaratkun, Ce Zhang, and James Y Zou. Mixture-of-
+          agents enhances large language model capabilities. In International Conference on Learning
+          Representations, volume 2025, pages 33944–33963, 2025.
+
+
+                                                  19
+[WWS+ 22] Xuezhi Wang, Jason Wei, Dale Schuurmans, Quoc Le, Ed Chi, Sharan Narang, Aakanksha
+          Chowdhery, and Denny Zhou. Self-consistency improves chain of thought reasoning in
+          language models. arXiv preprint arXiv:2203.11171, 2022.
+ [YAL+ 25] Xinyu Yang, Yuwei An, Hongyi Liu, Tianqi Chen, and Beidi Chen. Multiverse: Your language
+           models secretly decide how to parallelize and merge generation, 2025.
+ [YKL+ 26] Mert Yuksekgonul, Daniel Koceja, Xinhao Li, Federico Bianchi, Jed McCaleb, Xiaolong
+           Wang, Jan Kautz, Yejin Choi, James Zou, Carlos Guestrin, et al. Learning to discover at test
+           time. arXiv preprint arXiv:2601.16175, 2026.
+ [YYZ+ 23] Shunyu Yao, Dian Yu, Jeffrey Zhao, Izhak Shafran, Tom Griffiths, Yuan Cao, and Karthik
+           Narasimhan. Tree of thoughts: Deliberate problem solving with large language models.
+           Advances in neural information processing systems, 36:11809–11822, 2023.
+ [YZZ+ 25] Qiying Yu, Zheng Zhang, Ruofei Zhu, Yufeng Yuan, Xiaochen Zuo, Yu Yue, Weinan Dai,
+           Tiantian Fan, Gaohong Liu, Lingjun Liu, Xin Liu, Haibin Lin, Zhiqi Lin, Bole Ma, Guangming
+           Sheng, Yuxuan Tong, Chi Zhang, Mofan Zhang, Wang Zhang, Hang Zhu, Jinhua Zhu, Jiaze
+           Chen, Jiangjie Chen, Chengyi Wang, Hongli Yu, Yuxuan Song, Xiangpeng Wei, Hao Zhou,
+           Jingjing Liu, Wei-Ying Ma, Ya-Qin Zhang, Lin Yan, Mu Qiao, Yonghui Wu, and Mingxuan
+           Wang. Dapo: An open-source llm reinforcement learning system at scale, 2025.
+ [ZCL+ 26] Shang Zhou, Wenhao Chai, Kaiyuan Liu, Huanzhi Mao, Qiuyang Mang, and Jingbo Shang.
+           Opendeepthink: Parallel reasoning via bradley–terry aggregation, 2026.
+
+ [ZDZ+ 25] Yanzhi Zhang, Yitong Duan, Zhaoxi Zhang, Jiyan He, and Shuxin Zheng. Population-evolve:
+           a parallel sampling and evolutionary method for llm math reasoning, 2025.
+ [ZLL+ 25] Chujie Zheng, Shixuan Liu, Mingze Li, Xiong-Hui Chen, Bowen Yu, Chang Gao, Kai Dang,
+           Yuqiong Liu, Rui Men, An Yang, Jingren Zhou, and Junyang Lin. Group sequence policy
+           optimization, 2025.
+
+ [ZSC+ 24] Yusen Zhang, Ruoxi Sun, Yanfei Chen, Tomas Pfister, Rui Zhang, and Sercan Ö Arık. Chain
+           of agents: Large language models collaborating on long-context tasks. Advances in Neural
+           Information Processing Systems, 37:132208–132237, 2024.
+[ZWMG22] Eric Zelikman, Yuhuai Wu, Jesse Mu, and Noah Goodman. Star: Bootstrapping reasoning
+         with reasoning. In S. Koyejo, S. Mohamed, A. Agarwal, D. Belgrave, K. Cho, and A. Oh,
+         editors, Advances in Neural Information Processing Systems, volume 35, pages 15476–15488.
+         Curran Associates, Inc., 2022.
+ [ZZLS22] Zhuosheng Zhang, Aston Zhang, Mu Li, and Alex Smola. Automatic chain of thought
+          prompting in large language models. arXiv preprint arXiv:2210.03493, 2022.
+
+
+
+
+                                                  20
+                                       A.        Implementation Details
+
+   In this section, we discuss various implementation details of our proposed algorithm. We present the
+pseudocode for Spiral in algorithm 1. In our experiments with the Qwen-3-4b model, we found that the
+model’s response length was quite large. To make training feasible on the compute available to us, we
+modified the advantage to discourage response length from growing very rapidly. Concretely, suppose the
+max response length is Lmax and suppose our target response length is Ltarget such that Ltarget < Lmax .
+Then, for any generation y whose length is L, we set
+                                (
+                                  A(x, y)    if A(x, y) < 0, or A(x, y) > 0 and L < Ltarget
+             Amodified (x, y) =                                                                    (10)
+                                  0          if A(x, y) > 0, L > Ltarget
+
+where A(x, y) is the advantage of the generation as computed in algorithm 1. Note that search traces are op-
+timized with set reinforcement learning while aggregation traces are optimized with standard reinforcement
+learning.
+
+Hyperparameters. For Spiral, we sample N1 = 8 search traces per problem, construct K = 4 sets of
+size n = 4, and sample N2 = 4 aggregation traces per problem. Across both levels, the maximum number
+of tokens we allow the model to sample is Lmax = 4096. Altogether, per problem, Spiral samples:
+
+                   |{z } ×
+                 ( 4096             8
+                                   |{z}            4096} ×
+                                             ) + ( |{z                     16
+                                                                          |{z}        ) = 98304 tokens.
+                  Max length   # Search Traces     Max length      # Aggregation Traces
+
+    On the other hand, for GRPO, we sample 12 generations per problem where we allow the model to
+sample at most Lmax = 8192 tokens per problem. For GRPO, since there is no aggregation stage, we allow
+the model to sample all 8192 tokens at once. Per problem, GRPO samples:
+
+                                      |{z } ×
+                                    ( 8192             12
+                                                      |{z}         ) = 98304 tokens.
+                                      Max length   # Generations
+
+   The full set of hyperparameters are are provided in table 1.
+
+                        Parameter                               Value
+                        Base model                              Qwen3-4b-Instruct-2507
+                        Search Traces per prompt                8
+                        Aggregation Traces per set              4
+                        Set size (for set RL)                   4
+                        Number of sets (for set RL)             4
+                        Max prompt length                       1024
+                        Learning rate                           2 × 10−5
+                        KL coefficient                          0.0
+                        Entropy coefficient                     0.0
+                        Rollout temperature                     1.0
+                        Prompts per batch                       256
+                        Max response length                     4096
+                        LoRA Rank                               32
+                        Device                                  Tinker [Lab26]
+
+                                       Table 1: Training hyperparameters.
+
+Prompts. The prompt for the search trace generation is shown in A.1 and the prompt for the aggregation
+trace is shown in A.2. For the aggregation trace, we explicitly ask the model to audit the search traces and
+synthesize the ideas into a correct output, in order to force the model to not generate a completely new
+independent attempt that does not pay attention to the search traces.
+
+
+                                                            21
+Prompt A.1: Search Trace Prompt
+
+{problem}
+
+Please reason step by step, and put your final answer within \boxed{}.
+
+
+
+Prompt A.2: Aggregation Trace Prompt
+
+You are given a problem and several candidate solution traces. Some candidate solutions may
+     be incorrect, incomplete, or truncated.
+
+Problem:
+
+{problem}
+
+Solution 1:
+{candidate_solution 1}
+
+Solution 2:
+{candidate_solution 2}
+
+Solution 3:
+{candidate_solution 3}
+
+Solution 4:
+{candidate_solution 4}
+
+Your task is to audit the candidate traces and then synthesize a correct answer to the
+     original problem.
+
+Follow this process:
+
+1. Briefly audit each candidate trace. Identify promising strategies, equations, intermediate
+      results, or final answers that are explicitly supported by the visible text.
+2. Note any apparent errors or unsupported leaps. If a candidate trace is truncated, use only
+      the claims that are explicitly supported by the visible text.
+3. Check the useful ideas for correctness against the original problem. Do not assume a
+     candidate is correct just because it is confident or because multiple candidates agree.
+4. After the audit, write a line exactly as follows: ### Final Solution:
+5. Under that label, synthesize one coherent, self-contained final solution that can be
+     judged without referring back to the candidates. Combine only the valid parts. If the
+     candidates disagree, resolve the disagreement by reasoning from the original problem.
+
+Put the final answer within \boxed{}.
+
+
+
+
+                                             22
+Algorithm 1 Sequential-Parallel-Aggregative Reinforcement Learning (Spiral)
+Require: Policy πθ , batch of inputs B, number of search traces N1 , set size n, number of sampled sets K,
+    number of aggregation traces per set N2 , reward function r
+ 1: for each input x ∈ B do
+ 2:   Sample search traces     y1 , . . . , yN1 ∼ πθ (· | x)
+      // Consider all Nn1 sets of size n we can construct from these N1 generations.
+                           
+ 3:
+ 4:   // Then, randomly sample K sets from them without replacement
+ 5:   Sample sets G1 , · · · , GK of n unique generations from {y1:N1 } without replacement
+ 6:   for l = 1, · · · , K do
+ 7:      Sample aggregation traces from each set y1Gl , · · · , yN      Gl
+                                                                         2
+                                                                            ∼ πθ (· | x, Gl )
+                                                                           N2
+         Score set Gl using the reward: fspiral (x, Gl ) ← N2 i=1 r(x, yiGl )
+                                                                     1
+                                                                        P
+ 8:                                             b
+ 9:   end for                              PK b
+                                        1
+10:   Compute set baseline b = K              l=1 fspiral (x, Gl )
+11:   Compute set advantage A     c♯ (x, Gl ; fbspiral ) = fbspiral (x, Gl ) − b for l = 1, · · · , K
+12:   // Let G(yj ) be all sampled sets in G1 , · · · , GK that contain yj
+13:   Compute marginal set advantage for each search trace yj where j ∈ {1, · · · , N }
+
+                               \                                  1         X
+                               A♯marg (x, yj ; fbspiral ) :=                         c♯ (x, G; fbspiral )
+                                                                                     A
+                                                               |G(yj )|
+                                                                          G∈G(yj )
+
+
+14:     Compute set-RL gradient for search traces:
+                                               N
+                                               X                          \
+                                 ĝset (x) ←         ∇θ log πθ (yj | x) · A♯marg (x, yj ; fbspiral )
+                                               j=1
+
+
+15:     Compute standard-RL gradient for aggregation traces:
+                                                                                              
+                                N2
+                              K X                                               N2
+                              X                                              1  X
+                  ĝstd (x) ←       ∇θ log πθ (yiGl | x, Gl ) r(x, yiGl ) −        r(x, yjGl )
+                                i=1
+                                                                             N2 j=1
+                                 l=1
+
+
+16:     ĝ(x) ← ĝset (x) + ĝstd (x)
+17: end for
+          1
+             P
+18: ĝ ← |B|  x∈B ĝ(x)
+19: return ĝ
+
+
+
+                                   B.    Spiral with Different Models
+
+    In this section, we discuss how one can optimize two different models, πθ to sample search traces and
+πϕ to sample aggregation traces, using a minor variant of Spiral. The key observation is that, in this case,
+the gradient of eq. (4) is computed as follows:
+
+                                                                                      
+                              J(θ, ϕ) = Ey1:n ∼πθ (·|x) Ey∗ ∼πϕ (·|x,y1:n ) [r(x, y∗ )]
+                                                       h                  i
+                                                         ϕ
+                                      = Ey1:n ∼πθ (·|x) fspiral (x, y1:n ) ,
+
+where
+                                   ϕ
+                                  fspiral (x, y1:n ) = Ey∗ ∼πϕ (·|x,y1:n ) [r(x, y∗ )] .                    (11)
+
+
+
+
+                                                               23
+Taking gradients with respect to the search parameters θ and the aggregation parameters ϕ gives
+
+                                       ∇θ,ϕ J(θ, ϕ) = (∇θ J(θ, ϕ), ∇ϕ J(θ, ϕ)) .
+
+The θ-component is
+                                                         h                   i
+                                                            ϕ
+                          ∇θ J(θ, ϕ) = ∇θ Ey1:n ∼πθ (·|x) fspiral (x, y1:n )
+                                                      h                                      i
+                                                         ϕ
+                                     = Ey1:n ∼πθ (·|x) fspiral (x, y1:n )∇θ log πθ (y1:n | x) .
+                                       |                          {z                         }
+                                                                Term 1: set RL gradient
+
+The ϕ-component is
+                                                                            
+              ∇ϕ J(θ, ϕ) = Ey1:n ∼πθ (·|x) ∇ϕ Ey∗ ∼πϕ (·|x,y1:n ) [r(x, y∗ )]
+                                                                                                  
+                         = Ey1:n ∼πθ (·|x) Ey∗ ∼πϕ (·|x,y1:n ) [r(x, y∗ )∇ϕ log πϕ (y∗ | x, y1:n )] .
+                           |                                    {z                                 }
+                                                              Term 2: standard RL gradient
+
+Therefore,
+                                       h                 i
+                                         ϕ                                                                   
+    ∇θ,ϕ J(θ, ϕ) = (∇θ Ey1:n ∼πθ (·|x) fspiral (x, y1:n ) , Ey1:n ∼πθ (·|x) ∇ϕ Ey∗ ∼πϕ (·|x,y1:n ) [r(x, y∗ )] ).
+                    |                 {z                 } |                      {z                          }
+                                   Term 1: set RL gradient                                Term 2: standard RL gradient
+
+
+
+                                                         C.     Proofs
+
+                                                                                            i.i.d.
+   Proposition 3.1 (Restated) Fix a prompt x, and let y1 , · · · , yN ∼ πθ (· | x) be our independently
+sampled N generations and let f : X × Y ⊕n → R be our set objective. Then,
+                    N
+                    X                        \
+                          ∇θ log πθ (yi | x) A♯marg (x, yi ; f )] = M ∇θ Ey1:n ∼πθ (·|x) N f (x, y1:n ) ,
+                                                                                                      
+               E[
+                    i=1
+
+where M ∈ R>0 is a constant scaling factor that depends on the number of sets we construct. In particular,
+when we sample, uniformly, K sets without replacement from Kall := N  n sets, we have that
+
+                                                                N
+                                                        M=        qK − 1,
+                                                                n
+where
+                                                                   (N −1)n
+                                                                              
+                                                                      K                                N!
+                          qK := Pr (Ci (SK ) > 0) = 1 −             (N )n
+                                                                                  ,   (N )n :=                .
+                                                                                                     (N − n)!
+                                                                          
+                                 SK
+                                                                      K
+Consequently, after also taking expectation over x ∼ D and scaling the learning rate, the estimator is an
+unbiased estimator of the set RL gradient.
+
+Proof. The proof strategy is largely similar to that in [OHR+ 26]. Let
+
+                               S := {(s1 , . . . , sn ) ∈ {1, . . . , N }n | sa ̸= sb if a ̸= b}
+
+be the collection of all ordered tuples of n distinct indices. Define Kall := |S| = (N )n . For an ordered
+tuple S = (s1 , . . . , sn ) ∈ S, we will use the shorthand fS := f (x, ys1 , . . . , ysn ). Now, let T ⊆ S be a
+uniformly sampled subset of size K, sampled without replacement and independently of y1:N . For each
+i ∈ {1, . . . , N }, define                               X
+                                        Ci := Ci (T ) :=      1{i ∈ S}.
+                                                                    S∈T
+
+
+
+
+                                                                 24
+Then, our set-level baseline can be written as
+                                                       1    X
+                                            fbT (x) :=            fS ,
+                                                       K
+                                                            S∈T
+
+and the corresponding normalized marginal set advantage is
+                        \                                    1 X             
+                        A♯marg (x, yi ; f | T ) := 1{Ci > 0}      fS − fbT (x) .
+                                                             Ci
+                                                                   S∈T
+                                                                   i∈S
+
+We will also use the following shorthand for convenience:
+                                           ∇i := ∇θ log πθ (yi | x).
+We first decompose the left-hand side as
+                     "N                            #
+                      X      \♯
+            Ey1:N ,T     ∇i Amarg (x, yi ; f | T )
+                      i=1
+                                                   
+                          N
+                                                                 "N                      #
+                        X                 1  X                    X
+            = Ey1:N ,T      ∇i 1{Ci > 0}        fS  − Ey1:N ,T      ∇i 1{Ci > 0}fbT (x) .
+                                                   
+                         i=1
+                                          Ci                      i=1
+                                             S∈T
+                                             i∈S        |                {z              }
+              |                   {z                }                  Term 2
+                                  Term 1
+
+    We first simplify Term 1. While Ci is the number of sets in T that contain the specific generation ysi ,
+define Gi := {S ∈ S : i ∈ S} to be the collection of ordered tuples containing i. There are n possible
+positions for i, after which the remaining n − 1 coordinates can be filled by an ordered selection from the
+remaining N − 1 indices. Therefore, d := |Gi | = n(N − 1)n−1 . Then, we can rewrite Term 1 as follows:
+
+                                                                           
+                                           N
+                                         X                 1  X
+                      Term 1 = Ey1:N ,T      ∇i 1{Ci > 0}      1{S ∈ T }fS 
+                                                                           
+                                          i=1
+                                                           Ci
+                                                                     S∈S
+                                                                     i∈S
+                                                                          
+                                         N                               
+                                       X       X                 1{S ∈ T } 
+                              = Ey1:N      ∇i   fS ET 1{Ci > 0}
+                                      
+                                                                    Ci
+                                                                           
+                                        i=1      S∈S
+                                                 i∈S
+                                                                  
+                                         N                       
+                                       X       X         1{S ∈ T } 
+                              = Ey1:N      ∇i   fS ET             ,
+                                      
+                                        i=1
+                                                            Ci
+                                                 S∈S
+                                                 i∈S
+                                                           h        i
+                                                                  }
+  Now, note that by uniform sampling of T , the quantity ET 1{S∈T
+                                                              Ci      is the same for every S ∈ Gi .
+Moreover,
+                                                     "               #
+                          X        1{S ∈ T }             X 1{S ∈ T }
+                              ET                = ET
+                                      Ci                       Ci
+                              S∈Gi                                S∈Gi
+
+                                                       = ET [1{Ci > 0}]
+                                                       = qK .
+                                                               }
+In the second line, we simply used the fact that S∈Gi 1{S∈T          Ci
+                                                  P
+                                                           Ci    =C   i
+                                                                        if Ci > 0 (we are suppressing the fact
+that, by definition, we set this term to be 0 if Ci = 0). As such, for every S ∈ Gi , recalling that d = |Gi |,
+we can write:                                             
+                                                 1{S ∈ T }      qK
+                                           ET                =     .
+                                                    Ci           d
+
+                                                       25
+As such, Term 1 can be simplified as follows:
+                                                            
+                                                  N
+                                      qK        X       X
+                             Term 1 =                ∇i   fS 
+                                                            
+                                         Ey1:N 
+                                       d         i=1               S∈S
+                                                                   i∈S
+                                                      "                       #
+                                       qK        X X
+                                     =    Ey1:N      fS     ∇θ log πθ (yi | x)
+                                        d
+                                                 S∈S    i∈S
+                                                    "                          #
+                                       qK X             X
+                                     =         Ey1:N fS     ∇θ log πθ (yi | x) .
+                                        d
+                                             S∈S                   i∈S
+
+    For any fixed ordered tuple S = (s1 , . . . , sn ), the random variables ys1 , . . . , ysn are i.i.d. samples from
+πθ (· | x). Because the ordering of the coordinates in S is retained, the score-function identity gives
+                     "           #                   "                     n
+                                                                                                       #
+                          X                                                X
+               Ey1:N fS       ∇i = Eys1 ,...,ysn f (x, ys1 , . . . , ysn )    ∇θ log πθ (ysr | x)
+                           i∈S                                                   r=1
+
+                                     = ∇θ Ey1:n ∼πθ (·|x) [f (x, y1:n )] .
+
+Therefore,
+                                          qK
+                                 Term 1 =    Kall ∇θ Ey1:n ∼πθ (·|x) [f (x, y1:n )]
+                                           d
+                                          N
+                                         = qK ∇θ Ey1:n ∼πθ (·|x) [f (x, y1:n )] ,
+                                          n
+where we used
+                                          Kall      (N )n     N
+                                               =             = .
+                                           d     n(N − 1)n−1  n
+    Next, we simplify Term 2. Recall that we can write the baseline as:
+                                                           1       X
+                                                 fbT (x) =                fU ,
+                                                           K
+                                                                   U ∈T
+
+we have
+                                         "N                                           #
+                                          X           X                      1{U ∈ T }
+                      Term 2 = Ey1:N             ∇i          fU ET 1{Ci > 0}              .
+                                                                                K
+                                           i=1        U ∈S
+
+   For fixed U ∈ S and fixed i, there are two cases. First, suppose that i ∈ U . Now, if U ∈ T , we
+necessarily have Ci > 0, and therefore
+                                                    
+                                           1{U ∈ T }        1
+                             ET 1{Ci > 0}              =       Pr(U ∈ T )
+                                               K           K T
+                                                            1 K
+                                                       =
+                                                           K Kall
+                                                             1
+                                                       =        .
+                                                           Kall
+Second, suppose that i ∈
+                       / U . In this case, fU is independent of yi , and hence
+
+                                    Ey1:N [fU ∇i ] = Ey1:N [fU ] Eyi [∇i ] = 0.
+
+
+
+
+                                                              26
+It follows that
+                                                       "              #
+                                         1 X                 X
+                               Term 2 =           Ey1:N fU         ∇i
+                                        Kall
+                                             U ∈S            i∈U
+                                         1 X
+                                      =           ∇θ Ey1:n ∼πθ (·|x) [f (x, y1:n )]
+                                        Kall
+                                                     U ∈S
+                                          = ∇θ Ey1:n ∼πθ (·|x) [f (x, y1:n )] .
+
+    Combining Term 1 and Term 2, we obtain
+                                 "N                                           #
+                                  X                     \♯
+                        Ey1:N ,T     ∇θ log πθ (yi | x) Amarg (x, yi ; f | T )
+                                          i=1
+                                             
+                                      N
+                              =         qK − 1 ∇θ Ey1:n ∼πθ (·|x) [f (x, y1:n )] .
+                                      n
+
+Thus,
+                                                       N
+                                                     MK = qK − 1.
+                                                        n
+    It remains to verify the expression for qK . For a fixed index i, the number of ordered tuples in S that do
+not contain i is
+                                                  (N − 1)n .
+Equivalently,
+                               Kall − d = (N )n − n(N − 1)n−1 = (N − 1)n .
+The event Ci = 0 occurs precisely when all K sampled ordered tuples are selected from these (N − 1)n
+tuples. Therefore,
+                                                                   (N −1)n
+                                                           
+                                                                      K
+                                                Pr(Ci = 0) =        (N )n
+                                                                             ,
+                                                T
+                                                                      K
+        a
+            
+where   K       = 0 when K > a. Therefore, we can write
+                                                                         (N −1)n
+                                                                                    
+                                                                            K
+                                        qK = Pr(Ci > 0) = 1 −             (N )n
+                                                                                       .
+                                                 T
+                                                                            K
+
+    Finally, when K = 1,
+                                                             d    n
+                                                     q1 =        = ,
+                                                            Kall  N
+and consequently M1 = 0, as expected because a single sampled tuple has zero advantage relative to its
+own baseline. When N > n and K > 1, we have that:
+                                                                   n
+                                                     qK > q1 =       .
+                                                                   N
+Therefore,
+                                                            N
+                                                 MK =         qK − 1 > 0.
+                                                            n
+
+
+
+
+                                                              27
+

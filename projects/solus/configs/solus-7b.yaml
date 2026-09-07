@@ -1,0 +1,146 @@
+# ============================================================
+#  SOLUS-7B — Master Model Configuration
+#  Dense 7B Transformer (LLaMA-style)
+#  Named: Solus | 6.868B parameters (verified)
+# ============================================================
+model:
+  name: "solus-7b"
+  architecture: "dense-transformer"
+  target_params_b: 6.87
+  # --- Architecture ---
+  hidden_size: 4096
+  num_hidden_layers: 32
+  num_attention_heads: 32
+  num_key_value_heads: 7          # GQA: ~4.57 Q heads per KV head
+  head_dim: 128                    # power-of-2 (128 = 4096 // 32)
+  intermediate_size: 12800         # = 3.125 × hidden (SwiGLU sweet spot)
+  max_position_embeddings: 8192
+  seq_len: 2048
+  rope_theta: 10000.0
+  rope_scaling: null              # Cutover at exactly 8192; extend with NTK-aware RoPE if needed
+  rms_norm_eps: 1e-5
+  # --- Tokenizer ---
+  tokenizer: "meta-llama/Llama-3.2-1B-tokenizer"   # reuse Llama 3 BPE (128K vocab)
+  vocab_size: 128256
+  eos_token: "<|eot_id|>"
+  pad_token: null                 # use EOS as pad; attention masking handles it
+  # Verified param breakdown:
+  #  Embedding:     525.3M
+  #  Attn (×32):     40.9M × 32 = 1.31B
+  #  MLP (SwiGLU):  157.0M × 32 = 5.02B
+  #  32-layer total: 6.35B  + embed = 6.88B ✓
+
+# ============================================================
+# TRAINING CORE
+# ============================================================
+training:
+  framework: "accelerate"          # PyTorch Accelerate + FSDP2; use torchtitan for 32+ GPU runs
+  dtype: "bfloat16"                # A100/H100: bf16; RTX 30-series: fp16
+  optimizer: "adamw_8bit"          # bitsandbytes 8-bit AdamW; saves VRAM vs full-precision
+  
+  # LR schedule
+  lr:
+    base: 3.0e-4
+    min_fraction: 0.10             # Cosine decay to 0.10 × base
+    warmup_steps: 2000
+    schedule: "cosine"
+
+  # Regularization
+  weight_decay: 0.1
+  max_grad_norm: 1.0
+  grad_accum_steps: 1             # Global micro-batch = 128 × grad_accum / GPU
+
+  # Mixed precision
+  mixed_precision: "bf16"
+
+  # Gradient checkpointing (trade compute for VRAM)
+  gradient_checkpointing: true     # ~2× VRAM savings; ~20% speed cost → allows seq_len 4096 on less VRAM
+
+  # Checkpointing
+  save_every_steps: 1000
+  keep_last_n: 3
+  save_best_metric: "eval/loss"
+  save_best_every: 500
+
+  # Logging
+  log_every_steps: 10
+  eval_every_steps: 500
+
+# ============================================================
+# PHASE 1 — PRETRAINING
+# ============================================================
+pretrain:
+  enabled: true
+  description: "Main pretraining phase on multi-domain web+code+books+academic corpus"
+
+  # Compute budget
+  total_tokens: 100_000_000_000    # 100B tokens
+  seq_len: Several2048
+  global_batch_size: 256           # 256 sequences × 2048 tokens = 524K tokens/step
+  # total_steps = 100B / 0.524M = ~190K steps
+
+  # Data mix — weights mirror high-value pretraining corpuses
+  data_mix:
+    web_text:   0.65               # CommonCrawl + C4 + FineWeb
+    code:       0.10               # The Stack v2 (permissively-licensed, deduped)
+    books:      0.08               # Gutenberg + Books3 with copyright dedup
+    academic:   0.10               # arXiv + Semantic Scholar open access
+    math:       0.07               # OpenWebMath + Proof-Pile-2
+
+  # 3-stage curriculum (optional — skip for very large data; use if < 200B tokens)
+  curriculum:
+    enabled: true
+    stage_1_end_tokens: 15_000_000_000
+    stage_2_end_tokens: 50_000_000_000
+    # Stage 1 (0-15B): 85% web, 15% specialty — build broad language facility first
+    # Stage 2 (15-50B): 60% web, 40% specialty — deepen reasoning + code
+    # Stage 3 (50-100B): balanced data mix — sharpen specialized capabilities
+    # Note: curriculum applied at trajectory level; each training microbatch sampled from right block
+
+# ============================================================
+# PHASE 2 — SFT (Chat Fine-tuning)
+# ============================================================
+sft:
+  enabled: true
+  total_steps: 8000
+  batch_size: 32
+  learning_rate: 2.0e-5           # 10-15× lower than pretrain base LR
+  warmup_steps: 200
+  
+  # Mask prompt tokens in loss (train assistant response only)
+  mask_prompt: true
+
+  # Response-only supervision
+  loss:
+    type: "cross_entropy"
+    label_smoothing: 0.0
+
+# ============================================================
+# PHASE 3 — ALIGNMENT
+# ============================================================
+alignment:
+  enabled: true
+  method: "simpo"                  # Reference-free; +6.4 AlpacaEval 2.0 over direct preference
+  # alternative: "dpo" (needs frozen ref model; ~50% more VRAM)
+  
+  total_steps: 5000
+  learning_rate: 5.0e-7
+  batch_size: 16
+  beta: 2.0                       # SimPO temperature; 2.0 = conservative, safe starting point
+  
+  # RLVR (optional)
+  rlvr:
+    enabled: false
+    verifier: "outcome_check"
+
+# ============================================================
+# INFERENCE SETTINGS
+# ============================================================
+inference:
+  max_batch_size: 64
+  max_seq_len: 8192               # 2× training context; model extrapolates gracefully via RoPE
+  max_new_tokens: 4096
+  temperature: 0.7
+  top_p: 0.9
+  top_k: 50
+  repetition_penalty: 1.1

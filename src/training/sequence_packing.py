@@ -11,10 +11,22 @@ References:
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 import torch
 from torch import Tensor
+
+from src.training.tbp_accounting import (
+    BoundarySpan,
+    TBPAccounting,
+    build_boundary_mask,
+    build_memory_boundary_mask,
+    compute_tbp_accounting,
+)
+
+name = __name__
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -33,12 +45,63 @@ class PackedSequence:
         seq_boundaries: Start index (in token_ids) of each sub-sequence.
         labels:         Optional 1D tensor aligned with token_ids; padding positions
                         are filled with -100 so they are ignored by cross-entropy.
+        real_length:    Number of non-padding positions that came from input
+                        sequences. This is tracked explicitly because real token
+                        values may equal pad_token_id.
+        raw_bytes:      UTF-8 byte count for optional TBP accounting (0 if unknown).
+        boundary_mask:  Optional 0/1 mask of token-boundary positions.
+        memory_boundary_mask:
+                        Optional 0/1 mask of memory-span boundary positions.
+        tbp_accounting: Optional TBP throughput/fertility accounting report.
     """
 
     token_ids: Tensor
     position_ids: Tensor
     seq_boundaries: list[int]
     labels: Tensor | None = field(default=None)
+    real_length: int | None = field(default=None)
+    raw_bytes: int = 0
+    boundary_mask: tuple[int, ...] = ()
+    memory_boundary_mask: tuple[int, ...] = ()
+    tbp_accounting: TBPAccounting | None = None
+
+
+def attach_tbp_accounting(
+    packed: PackedSequence,
+    *,
+    raw_text: str | bytes | None = None,
+    boundary_spans: Sequence[BoundarySpan] = (),
+    pad_token_id: int | None = None,
+    elapsed_seconds: float | None = None,
+    flops: float | None = None,
+    boundary_prior_mode: str = "none",
+    metadata: Mapping[str, Any] | None = None,
+) -> PackedSequence:
+    """Attach TBP accounting to an existing packed sequence without re-packing."""
+    token_list = packed.token_ids.tolist()
+    length = len(token_list)
+    accounting = compute_tbp_accounting(
+        token_ids=token_list,
+        raw_text=raw_text,
+        real_length=packed.real_length,
+        pad_token_id=pad_token_id,
+        boundary_spans=boundary_spans,
+        elapsed_seconds=elapsed_seconds,
+        flops=flops,
+        boundary_prior_mode=boundary_prior_mode,
+        metadata=metadata,
+    )
+    return PackedSequence(
+        token_ids=packed.token_ids,
+        position_ids=packed.position_ids,
+        seq_boundaries=packed.seq_boundaries,
+        labels=packed.labels,
+        real_length=packed.real_length,
+        raw_bytes=accounting.raw_bytes_seen,
+        boundary_mask=tuple(build_boundary_mask(length, boundary_spans)),
+        memory_boundary_mask=tuple(build_memory_boundary_mask(length, boundary_spans)),
+        tbp_accounting=accounting,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +223,7 @@ class SequencePacker:
             position_ids=position_ids,
             seq_boundaries=seq_boundaries,
             labels=labels,
+            real_length=real_len,
         )
 
     # ------------------------------------------------------------------
@@ -359,15 +423,13 @@ class PackedBatchCollator:
     ) -> int:
         """Determine number of real (non-padding) tokens in this packed sequence.
 
-        We use position_ids: padding tokens have position_id == 0 and sit after
-        all real tokens. But that's ambiguous when the last real token also has
-        position 0 (single-token sequences). Instead we look at the token_ids
-        directly: the padding region is the suffix filled with pad_token_id
-        beyond the real content.
-
-        Robust approach: count tokens until we hit the first padding suffix.
-        We iterate backwards from max_length.
+        ``PackedSequence.real_length`` is the source of truth when set during
+        packing. The suffix pad-token walk below is only a legacy fallback for
+        older packed sequences that omitted ``real_length``.
         """
+        if ps.real_length is not None:
+            return ps.real_length
+
         tids = ps.token_ids
         L = len(tids)
         # Walk backward to find where real tokens end

@@ -1,0 +1,60 @@
+# sft_difficulty_masking_preregistration.yaml
+# Token-Level Difficulty Masking for Efficient SFT
+id: MASK-SFT-PREREG-v0.1
+status: design_draft
+
+reframed_question: >
+  During SFT, most tokens are fluent continuations with near-zero loss.
+  Only a minority of tokens — decision points — carry real learning signal.
+  Can masking the bottom K% of tokens by loss magnitude during training
+  focus computation on informative tokens and improve sample efficiency?
+
+motivation: >
+  Standard SFT computes loss over all output tokens equally. But in practice,
+  most tokens (e.g., "the", "and", fluent continuations, boilerplate) are
+  already well-learned from pretraining. Only tokens where the model has
+  meaningful uncertainty benefit from SFT gradient updates. Masking easy
+  tokens could concentrate gradient signal on decision points — tool call
+  arguments, reasoning steps, safety boundaries — improving sample efficiency
+  by 30-50%.
+
+design:
+  base: "Aurelius 1.3B or Qwen2.5-0.5B (Colab pilot)"
+  data: "UltraChat 200k (200-500 examples for ablation)"
+  training:
+    learning_rate: 2e-5
+    epochs: 3
+    optimizer: AdamW
+    mask_ratios: [0.0, 0.3, 0.5, 0.7]
+    mask_schedule: "linear decay 0.7 -> 0.3 over training"
+    temperature: 1.0
+    batch_size: 4
+  module: "src/training/loss_masking.py"
+
+hypotheses:
+  H-MASK-0 (efficiency): >
+    "At mask_ratio=0.5, the model reaches the same held-out accuracy as full
+    SFT (mask=0.0) with 30-50% fewer effective tokens trained."
+  H-MASK-1 (decision point focus): >
+    "Gradient norms at decision tokens (tool calls, numbers, structural tokens)
+    are 2-3x higher under masking than under full SFT."
+  H-MASK-2 (decay schedule): >
+    "A decaying schedule (0.7->0.3) outperforms any fixed mask ratio on
+    both convergence speed and final accuracy."
+  H-MASK-3 (fluency preservation): >
+    "Perplexity on held-out general text does not degrade vs full SFT,
+    because easy-token fluency is preserved from pretraining."
+
+primary_endpoint: "Steps-to-target-loss / steps-to-target-accuracy ratio (masked vs full SFT). >1.3 = efficiency gain."
+
+non_claims:
+  - "Masking does not create new capabilities; it only focuses existing gradient budget."
+  - "Very high mask ratios (>0.7) may cause fluency degradation at unseen token combinations."
+  - "The optimal mask ratio is dataset- and model-dependent."
+
+kill_decision_map:
+  - "H-MASK-0 fails: no efficiency gain at mask_ratio=0.5. -> The model needs gradient signal from all tokens. Mechanism does not transfer to this scale. Document and report."
+  - "H-MASK-3 fails: fluency degrades >2% perplexity. -> Masking removes too many tokens. Lower mask_ratio cap to 0.3. If persistent, kill masking for generalist training; may still be useful for tool-only SFT."
+  - "MASK-KILL: accuracy drops >3pp at any mask_ratio tested. -> Token-level difficulty masking is harmful for this model. Report as negative result."
+
+blocks_remaining: [NO_BLOCKS — runnable with src/training/loss_masking.py]

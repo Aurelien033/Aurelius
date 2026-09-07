@@ -1,0 +1,50 @@
+tranche: 4
+version: '0.1'
+description: 'Tranche 4 scales trace collection to gate-ready corpus sizes and runs
+  automated verification procedures. Maintainer sign-off still required for official
+  pass.
+
+  '
+seeds:
+  base_seed: 7070
+  baseline_seed_offset: 100000
+collection:
+  min_traces_per_condition: 200
+  max_steps: 12
+  amc_output_dir: data/ring1_traces/tranche4/amc
+  baseline_output_dir: data/ring1_traces/tranche4/no_memory
+agents:
+  amc:
+    type: integrated
+    config: configs/ring1_tranche2.yaml
+  baseline:
+    type: dummy
+    config: configs/ring1_tranche1.yaml
+model:
+  checkpoint_path: checkpoints/aurelius-1.3b
+  variant: amc_1b_class
+eval:
+  holdout_fraction: 0.2
+  post_success_boost: 0.025
+dreambank:
+  cycles: 3
+  max_seeds: 64
+  min_margin: 0.05
+  max_writes_per_cycle: 8
+  enforce_zero_grad: true
+  temperatures:
+  - 0.2
+  - 0.7
+  - 1.0
+  - 1.3
+  shuffled_control_seed: 424242
+  bank:
+    bank_size: 14
+    bank_dim: 64
+gates:
+  min_traces_per_condition: 200
+  min_ga_success_delta_pp: 5.0
+  min_gb_lift_pp: 1.0
+  replay_tolerance: 0.05
+reproducibility:
+  output_dir: docs/reproducibility/ring1_tranche4

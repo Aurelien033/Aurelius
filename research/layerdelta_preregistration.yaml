@@ -1,0 +1,91 @@
+# layerdelta_preregistration.yaml — LayerDelta substitution (the "soft prune"): cheap learned surrogate
+# for skipped layers, vs identity-skip (delta=0) and vs dense. Queued BEHIND the k=4 verdict (OBL-061).
+# Written 2026-06-17 BEFORE the run. Provenance: the LayerDelta + CCS-admission-law + Representation-
+# Thermostat ideas are from Hermes's "aurelius-deeper-efficiency-blueprint-2026-06-17.md" (C1/M2, §2.1,
+# E5/M8); scoped here against our verified findings (selection arc writeup). The PairGraph/per-task-selector
+# idea from that blueprint is DELIBERATELY EXCLUDED — we already ran it (powered NULL, corr ~0).
+id: LAYERDELTA-PREREG-v0.1
+status: design_draft
+
+motivation: >
+  The selection arc established: identity-skip (a skipped layer outputs Delta=0) is TOO CRUDE — random skip
+  collapses, and the residual contribution of a layer is structured (non-additive). Two cheap SELECTORS are
+  powered nulls (per-layer g_gain; per-task prompt selector). What SURVIVES is GLOBAL structured pruning: a
+  fixed best skip-set >= dense (modest). LayerDelta asks the natural next question: replace the skipped
+  layers not with ZEROS but with a CHEAP LEARNED SURROGATE of their residual delta -> a "soft prune" that
+  could beat identity-skip and cleanly exceed dense, at nearly the same compute saving as skipping.
+
+core_question: >
+  For the GLOBAL best skip-set S (from the k=2/k=4 matrices), does replacing each layer l in S with a cheap
+  learned surrogate Delta_hat_l(h) — trained jointly to distill the dense behavior — beat identity-skip(S)
+  and reach dense, at strictly less compute than dense?
+
+why_global_first_no_certificate: >
+  The CCS/blueprint vision adds a per-INPUT certificate + dense fallback. But the cheap per-input signal it
+  needs is PRECISELY what we found to be a powered null. So Phase 1 deliberately tests the GLOBAL, fixed-set,
+  fixed-surrogate, NO-certificate form — where our evidence says signal lives. A per-input certificate
+  (Phase 2) is gated on Phase 1 succeeding AND on a cheap certificate actually existing (low prior).
+
+design_phase1_GLOBAL:
+  base: "FROZEN-BASE-v1 (Qwen2.5-1.5B, rev 8faed761; 28L, d=1536, GQA 2 KV heads), routable [7..20]. Same gym (F2+F3), validated harness, greedy."
+  target_set_S: "the GLOBAL best skip-set from the matrices: k=2 best pair (e.g. 12-18) AND the k=4 best 4-set (from OBL-061 when it lands). LayerDelta CONSUMES the k=4 result."
+  surrogate: >
+    For each layer l in S: Delta_hat_l(h) = U_l (V_l h) + b_l  (LOW-RANK, rank r in {16,32,64}; compare a full
+    linear d x d as an upper-cap). Replaces the layer's full attention+FFN. NOTE on non-contiguity: our best
+    sets are NON-adjacent (adjacency is bad), so each l in S gets its OWN per-layer surrogate (a joint
+    contiguous-span operator does not apply); the surrogates are trained JOINTLY (below) so they compose.
+  training: >
+    DISTILLATION on the gym TRAIN split (frozen base; only the surrogates train). Run the S-substituted model
+    (each l in S replaced by h + Delta_hat_l(h)); minimize L = KL(dense_final_logits || LD_final_logits)
+    + lambda * sum_{l' after S} || h^dense_{l'} - h^LD_{l'} ||^2 (hidden alignment). Trained JOINTLY across S
+    so the surrogates learn to COMPOSE (directly attacking non-additivity — the thing per-layer marginals
+    could not). Small (k x ~low-rank params); runnable on a short GPU job or possibly local M1.
+  eval: >
+    Held-out task CV (same splits as the matrices). Policies: dense | identity-skip(S) | random-skip(k=|S|) |
+    LayerDelta(S). Pass rate + hidden-cosine/MSE-to-dense + final-logit-KL-to-dense. PAIRED per-task
+    bootstrap CI for the key contrasts (as in kset_selector).
+  monitoring: "Representation Thermostat (Hermes E5/M8): track hidden rank / participation ratio / anisotropy of the LD-substituted model vs dense — reject a surrogate that improves pass-rate but collapses representation (the co-train v1 failure mode)."
+
+hypotheses:
+  H-LD-0 (surrogate beats zeros): "LayerDelta(S) > identity-skip(S), paired CI excludes 0. The learned delta is better than nothing. KILL if not (Hermes falsifier #4: low-rank deltas cannot beat identity skip at equal cost -> kill LayerDelta)."
+  H-LD-1 (THE PRIZE — soft prune >= dense): "LayerDelta(S) >= dense at strictly less compute, paired CI. A cheap-surrogate model no worse than the full model = a real soft-prune win, cleaner than identity-skip's marginal/pool-dependent edge."
+  H-LD-2 (compute is real): "cost(Delta_hat_l) << cost(layer_l). A layer is FFN-dominated (~2*d*d_ff MAC); a rank-r surrogate is ~2*d*r MAC. At r=32, d=1536: surrogate ~0.1M vs layer ~30M MAC/token -> ~99% of the layer's compute saved, ~as cheap as identity-skip but (hypothesis) far more accurate."
+  H-LD-KILL: "LayerDelta(S) <= identity-skip(S) OR cannot reach dense while saving compute -> the layer's function is not cheaply, statically approximable on this base -> the static-substitution lever is exhausted; the live alternatives are skip-native (train routability in) or per-input certificates (Phase 2, low prior)."
+
+phase2_CONTINGENT_certificate:
+  gate: "ONLY if Phase 1 (global) shows LayerDelta >= dense. Adds a per-INPUT cheap certificate z(h) + dense fallback (the CCS controller: use Delta_hat only when upper_conf(quality_residual) <= eps)."
+  honest_caveat: "the certificate is a cheap PER-INPUT signal — exactly the regime of our two powered nulls. Prior is LOW. Phase 2 is a stretch goal, not the headline."
+
+compute_and_value_framing:
+  honest: >
+    Identity-skip ~ no wall-clock speedup (kernel resident). LayerDelta is genuinely different: it REPLACES a
+    layer's matmul with a much smaller matmul -> a real FLOP and wall-clock reduction (and, like a prune, a
+    smaller deployable model). The win above dense (if any) is the prize; even matching dense at less compute
+    is a result. Still: ONE base, F2+F3 gym, static global set -> existence proof, not law.
+  vs_skip_native: "LayerDelta is on the FROZEN base (cheap, fast, runs on the existing harness) — the quick next experiment. Skip-native is from-scratch (the big bet). Complementary: skip-native TRAINS the model to tolerate removed layers; LayerDelta REPLACES removed layers with cheap surrogates. Run LayerDelta first (cheap); it informs whether skip-native is worth it."
+
+prior_and_scope: >
+  Honest prior: MODERATE. The GLOBAL form sidesteps the per-input null, and joint distillation attacks
+  non-additivity directly — but whether a low-rank operator can stand in for a full attention+FFN block (even
+  for the 'safest' layers 18/9/16/10) is the open empirical question. SUCCESS would be a REFINEMENT of the
+  structured-pruning core (a cheaper, more accurate static prune), NOT a revival of cheap dynamic per-token
+  routing — state it that way; do not let a positive be over-read as the original CLM-001.
+
+build_reuse: "reuses the gym/harness, the matrices (for S), feat_extract-style hidden capture, kset_selector-style CV+bootstrap. New: a small distillation trainer for the surrogates + an eval that injects Delta_hat at routable layers (generalize R.IdentitySkip to R.DeltaSub)."
+blocks_remaining: ["k=4 verdict (OBL-061) -> supplies the global best 4-set S", "user ratifies", "build the surrogate trainer + DeltaSub eval", "Phase 1 run (short GPU or local)"]
+RESULT_2026_06_18:
+  status: POSITIVE — H-LD-0 strong, H-LD-1 matches dense. The FIRST clear positive in the selection arc.
+  run: "Kaggle notebook0b2b9081aa, bf16, set {8,15,16,19} (the k=4 best set), rank 32, 150 train / 200 eval (disjoint), 400 steps. KL 0.354 -> ~0.01 (surrogates learned)."
+  eval_heldout_200_bf16: "dense 60.0 | identity_skip 44.0 | random_skip 0.0 | layerdelta 62.5. (dense is 60 here vs matrix's 64 = bf16-vs-fp16 gap; compare within-run.)"
+  verdict: >
+    H-LD-0 = +18.5pp (layerdelta 62.5 vs identity_skip 44): the cheap rank-32 surrogate RECOVERS the entire
+    prune loss and then some. H-LD-1 = +2.5pp (vs dense 60): LayerDelta MATCHES dense (within noise; honest
+    claim = 'matches', not 'beats') at real compute saving (~99% of the 4 layers' matmul replaced by tiny
+    surrogates -> ~10% cheaper decode at matched accuracy). Those 4 layers' residual deltas are LOW-RANK
+    APPROXIMABLE. Generalizes (train/eval disjoint). => identity-skip is exhausted but layer SUBSTITUTION is
+    NOT — a deployable structured-substitution result.
+  caveats: "H-LD-1 within noise (paired CI pending, API throttled); ONE set/base/gym, bf16; completion re-score pending."
+  next: "push the substitution frontier (more layers / k=6,8; bigger rank); out-of-family generalization (MBPP/non-gym); a real depth-substituted kernel for a deployed speedup; replicate the +2.5pp with a paired CI."
+
+decision_map_RESOLVED:
+  - "H-LD-0 + H-LD-1(matches) HELD: a real soft-prune -> [taken] push substitution frontier + generalization + a deployable model. Reframes skip-native: LayerDelta = STATIC global substitution (WORKS); skip-native = DYNAMIC per-input routing (the original thesis, still ~null prior). They are different bets; LayerDelta's success makes skip-native LESS urgent (we now have a working frozen-base efficiency mechanism) but does NOT revive dynamic routing."

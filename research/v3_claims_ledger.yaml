@@ -1,0 +1,216 @@
+# Aurelius V3 Claims Ledger — the honest record of what is measured, refuted, or noise.
+# Seeded 2026-07-07 from the settled research log. Every row: metric, baseline,
+# falsifier, rollback, value, n, status. Loaded/appended by src/eval/truth_surface.py.
+# status: confirmed | refuted | noise | proposed
+#
+# THE LEVER MAP (what the ledger says): capacity + verified selection/search are the
+# only confirmed capability levers; frozen-base routing, SFT-for-capability, RLVR@lr1e-6,
+# zero-shot verifier rerank, and tapered-FFN are refuted/noise.
+
+- claim_id: cap-8b-14b
+  statement: "Bigger base lifts held-out code: Qwen3-14B > Qwen3-8B."
+  metric: "HumanEval pass@1"
+  baseline: "Qwen3-8B base 84.1%"
+  falsifier: "14B <= 8B + noise on a less-saturated bench"
+  rollback: "stay on 8B base"
+  value: 88.4
+  baseline_value: 84.1
+  n: 164
+  status: confirmed
+  bench: humaneval
+  notes: "+4.3pp; the single proven capability lever. MBPP +? wider on the less-saturated bench."
+
+- claim_id: cap-14b-30b-math
+  statement: "30B-A3B >> 14B on reasoning (capacity gap lives on MATH, not saturated code)."
+  metric: "MATH-500 accuracy"
+  baseline: "Qwen3-14B 52.0%"
+  falsifier: "30B-A3B <= 14B + noise on MATH"
+  rollback: "14B base"
+  value: 85.0
+  baseline_value: 52.0
+  n: 100
+  status: confirmed
+  bench: math-500
+  notes: "+33pp — robust to scoring noise. Code gap only +1.5pp MBPP (both at MBPP ceiling)."
+
+- claim_id: bestofn-repair-code
+  statement: "best-of-N + repair harvests the selection gap for free at inference (code)."
+  metric: "MBPP pass@1 -> best-of-8+repair"
+  baseline: "M0 greedy 72.5%"
+  falsifier: "best-of-N <= greedy + noise at matched-quality"
+  rollback: "greedy serving"
+  value: 83.0
+  baseline_value: 72.5
+  n: 200
+  status: confirmed
+  bench: mbpp
+  notes: "+10.5pp free; verifier = caller tests. Shipped in v2 serving."
+
+- claim_id: majn-math
+  statement: "maj@N self-consistency = free math serving lift (verifier-free)."
+  metric: "MATH-L5 maj@8"
+  baseline: "greedy 65.7%"
+  falsifier: "maj@N <= greedy + noise"
+  rollback: "greedy"
+  value: 73.9
+  baseline_value: 65.7
+  n: 134
+  status: confirmed
+  bench: math-l5
+  notes: "+8.2pp; captures ~half the selection gap (oracle 81.3). Shipped v2."
+
+- claim_id: rlvr-beats-base
+  statement: "RLVR (lr 1e-6, gym+MBPP) beats the base on held-out HumanEval."
+  metric: "HumanEval pass@1"
+  baseline: "Qwen3-8B base 84.1%"
+  falsifier: "MBPP shows 0 gain / thinking-ON identical / within noise"
+  rollback: "use the base; retry RLVR with lr ~1e-5"
+  value: 85.4
+  baseline_value: 84.1
+  n: 164
+  status: refuted
+  bench: humaneval
+  notes: "WITHDRAWN 2026-06-25: +1.3pp = 2 problems, SE~4.6 = noise; MBPP 125=125 identical; flip 198/200 same. RLVR adapter ~= no-op (lr 1e-6 + KL). Erratum committed across repo."
+
+- claim_id: sft-lifts-strong-base
+  statement: "verified-trace SFT lifts a strong base's capability."
+  metric: "held-out HumanEval / MBPP"
+  baseline: "14B / 30B base"
+  falsifier: "SFT net within noise of base on full held-out set"
+  rollback: "base as product"
+  value: null
+  baseline_value: null
+  n: null
+  status: refuted
+  bench: multi
+  notes: "5 attempts null/negative: v1-3B flat, weak-teacher -7.9pp, winners-only flywheel -11pp, strong-teacher-8B -0.6, code-SFT-for-math 0.0. SFT = polish not lift on a strong base."
+
+- claim_id: zeroshot-verifier-rerank
+  statement: "zero-shot LLM-as-verifier rerank beats maj@N (math selection)."
+  metric: "MATH-L5 verifier@8"
+  baseline: "maj@8 73.9%"
+  falsifier: "verifier@N <= maj@N"
+  rollback: "ship maj@N"
+  value: 73.1
+  baseline_value: 73.9
+  n: 134
+  status: refuted
+  bench: math-l5
+  notes: "NULL: -0.8 vs maj (1 problem worse). Low-precision over-approval. Needs a LEARNED verifier."
+
+- claim_id: learned-math-verifier-probe
+  statement: "a learned probe (confidence + hidden state) beats maj@N on math selection."
+  metric: "MATH-L5 verifier@8 (held-out)"
+  baseline: "maj@8 70.7%"
+  falsifier: "probe@8 <= maj@8 on held-out"
+  rollback: "ship maj@N (the free lever)"
+  value: 63.4
+  baseline_value: 70.7
+  n: 41
+  status: refuted
+  bench: math-l5
+  notes: "RAN 2026-07-07 (A100, aurelius_v3_math_verifier). NULL: probe 63.4% < maj 70.7% held-out; conf@8 ties maj. Candidate AUC 0.727 (discriminates) but doesn't beat maj as a SELECTOR. The ~7.4pp gap needs a STRONGER verifier (GenRM / PURE min-form PRM / RLVR-rerank) or much more data, not a light probe. QVal preflight: confidence orders weakly (0.640 pairwise) but confidence@8 69.4% < maj 73.9%."
+
+- claim_id: curvature-difficulty-signal
+  statement: "hidden-trajectory curvature (|dH|-family) orders correct>incorrect better than confidence."
+  metric: "MATH-L5 pairwise ordering power"
+  baseline: "confidence 0.640"
+  falsifier: "curvature ordering <= confidence + 5pp; probe ablation dAUC <= +0.02"
+  rollback: "drop curvature; use confidence/hidden only"
+  value: 0.607
+  baseline_value: 0.640
+  n: 134
+  status: refuted
+  bench: math-l5
+  notes: "RAN 2026-07-07. NULL (confirmed the arc prior): k_mean 0.607 / k_max 0.577 / k_aniso 0.522, none beats confidence 0.640; learned-probe ablation dAUC +0.001. |dH| anti-informative AGAIN (E87 family). Curvature-as-signal line CLOSED. Added as a free QVal-gated feature -> died for free = the point."
+
+- claim_id: msc-budget-probe
+  statement: "a cheap greedy-rollout budget predictor routes escalation better than always-cheap/always-escalate."
+  metric: "MATH-L5 solve% at routed cost (held-out)"
+  baseline: "greedy 68.3%"
+  falsifier: "delta <= 2 SE (n=41 -> ~15pp) OR 3-class acc <= majority baseline"
+  rollback: "always-cheap greedy"
+  value: 75.6
+  baseline_value: 68.3
+  n: 41
+  status: noise
+  bench: math-l5
+  notes: "RAN 2026-07-07. Auto-verdict said PASS but it is NOISE: +7.3pp = ~1 SE at n=41 (need ~2SE~15pp); 3-class acc 0.63 < majority baseline 0.68; always-escalate 63.4% < greedy 68.3% (selector is bad -> win is chance routing). Auto-gate too lax (known). Re-test on full MATH train + more samples before believing. conf-only == full probe (drop curvature per E2)."
+
+- claim_id: tapered-ffn
+  statement: "cosine-tapered FFN beats uniform at matched params (from-scratch)."
+  metric: "wikitext-103 val loss"
+  baseline: "uniform FFN 3.7624"
+  falsifier: "tapered within 1% of uniform (no signal at proxy scale)"
+  rollback: "uniform FFN"
+  value: 3.7722
+  baseline_value: 3.7624
+  n: 1
+  status: noise
+  bench: wikitext-103
+  notes: "NEUTRAL: +0.26% worse, within seed noise at 76M proxy. Parked; don't build v3 on it."
+
+- claim_id: vgbs-reasoning
+  statement: "VGBS (PRM=math-verifier) clears greedy +12pp at ~14.5x less compute than best-of-64."
+  metric: "MBPP-500 pass@1"
+  baseline: "greedy"
+  falsifier: "VGBS < greedy +12pp on MBPP-500"
+  rollback: "keep best-of-N"
+  value: null
+  baseline_value: null
+  n: null
+  status: proposed
+  bench: mbpp
+  notes: "BUILT src/eval/vgbs.py (15 tests); cost ratio 14.55x arithmetic-confirmed. NOT YET RUN."
+
+- claim_id: verifier-recursion
+  statement: "VerifierRecursionLoop folds the selection gap into greedy across cycles (compounds)."
+  metric: "held-out solve rate M1 vs M0"
+  baseline: "M0 greedy"
+  falsifier: "solve_rate falls (winners-only trap) or flat; precision collapses"
+  rollback: "ship best-of-N at inference (gap's proven home)"
+  value: null
+  baseline_value: null
+  n: null
+  status: proposed
+  bench: multi
+  notes: "BUILT src/training/verifier_recursion.py (9 tests, winners-only guard). Distinct from -11pp winners-only self-distill. NOT YET RUN."
+
+- claim_id: rsva
+  statement: "RSVA recursive self-verification converges to a fixed point and beats single-pass AND best-of-k sampling on verifiable tasks."
+  metric: "RSVA-k pass@1 vs single-pass vs best-of-k"
+  baseline: "single-pass greedy + best-of-k independent sampling"
+  falsifier: "RSVA-k <= single-pass OR <= best-of-k (merely sampling with extra steps) -> kill, fall back to best-of-N"
+  rollback: "ship best-of-N at inference"
+  value: null
+  baseline_value: null
+  n: null
+  status: proposed
+  bench: verifiable (code/math)
+  notes: "BUILT src/training/rsva.py (RSVALoop + rsva_verdict falsifier gate). Torch-free; callable-injected. Banach fixed-point claim (T422/T381) UNTESTED until run. NOT YET RUN."
+
+- claim_id: hmc
+  statement: "HMC holographic superposition stores mechanisms in a shared parameter space and recovers them by projection (retrieval acc >= 80%)."
+  metric: "mechanism retrieval cosine sim"
+  baseline: "80% retrieval accuracy (Part 3 A.2 threshold)"
+  falsifier: "projection recovers f_i < 80% OR mechanism birth creates noise -> fall back to LoRA specialization"
+  rollback: "LoRA-based mechanism specialization"
+  value: null
+  baseline_value: null
+  n: null
+  status: proposed
+  bench: proxy (numpy W-space)
+  notes: "BUILT src/training/hmc.py (HMC store + birth + hmc_verdict gate). Numpy proxy for the shared W; real wiring = parameter hooks. NOT YET RUN."
+
+- claim_id: fepg
+  statement: "FEPG (min F=E-T*S) matches GRPO final accuracy on verifiable tasks with zero reward-hacking and no mode collapse."
+  metric: "MATH-500 / code-repair accuracy vs GRPO"
+  baseline: "GRPO final accuracy"
+  falsifier: "FEPG < GRPO - noise OR entropy term -> mode collapse -> demote to research-only"
+  rollback: "GRPO / online RL stack"
+  value: null
+  baseline_value: null
+  n: null
+  status: proposed
+  bench: verifiable (math/code)
+  notes: "BUILT src/training/fepg.py (FEPGTrainer + fepg_verdict gate). Torch-free; callable-injected entropy/error/step. Ungameability claim UNTESTED until run. NOT YET RUN."

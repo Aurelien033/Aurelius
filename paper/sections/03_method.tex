@@ -1,0 +1,97 @@
+\section{Method}
+\label{sec:method}
+
+% Evidence: src/model/amc_transformer.py; tests/model/test_amc_transformer_e2e.py
+
+\subsection{Overview}
+
+AMC interleaves multi-head latent attention (MLA) blocks with
+per-layer selective state-space (SSM) working memory, surprise
+prediction, and a differentiable promotion gate that writes to
+episodic (Tier-2) and consolidated (Tier-3) stores under an SDB
+propose--verify--commit contract.
+
+\subsection{Tier-1: Per-Layer SSM Working Memory}
+
+% Evidence: src/model/mamba2_block.py; src/model/amc_ssm_layer.py
+
+For layer $\ell$, the SSM maintains a tensor state
+$h_t^{(\ell)} \in \mathbb{R}^{H \times D \times N}$ (batch, heads,
+head dim, state dim)---not a mean-pooled vector.
+With learned discretization $\Delta_t$ and diagonal $A$,
+zero-order-hold discretization gives
+\begin{equation}
+  \bar{A}_t = \exp(\Delta_t A), \qquad
+  h_t = \bar{A}_t \odot h_{t-1} + x_t \otimes (\Delta_t B_t), \qquad
+  y_t = C_t h_t + D \odot x_t.
+\end{equation}
+Gates $d_t, e_t, w_t \in [0,1]^N$ modulate decay, erase, and write
+(\texttt{AMCGateController}).
+
+\subsection{Surprise Prediction and Stop-Gradient Boundary}
+
+% Evidence: src/model/amc_surprise.py
+
+The surprise score uses the \emph{detached} hidden state as input:
+\begin{equation}
+  s_t^{(\ell)} = \sigma\!\left(f_s\!\left(\operatorname{sg}\!\left[h_t^{(\ell)}\right]\right)\right).
+\end{equation}
+Gradients from the surprise loss do not flow into the main block through
+this head; the SSM and attention paths remain the primary representation learners.
+
+\subsection{Differentiable Promotion Gate}
+
+% Evidence: src/model/amc_promotion.py; tests/model/test_amc_promotion.py
+
+Let $z_t^{\mathrm{soft}}$ be Gumbel-softmax probabilities and
+$z_t^{\mathrm{hard}} \in \{0,1\}$ the hard sample.
+The straight-through store estimator is
+\begin{equation}
+  z_t = z_t^{\mathrm{hard}} - \operatorname{sg}\!\left[z_t^{\mathrm{soft}}\right] + z_t^{\mathrm{soft}},
+\end{equation}
+so the forward pass uses the hard decision while gradients flow through
+$z_t^{\mathrm{soft}}$.
+
+\subsection{Tier-2 Episodic Memory and SDB Contract}
+
+% Evidence: src/memory/sdb_runtime.py; tests/memory/test_sdb_memory_runtime.py
+
+Episodic writes follow
+\begin{equation}
+  \mathrm{propose}(m) \rightarrow \mathrm{verify}(m, e) \rightarrow
+  \mathrm{commit}(m) \;\text{or}\; \mathrm{reject}(m).
+\end{equation}
+Commit requires verification produced by \texttt{runtime.verify()};
+forged verifications, payload mutation after verify, and ID mismatches
+raise errors (fail-closed).
+
+\subsection{Tier-3 Long-Term Trust-Aware Memory}
+
+% Evidence: src/memory/amc_tier3.py; src/agent/consolidation_agent.py
+
+Consolidation moves high-surprise episodic entries into Tier-3 with
+trust level, decay policy, and provenance metadata.
+
+\subsection{Trust-Aware Cache Identity}
+
+% Evidence: src/serving/amc_kv_cache.py; src/memory/amc_runtime_cache.py
+
+Prefix cache keys bind token content, tier, trust state, quarantine flag,
+and revocation epoch so quarantined or revoked entries cannot alias trusted KV.
+
+\subsection{Constitutional Memory Retrieval}
+
+% Evidence: src/agent/constitutional_memory.py
+
+Safety principles are permanent Tier-3 entries (non-evictable, trusted)
+always eligible for retrieval during generation.
+
+\subsection{Training Objectives (Summary)}
+
+% Evidence: src/training/amc_losses.py
+
+\begin{equation}
+  \mathcal{L} = \alpha \mathcal{L}_{\text{SFT}} + \beta \mathcal{L}_{\text{surprise}}
+  + \gamma \mathcal{L}_{\text{consistency}} + \delta \mathcal{L}_{\text{promotion}}.
+\end{equation}
+Separate learning rates apply to the backbone, promotion gate, and surprise head.

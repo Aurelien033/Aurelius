@@ -1,0 +1,1070 @@
+                                                 Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+
+                                                                                           Tianhui Liu 1 Lili Mou 1 2
+
+
+                                                                  Abstract                                      2023), using alternative activation functions (Berariu et al.,
+                                                                                                                2021; Lee et al., 2023; Abbas et al., 2023), controlling the
+                                              Continual learning has become a trending topic in
+                                                                                                                loss landscape sharpness (Lyle et al., 2023), resetting less-
+                                              machine learning. Recent studies have discovered
+                                                                                                                used neurons (Dohare et al., 2024; Sokar et al., 2023), and
+                                              an interesting phenomenon called loss of plastic-
+
+
+
+
+arXiv:2602.09234v2 [cs.LG] 16 Jun 2026
+                                                                                                                selectively forgetting memorized noise (Shin et al., 2024).
+                                              ity, referring to neural networks gradually losing
+                                              the ability to learn new tasks. However, existing                 A common thread across these studies is the use of bench-
+                                              plasticity research largely relies on benchmarks                  marks with abrupt task transitions; e.g., random label as-
+                                              with abrupt task transitions, without examining                   signment, random pixel permutation (Dohare et al., 2024;
+                                              whether the abruptness itself contributes to the                  Lyle et al., 2023; Lewandowski et al., 2024; 2025a). These
+                                              observed plasticity loss. In this paper, we inves-                benchmarks have shaped our understanding of plasticity
+                                              tigate the role of transition abruptness by simu-                 loss, but they mostly assume abrupt task transitions. Such a
+                                              lating gradually changing environments through                    design choice has not been carefully examined. This leaves
+                                              input/output interpolation and task sampling. We                  open an important question of how the abruptness of task
+                                              perform theoretical and empirical analysis, show-                 transitions affects plasticity.
+                                              ing that the severity of plasticity loss is closely
+                                                                                                                It is therefore important to consider whether such contrived
+                                              tied to the abruptness of task transitions, and can
+                                                                                                                setting of abrupt task transitions reflects real-world contin-
+                                              be substantially reduced when the environment
+                                                                                                                ual learning. Consider the evolution of human language.
+                                              changes gradually.
+                                                                                                                Researchers show that the sense of a word may change from
+                                                                                                                time to time, but this happens gradually, as the new and
+                                                                                                                old senses typically co-exist during the change (Kilgarriff,
+                                         1. Introduction                                                        1997; Mitra et al., 2015; Laurino et al., 2023).
+                                         Continual learning has become a trending topic in machine              This distinction matters because real-world non-stationarity
+                                         learning research, where a system incrementally learns from            is rarely abrupt. Consider the evolution of human language.
+                                         non-stationary distributions (Ring, 1997; Ruvolo & Eaton,              Researchers show that the sense of a word may change from
+                                         2013; Shin et al., 2017; Kirkpatrick et al., 2017; Abbas et al.,       time to time, but this happens gradually, as the new and old
+                                         2023). In supervised learning, a system is trained to perform          senses typically co-exist during the change (Kilgarriff, 1997;
+                                         isolated tasks (Thrun, 1998). However, training a system               Mitra et al., 2015; Laurino et al., 2023). For instance, the
+                                         from scratch is onerous and time-consuming, especially for             word “sick” traditionally refers to “illness” in standard En-
+                                         large neural networks (Dean et al., 2012). It would be more            glish; however, it has recently adopted new meanings such
+                                         computationally and economically efficient to incrementally            as “cool” or “crazy” (Mitra et al., 2015). This shift marks a
+                                         adapt them to new tasks.                                               transition from a negative sense to a positive one, with both
+                                         Loss of plasticity is an intriguing phenomenon recently dis-           meanings currently being understood by the general public.
+                                         covered in continual learning, referring to neural networks            In this paper, we investigate the hypothesis that gradually
+                                         gradually losing the ability to learn new tasks (Dohare et al.,        changing environment preserves plasticity. We propose
+                                         2021; 2024; Lyle et al., 2023; Zilly et al., 2021; Abbas et al.,       to perform input/output interpolation or task sampling to
+                                         2023; Lewandowski et al., 2025a). Proposed mitigation                  simulate a gradually changing environment. We vary the de-
+                                         techniques include regularizing the model weights (Zilly               gree of transition abruptness while keeping all other aspects
+                                         et al., 2021; Lewandowski et al., 2024; 2025a; Kumar et al.,           of the benchmark fixed. Our empirical results across four
+                                             1
+                                               Dept. Computing Science & Alberta Machine Intelligence           benchmarks covering both trainability and generalizability
+                                         Institute (Amii), University of Alberta 2 Canada CIFAR AI Chair.       (which are two aspects of plasticity) reveal that plasticity
+                                         Correspondence to: Tianhui Liu <tianhuiliu17@gmail.com>, Lili          loss is highly sensitive to transition abruptness and that
+                                         Mou <doublepower.mou@gmail.com>.                                       neural networks preserve plasticity magnitudes longer than
+                                                                                                                those under abrupt task changes. In addition, we provide
+
+
+                                                                                                            1
+                             Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+theoretical analysis based on the intuition that abrupt task          tasks; to address this, researchers have proposed periodic
+changes cause abrupt shifts in the loss landscape, trapping           optimizer resets (Nikishin et al., 2022; Asadi et al., 2023)
+parameters in poor local optima. In contrast, gradual tran-           and layer normalization (Lyle et al., 2023) to alleviate plas-
+sitions allow the landscape to evolve smoothly, guiding               ticity loss. Prolonged training can also lead to a loss of
+parameters toward better solutions for each new task.                 curvature directions, characterized by rank collapse in the
+                                                                      Hessian, which restricts directions available for future opti-
+Our findings have two practical implications. First, they
+                                                                      mization (Lewandowski et al., 2024). Regularization meth-
+suggest that future plasticity benchmarks should explicitly
+                                                                      ods are proposed to prevent model weights from deviating
+control for transition abruptness, as current benchmarks
+                                                                      from the initial values, for instance, L2 regularization (Ku-
+may overemphasize the severity of plasticity loss relative
+                                                                      mar et al., 2023; Lyle et al., 2022; Dohare et al., 2024),
+to realistic conditions. Second, for scenarios where task
+                                                                      Wasserstein regularization (Lewandowski et al., 2024), and
+transitions are genuinely abrupt (e.g., robots transferred to
+                                                                      spectral regularization (Lewandowski et al., 2025a).
+new environments), our interpolation and task sampling pro-
+tocols offer simple yet effective techniques that effectively         Additionally, loss of generalization in continual learning is
+mitigate plasticity loss.                                             often attributed to memorization. As training progresses,
+                                                                      weight magnitudes increase, and the model tends to overfit–
+2. Related Work                                                       memorizing specific samples from previous tasks rather
+                                                                      than learning generalizable features. The Shrink&Perturb
+Plasticity represents a neural system’s adaptability to new           method (Ash & Adams, 2020) mitigates this by scaling
+environments. This mechanism has been a foundational                  down weight magnitudes and injecting noise to reduce mem-
+subject in neuroscience for decades (Citri & Malenka, 2008;           orization. It aims to force the model selectively forget mem-
+Rodriguez et al., 2009), but has only recently received grow-         orized noise while preserving learned features.
+ing attention in supervised classification and reinforcement
+                                                                      Moreover, recent work shows that carefully designed ac-
+learning (Dohare et al., 2021; 2024; Lyle et al., 2022; Sokar
+                                                                      tivation functions can effectively mitigate plasticity loss.
+et al., 2023).
+                                                                      Examples include Concatenated ReLUs (CReLUs; Ab-
+The loss of plasticity is an intriguing phenomenon observed           bas et al., 2023), Smooth-Leaky activation families (Lillo
+in deep learning models, which can be categorized into two            & Cheney, 2026), and highly trainable deep Fourier fea-
+aspects: the neural network’s ability to train (Dohare et al.,        tures (Lewandowski et al., 2025b).
+2021; 2024; Lyle et al., 2022; Elsayed & Mahmood, 2024;
+                                                                      Several heuristic approaches have also been proposed, in-
+Lewandowski et al., 2024; 2025b;a; Ma et al., 2024), and
+                                                                      cluding smaller batch sizes (Obando Ceron et al., 2023),
+the ability to generalize (Dohare et al., 2024; Ash & Adams,
+                                                                      orthogonal parameter regularization (Chung et al., 2024),
+2020; Zilly et al., 2021; Lewandowski et al., 2025a; Lee
+                                                                      and reducing churn—unintended prediction drift induced
+et al., 2024; Lillo & Cheney, 2026). Early research primarily
+                                                                      by data outside the current batch (Tang et al., 2025).
+focuses on trainability, operating under the assumption that
+minimizing training loss is the principal objective. However,         It is important to notice that existing research on loss of
+Ash & Adams find that neural networks initialized with                plasticity assumes that the tasks change abruptly, which is
+pre-trained weights leads to faster convergence but worse             less realistic in the real world. In our work, we investigate
+generalization (Ash & Adams, 2020). This indicates that the           gradually changing environments, and show that loss of
+network has become trapped in a low-generalization basin,             plasticity becomes less an issue. In addition, simulating
+memorizing without learning robust representations.                   a gradually changing environment by interpolation or task
+                                                                      sampling can be a simple method that mitigates loss of
+Prior studies have hypothesized different underlying causes
+                                                                      plasticity (even if the tasks change abruptly).
+of plasticity loss and proposed corresponding methods to
+preserve it. Loss of plasticity is initially attributed to dor-
+mant neurons (Sokar et al., 2023; Dohare et al., 2024), where         3. Problem Formulation
+the number of inactive neurons increases during training,
+                                                                      The problem of loss of plasticity has recently been ob-
+effectively reducing network capacity. This problem can
+                                                                      served in continual learning when the data distribution in
+be directly mitigated by periodically resetting a subset of
+                                                                      each sequentially coming task is changed rapidly and non-
+the neurons (Frati et al., 2024; Sokar et al., 2023). A sec-
+                                                                      stationarily. In the continual learning literature, the concept
+ond factor is optimizer instability (Lyle et al., 2023), as
+                                                                      of loss of plasticity can refer to either reduced ability to
+standard optimizers like Adam (Kingma & Ba, 2015) and
+                                                                      learn new from new data (loss of trainability) (Dohare et al.,
+stochastic gradient descent (SGD) are designed for station-
+                                                                      2021; Lyle et al., 2022; Elsayed & Mahmood, 2024; Ma
+ary data distributions. In continual learning, the optimizer
+                                                                      et al., 2024), or reduced ability to generalize to unseen data
+state (e.g., momentum) becomes biased toward previous
+                                                                      (loss of generalizability) (Dohare et al., 2024; Ash & Adams,
+
+                                                                  2
+                             Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+2020; Lee et al., 2024; Zilly et al., 2021). Our work investi-       by the modular sum of the permuted values of the current
+                                                                       (t)                   (t−1)
+gates the loss of plasticity problem from the perspective of         (xm,i ) and previous (xm,i ) input tokens, where i is the ith
+both trainability and generalizability.                              non-whitespace letter of xm . Given an input sequence of
+                                                                               (t)                                            (t)
+Let D = {(xm , ym )}M                                                tokens xm = (xi )Lp i=1 , the target sequence of tokens ym is
+                           m=1 be a training dataset where
+xm ∈ Rd is an input sample (e.g., an image with d pixels)            determined by the sequence of modular sum of the permuted
+                                                                                                        (t)
+and ym ∈ Y be the corresponding label. We denote a deep              values of the current character xm,i and the previous charac-
+                                                                          (t−1)         −1     (t)              (t)            (t)
+neural network by a function fθ . The learning algorithm             ter xm,i : π (t)        (ym,i ) = (π (t) (xm,i ) + π (t) (xm,(i−1) ))
+optimizes the parameters by minimizing the loss of each              (mod |V|).
+task, given by minimizeθ E(x,y)∼pt [ℓ(fθ (x), y)]. There are
+different settings in continual learning regarding the avail-
+ability of samples in previous tasks. We adopt the common            4. A Gradually Changing Environment
+setting in the loss of plasticity research, where we assume          While prior work has provided fundamental insights into
+the machine learning model is able to iterate over a task’s          the phenomenon of plasticity loss, it has primarily focused
+samples multiple times in a mini-batch fashion, although the         on settings with abrupt task transitions. However, natu-
+task boundary is not informed (Li et al., 2014; Lewandowski          ral environments and human cognition often evolve in a
+et al., 2024; Lyle et al., 2022).                                    more gradual, continuous manner over time (Mayr, 1970;
+To further illustrate this process, we introduce two popular         Sterelny, 2011). Consequently, the discrete task boundaries
+examples in the previous literature that simulate a continu-         used in existing benchmarks may not fully capture the dy-
+ally changing environment.                                           namics of these incremental changes, leaving it an open
+                                                                     question whether plasticity is similarly compromised in a
+Random Image Labeling. In this environment, the label                gradually changing world.
+of an image is randomly selected from 0, · · · , c where c
+is the number of classes in the dataset. In other words,             In our work, we develop several methods to simulate a
+                                                    (t)
+the dataset of the tth task is D(t) = {(xm , ym )}M      m=1 ,
+                                                                     gradually changing environment. Consider the tth task rep-
+where xm comes from the original image dataset, and                  resented by the dataset D(t) and its subsequent task with
+  (t)
+ym ∈ {0, · · · , c} is randomly sampled. Notice that the             dataset D(t+1) . The simulation of a gradually changing envi-
+label remains fixed within a given task, but is reassigned for       ronment can be accomplished by different ways depending
+each new task.                                                       on the task nature.
+
+Random Pixel Permuting. This environment permutes                    Output Interpolation. For the Random Image Labeling en-
+the image pixels of an image data sample. For each task,             vironments (Dohare et al., 2021; Lewandowski et al., 2024;
+we sample a random permutation π (t) : {1, · · · , d} →              Lyle et al., 2022), the inputs are the same for D(t) and
+{1, · · · , d}, where d is the feature dimension (i.e., the          D(t+1) , but the outputs become new random labels. We
+number of pixels). The permutation π (t) is applied to all           perform label smoothing (Müller et al., 2019) for task inter-
+images for the tth task, which yields the dataset D(t) =             polation. Let αt ∈ [0, 1] be an interpolation coefficient that
+    (t)
+{(xm , ym )}M
+                         (t)                                         starts from 0 and increases uniformly by a constant step size
+                m=1 for xm,i = xm,π (t) (i) .                                         (α )             (t)
+                                                                     s. We have ym t = (1 − 2αt )ym + 2αt u for αt ∈ [0, 12 ],
+To further investigate loss of plasticity in the language mod-                  (t)                                 (t)
+                                                                     where ym is a one-hot vector for target ym and u is a
+els, we propose two text generation environments.
+                                                                     uniform distribution over the discrete target categories; for
+                                                                                              (α )             (t+1)
+Random Seq2Seq. This environment utilizes synthetic                  αt ∈ [ 12 , 1], we have ym t = (2αt − 1)ym + (2 − 2αt )u
+text to evaluate the model’s ability to learn arbitrary se-          and αt+1 = αt + s. In other words, we first anneal D(t) to
+quence mappings. The dataset for the tth task is denoted as          a uniform distribution and then anneal it to D(t+1) , offering
+             (t)  (t)                        (t)
+D(t) = {(xm , ym )}M   m=1 . Both the input xm (of sequence          a smooth transition from the tth task to the (t + 1)th task.
+                           (t)
+length p) and the target ym (of sequence length q) consist
+                                                                     Input Interpolation. For the Random Image Permuting
+of synthetic “words,” where each word is a random character
+                                                                     environment, the input pixel locations are shuffled in a new
+string of fixed length L sampled from a standard alphabet.
+                                                                     task, while the output remains the same. In this setting, we
+Bigram Cipher. To evaluate generalization plasticity, we             propose to gradually interpolate the input (i.e., pixel values)
+                                                                                                 (α)                (t)       (t+1)
+must include certain learnable patterns between input and            by direct averaging, i.e., xm = (1 − α)xm + αxm ,
+output, as opposed to the Random Seq2Seq task. To this                        (t)       (t+1)
+                                                                     where xm and xm          denote the m-th sample under the
+end, we propose the Bigram Cipher environment with a                 previous and new permutations, respectively. As before,
+                   (t)  (t)
+dataset D(t) = {(xm , ym )}Mm=1 . For each task t, we sam-           α is an interpolation coefficient governed by the step size
+ple a random permutation π (t) : V → {0, · · · , |V| − 1}            s, enabling a smooth transition from the previous input
+                                          (t)
+over the vocabulary V. The output tokens ym is determined            structure to the new one.
+
+                                                                 3
+                             Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+It is important to note that input and output interpolations           Our first lemma establishes a basic building block that if
+depend on the nature of the environment. In particular,                the loss landscape is smooth and locally strongly convex
+they require the mth samples in D(t) and D(t+1) to have                in a basin, then GD with a sufficiently small step size will
+certain correspondence. This requirement can be reflected              converge to the basin’s minimizer without escaping it.
+in certain real-world scenarios, such as changes in word               Lemma 4.3 (GD Convergence in a Local Basin). Con-
+meanings, where the input word is fixed while its associated           sider gradient descent (GD) starting from any point in an
+meaning changes. However, such a correspondence may be                 (r, µ)-locally strongly convex domain Dx∗f of a β-smooth
+unrealistic for other contexts, such as robots transitioning
+                                                                       function f , for some β ≥ µ > 0. Let (xk )N        k=1 be
+to a new environment, where the relationship between input
+                                                                       a sequence generated by GD. If the step size satisfies
+and output is less predicable. To address this, we propose a                         r−∥xk −x∗ ∥
+general task interpolation method by annealed sampling.                η ≤ min( β1 , β∥xk −x∗f∥ ), we have (1) xk remains within
+                                                                                              f
+                                                                       the locally strongly convex region Dx∗f in every step k of
+Task Sampling. For more general task transitions, we sam-
+                   ′                                                   GD, and that (2) xk converges to x∗f as k → +∞. See
+ple a subset D(t) of size ⌈(1 − α)M ⌉ from D(t) and a
+               ′                                                       proof in Appendix A.1.
+subset D(t+1) of size ⌊αM ⌋ from D(t+1) to construct a
+                                        ′           ′
+new intermediate dataset Dα = D(t) ∪ D(t+1) . Similar                  The proof follows that for GD convergence in general, ex-
+to input/output interpolation, α ∈ [0, 1] is a coefficient that        cept that we need to check the radius of the locally strongly
+starts by 0 and increments by a certain step size.                     convex region.
+Theoretical Analysis. We now give an explanation of why                We then take a step further from proving convergence for
+a gradually changing environment can mitigate the loss of              a fixed loss function to a changing loss landscape. In our
+plasticity. Intuitively, an abrupt task change causes abrupt           framework, a full task transition (e.g., switching from one
+change of the loss landscape, and thus the parameters may              random labeling to another) is not applied abruptly; instead,
+be trapped in a poor local minimum in the new landscape.               it is decomposed into a sequence of small interpolation steps.
+On the other hand, if the task changes gradually, the loss             We model each such interpolation step (i.e., a micro-task), as
+landscape also evolves gradually. With proper gradient de-             a near-identity linear transformation. The following lemma
+scent, the parameters may remain in the catchment basin                shows that a single micro-task preserves the essential basin
+corresponding to the original local minimum (which is opti-            structure.
+mized for the first task). Thus, the loss of plasticity is much
+alleviated in such a scenario.                                         Lemma 4.4 (Basin Property Preservation). Consider a grad-
+                                                                       ually changing environment where, after one micro-task
+We provide a formal analysis under two standard assump-                change, the loss function evolves from f to g(x) = f (W x),
+tions from optimization theory: smoothness and local strong            with W ∈ Rd×d full-rank. Assume W is near-identity in
+convexity. Smoothness (Def. 4.1) controls how quickly                  the sense that
+the gradient can change, preventing the landscape from ex-
+hibiting arbitrarily sharp curvature. Local strong convexity                           ϵ         1               1
+                                                                        ∥I − W ∥ ≤        ,         ≤ σi (W ) ≤     ,          ∀ i,
+(Def. 4.2) ensures that each local minimum sits inside a                              1+ϵ       1+ϵ             1−ϵ
+basin with sufficient curvature, so that gradient descent can                                                                    (3)
+reliably converge to it. These two properties allow us to
+                                                                       for some ϵ > 0. If f is β-smooth and (r, µ)-strongly convex
+track how the basin geometry evolves for each small inter-
+                                                                       in a local basin Dx∗f , then g is also smooth and locally
+polation step on the loss function.
+                                                                       strongly convex in Dx∗g = { x : W x ∈ Dx∗f }, with β ′ =
+Definition 4.1 (Smoothness). Let f : Rd → R be a differ-
+entiable function. We say f is β-smooth (β > 0), if                    β(1 + ϵ)2 , µ′ = µ(1 + ϵ)−2 , and r′ = r(1 − ϵ). See proof
+                                                                       in Appendix A.2.
+             ∥∇f (x) − ∇f (y)∥ ≤ β∥x − y∥                   (1)
+                                                                       We can then verify that the GD iterates optimizing for the
+for any x, y ∈ Rd .                                                    old loss function f is actually lies inside the new locally
+Definition 4.2 (Locally Strongly Convex). For a (local)                strongly convex basin in g.
+minimizer x∗f of a differentiable function f , we say f is             Lemma 4.5 (Basin Containment). Under on the assump-
+(r, µ)-strongly convex on a convex set Dx∗f ⊇ {x ∈ Rd :                tions in Lemma 4.4, the new locally convex set Dx∗g contains
+∥x − x∗f ∥ < r}, if                                                    x if Dx∗f contains W x. See proof in Appendix A.3.
+                                                µ
+  f (x) ≥ f (x∗f ) + ⟨∇f (x∗f ), xk − x∗f ⟩ +     ∥x − x∗f ∥2          With all three building blocks in place, we can now demon-
+                                                2                      strate that GD-optimized parameters would converge to a
+                                                             (2)
+                                                                       new local optimum of g corresponding to the previous one,
+for any x ∈ Dx∗f . Here, r, µ > 0.                                     i.e., x∗g = W −1 x∗f .
+
+                                                                   4
+                               Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+Lemma 4.6 (Convergence After Single Micro-task Tran-                   We adopt the same benchmarks (Random Image Labeling
+sition). For any 0 < c < r and learning rate η ≤                       and Random Pixel Permuting) widely used in prior plastic-
+          r−∥xk −x∗ ∥
+min( β1 , β∥xk −x∗f∥ ), the GD algorithm converges to the              ity research (Dohare et al., 2021; 2024; Lyle et al., 2023;
+                 f
+                                                                       Lewandowski et al., 2024; 2025a) to ensure that any differ-
+new minimizer x∗g = W −1 x∗f , as long as (1) 1+ϵ      1
+                                                            ≤
+              1                  r−c
+                                                                       ence in observed plasticity is attributable to the transition
+σi (W ) ≤ 1−ϵ with ϵ = r−c+∥x∗ ∥ for all i ∈ [d]; and                  abruptness rather than task complexity. We also introduce
+                                      f
+(2) the current point x is close to the previous minimizer x∗f         two language tasks (Random Seq2Seq and Bigram Cipher)
+satisfying ∥x − x∗f ∥ ≤ c(1 − ϵ). See proof in Appendix A.4.           to extend the study of plasticity to sequence-to-sequence
+                                                                       models, a setting largely unexplored in prior work despite
+Finally, we formally state our main theorem by extending               the growing prominence of language models.
+Lemma 4.6 from a single micro-task to a sequence of micro-
+tasks via induction. The key observation is that after each            As mentioned in §3, the loss of plasticity may happen in the
+micro-task, GD converges to the new basin’s minimizer,                 sense of both trainability (Dohare et al., 2021; Abbas et al.,
+restoring the preconditions needed for the next micro-task.            2023) and generalizability (Ash & Adams, 2020; Lee et al.,
+The theorem implies that plasticity is preserved across arbi-          2024); they are evaluated in §5.1 and §5.2, respectively.
+trarily large task changes—provided each interpolation step            Subsection 5.3 provides additional in-depth analyses.
+is sufficiently small.
+Theorem 4.7. Let f0 be β0 -smooth and (r0 , µ0 )-strongly              5.1. Evaluation of Trainability
+convex. Let x∗0 be a local minimizer of f0 . We assume,                Trainability refers to whether the model parameters can be
+under the gradually changing environment, the sequence of              optimized towards new tasks, and it is a fundamental require-
+loss functions has the form of ft (xt ) = ft−1 (Wt xt−1 ) for          ment for continual learning (Lyle et al., 2023; Lewandowski
+                                             r−c+∥x∗ ∥
+t ≥ 1, where Wt satisfies ∥σi (Wt ) − 1∥ ≤ ∥x∗ t−1   ∥   , ∀i,         et al., 2025a). Loss of trainability refers to a progressive
+                                                    t−1
+                     r−c
+and ∥I − Wt ∥ ≤ 2(r−c)+∥x∗           , for some c ∈ (0, r). Con-       decline in a model’s ability to learn new tasks. Extensive
+                               t−1 ∥
+                                                                       research on this phenomenon has examined the conditions
+sider (xt,k )k∈[N ] being a sequence generated by the GD
+                                                                       under which neural networks fail to retain trainability in
+algorithm while minimizing ft w.r.t. xt , a learning rate
+               r −∥xt,k −x∗  t−1 ∥
+                                                                       non-stationary environments (Lyle et al., 2022; Elsayed &
+η ≤ min( β1t , βt t ∥xt,k −x∗ ∥ ) of the tth micro-task guar-          Mahmood, 2024; Dohare et al., 2024; Ma et al., 2024).
+                         t−1
+
+anties that xt,k converges to x∗t = Wt−1 x∗t−1 . See proof in
+                                                                       Tasks and Models. We experiment with the Random Image
+Appendix A.5.
+                                                                       Labeling and Random Seq2seq environments (task formula-
+In summary, our analysis provides an explanation on why                tions presented in §3). In particular, we consider three image
+a gradually changing environment retains plasticity, as the            benchmark datasets with increasing scales: MNIST (Le-
+parameters learned for the previous task can be optimized              Cun et al., 1998), CIFAR-10 (He et al., 2016), and Tiny-
+to the corresponding optimum for the new task.                         ImageNet (Le & Yang, 2015). Most previous plasticity
+                                                                       studies have used selected datasets for their evaluation of
+                                                                       trainability, but we include all three in our work.
+5. Experiments
+                                                                       For MNIST, we utilize a 4-layer Multi-Layer Perceptron
+In this section, we empirically examine whether a gradu-               (MLP) with 256 units per layer. Each hidden layer consists
+ally changing environment preserves plasticity in continual            of a linear transformation followed by Layer Normalization
+learning. We compare the following two scenarios: (1) A                and a ReLU nonlinearity. For the more complex CIFAR-
+gradually changing environment, and (2) An abruptly chang-             10 and Tiny-ImageNet tasks, we employ an off-the-shelf
+ing environment with and without loss-of-plasticity mitiga-            ResNet-18 (He et al., 2016) architecture comprising four
+tion methods. In particular, we consider widely adopted and            cascaded residual blocks with batch normalization and skip
+recent methods as below:                                               connections, totaling approximately 11 million parameters.
+   • L2 regularization (Krogh & Hertz, 1991), penalizing               For Random Seq2Seq, we adopt a pre-trained T5-small
+     the squared magnitude of weights;                                 model (Raffel et al., 2020) but only keep the first Trans-
+   • Shrink&Perturb (Ash & Adams, 2020), which                         former block. Note that Transformers are powerful models;
+     shrinks the model weights by a constant factor and                however, our Random Seq2Seq is synthetic and relatively
+     adds noise;                                                       simple. Therefore, we restrict the Transformer capacity to
+   • Spectral regularization (Lewandowski et al., 2025a),              study the phenomenon of loss of plasticity in our research
+     which penalizes the singular values of weight matrices;           environment.
+     and
+   • Recycling dormant neurons (ReDO; Sokar et al., 2023),             Results. Figs. 1 and 2 present the trainability results for
+     which periodically re-initializes inactive neurons.               aforementioned benchmarks. Results are averaged over 5
+
+                                                                   5
+                              Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+
+
+
+Figure 1. Trainability for Random Image Labeling tasks on MNIST and CIFAR10 using an MLP or a ResNet-18 model. Output
+interpolation is more effective than other plasticity mitigation methods for these vision benchmarks.
+
+
+
+
+                                                                       Regularization (Lewandowski et al., 2025a) excel only
+                                                                       in the Seq2Seq language task, showing high volatility in
+                                                                       vision benchmarks, particularly on complex datasets like
+                                                                       Tiny-Imagenet. This disparity aligns with the findings
+                                                                       by Bai et al., who suggest that Transformer models are
+                                                                       inherently more robust to perturbations than CNNs (Bai
+                                                                       et al., 2021). L2 regularizated ResNet-18 sustains near
+                                                                       perfect training accuracy for both larger vision benchmarls.
+                                                                       However, the performance of L2 regularized MLP drops
+                                                                       as quickly as an unregularized network, possibly due to
+                                                                       dormant neurons and lack of skip connections. ReDO
+                                                                       provides moderate remedy for plasticity loss in vision
+                                                                       benchmarks via neuronal recycling; however, its perfor-
+Figure 2. Trainability for random Seq2Seq task on synthetic            mance on language tasks is less satisfactory. Previous work
+text using T5-small. Without any mitigators, T5-small has dimin-       suggests that ReDO is ill-suited for Transformers, as the
+ishing train BLEU2 score, suggesting loss of trainability. Task        smooth nature of GELU/SiLU activations and the centering
+sampling is the most effective among all baselines in preserving       effects of Layer Normalization prevent the “dying unit”
+plasticity.
+                                                                       phenomenon that is common in ReLU-based CNNs (Jain
+                                                                       et al., 2026). This phenomenon occurs when a neuron
+seeds; shaded regions span the minimum and maximum                     consistently outputs zero for all inputs, causing its gradient
+across seeds.                                                          to vanish and preventing any further weight updates.
+
+We observe loss of trainability in all the tasks. For example,         Our work investigates how a gradually changing environ-
+in an unregularized MLP on the Random MNIST bench-                     ment affect plasticity. We find that a gradually changing
+mark, the training accuracy collapses from 100% to random              environment—either simulated by output interpolation or
+guessing after just 50 tasks. This is consistent with findings         task sampling—largely preserves the plasticity of neural net-
+in the previous work that neural networks lose plasticity              works. Output interpolation effectively preserves trainability
+with abruptly changing data distribution (Dohare et al.,               in vision benchmarks, while task sampling is effective for
+2021; 2024; Lyle et al., 2022; Elsayed & Mahmood, 2024;                language domains, matching or exceeding the performance
+Ma et al., 2024).                                                      of competing strategies. Admittedly, our simulation of grad-
+                                                                       ually changing environments is not perfect, as we observe
+We compare standard mitigation strategies designed for                 minor plasticity loss after task 35 for Random MNIST. That
+abrupt changes against our proposed simulation of a gradu-             said, our approach still outperforms the best baseline from
+ally changing environment.                                             prior work. These results suggest that simulating a gradually
+Among the mitigation strategies, performance varies                    changing environment is a simple yet theoretically grounded
+significantly by the architecture and benchmarks.                      mitigation for the loss of trainability.
+Shrink&Perturb (Ash & Adams, 2020) and Spectral
+
+                                                                   6
+                             Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+In summary, mitigation methods relying on resetting, reg-
+ularization, or noise injection offer only partial mitigation;
+their strict global constraints on the optimization landscape
+lead to high instability. Further, these methods necessitate
+exhaustive hyperparameter tuning for each distinct environ-
+ment; without precise calibration, their constraints often im-
+pede optimization. In contrast, our simulation of a gradually
+changing environment provides a robust, model-agnostic
+solution that preserves plasticity without requiring extensive
+hyperparameter search.
+
+5.2. Evaluation of Generalizability
+Loss of generalizability refers to a model’s declined ability
+to apply learned knowledge to unseen data. Since train-               Figure 3. Continual learning with Random Pixel Permuting tasks
+ability is a prerequisite for generalization, prior work has          on EMNIST using a 4-layer MLP model. Plasticity loss is mild in
+largely focused on the former (Dohare et al., 2021; Lyle              this setting, yet input interpolation and task sampling still achieve the
+                                                                      highest test accuracy among all methods.
+et al., 2022; Sokar et al., 2023; Lewandowski et al., 2024;
+2025a). However, because high training accuracy can be
+achieved through memorization, it is critical to evaluate
+generalizability to confirm that the model has learned un-
+derlying patterns rather than merely overfitting the training
+set.
+Tasks and Models. We investigate with the Random
+Pixel Permuting and Random Bigram Cipher environments.
+These permutation-based formulations, as detailed in §3,
+are particularly well-suited for evaluating generalizability
+because they can be applied directly to the test splits of the
+benchmarks.
+Results. Figs. 3 and 4 demonstrate the generalizability
+results for the benchmarks described above.                           Figure 4. Generalizability evaluated by test BLEU2 score on Bi-
+For Random Pixel Permuting, we observe only a mild plas-              gram Cipher tasks on customized T5-small model. Task sampling
+                                                                      and Spectral Regularization maintain strong generalizability, while
+ticity loss (test accuracy drops around 10%) for the unregu-          the unregularized baseline, L2, and ReDO degrade significantly.
+larized MLP on the Random EMNIST benchmark with 100
+tasks. Such a mild plasticity loss is consistent with previous
+work (Kumar et al., 2023; Lewandowski et al., 2025a), and
+                                                                      Overall, our proposed simulation of a gradually changing
+is likely because the nature of the task allows the model to
+                                                                      environment preserves generalizability in both the vision
+reuse previously learned image features, thereby facilitating
+                                                                      task and the complex language task, matching the perfor-
+adaptation. In this task, we observe all previously intro-
+                                                                      mance of the best-performing mitigation methods designed
+duced mitigation methods are able to preserve plasticity to
+                                                                      for abrupt task changes. Experiment details are shown in
+a large extent (Fig. 3). Nevertheless, our task sampling and
+                                                                      Appendix B.
+input interpolation (yellow and orange curves) remain the
+two most competitive methods at the 100th task.
+                                                                      5.3. In-Depth Analyses
+In the Random Bigram Cipher task (Fig. 4), we observe a
+drastic loss of generalizability for an unregularized T5-small        Granularity of Interpolation and Sampling. To inves-
+model, with the test BLEU2 score falling to 20% after 50              tigate the relationship between task transition smoothness
+tasks, reflecting high complexity of the task. Consistent             and plasticity, we adopt two distinct experimental setups:
+with our Random Seq2Seq findings, ReDO and L2 regular-                the classic MNIST model with a 4-layer MLP model due to
+ization fail to retain generalizability in the language domain.       limited resources, and the Bigram Cipher setup with a T5-
+Similarly, Spectral Regularization and Shrink&Perturb suc-            small model for generalizability. We adjust the interpolation
+cessfully preserve generalizability, mirroring their strong           coefficient α (as mentioned in §3) from 0 to 1 with a step
+performance on the Random Seq2Seq task.                               size ranging from {0.02, 0.05, 0.1, 0.5}. As seen in Figs. 5a
+                                                                      and 5b, abrupt task change (step size = 1) causes significant
+
+                                                                  7
+                                Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+
+
+
+         (a) Random MNIST Output Interpolation                                               (b) Bigram Cipher Task Sampling
+Figure 5. The effect of granularity of the interpolation step size on plasticity preseivation for both trainability and generalizability
+task. Abrupt task change (s = 1) causes severe plasticity loss in both settings. As the step size decreases, plasticity is progressively better
+preserved, with the finest granularity (s = 0.02) maintaining stable performance throughout. This confirms a monotonic relationship
+between transition smoothness and plasticity retention.
+
+
+
+
+Figure 6. Maximum eigenvalue for Random MNIST and Bigram Cipher. Interpolation and task sampling keep the maximum
+eigenvalue lower across tasks, suggesting a less sharp loss landscape under gradual task transitions.
+
+
+accuracy drop after 20 tasks for Random MNIST and 12                      a trainability task (Random MNIST) and a generalizability
+tasks for Bigram Cipher, respectively, while coarse-grained               task (Bigram Cipher) with this metric. As shown in Fig. 6,
+task change (step size = 0.5) mitigate these declines but                 top-performing methods including Spectral Regularization
+are still not satisfactory. In comparison, step size 0.02 sus-            and Shrink&Perturb have relatively small eigenvalues. No-
+tains near-perfect accuracy throughout the experiments. We                tably, gradual task transitions (through interpolation and
+have also investigated the relationship between interpola-                task sampling) naturally maintain low and stable eigenval-
+tion granularity and four neural network properties includ-               ues without explicit regularization penalties, suggesting a
+ing maximum hessian eigenvalue, relative representation                   smooth landscape for optimization.
+change, dormant unit fraction, and distance from initializa-
+tion (shown in Appendix C). Overall, this analysis verifies               6. Conclusion
+that a gradually changing environment does preserve plas-
+ticity, and that a finer-grained task transition preserves more           Prior plasticity research has largely focused on an artificial
+plasticity.                                                               setup of abrupt task change, which may not fully reflect real-
+                                                                          world continual learning scenarios. In this paper, we em-
+Loss Landscape Geometry. To empirically characterize
+                                                                          phasize that real-world environments often evolve gradually.
+why gradually changing environments retain plasticity, we
+                                                                          We show both theoretically and empirically that plasticity
+analyze from the loss landscape perspective. Previous work
+                                                                          can be preserved in a gradually changing environment. Even
+has shown that the maximum eigenvalue of the weight ma-
+                                                                          for abruptly changing setups, loss of plasticity can be effec-
+trices can be interpreted as the sharpness of the loss land-
+                                                                          tively mitigated by simulating gradual change from task to
+scape (Dinh et al., 2017; Lyle et al., 2023; Lewandowski
+                                                                          task through input/output interpolation and task sampling.
+et al., 2024). We evaluate the loss landscape geometry on
+
+                                                                      8
+                            Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+References                                                          Citri, A. and Malenka, R. C. Synaptic plasticity: Mul-
+                                                                      tiple forms, functions, and mechanisms. Neuropsy-
+Abbas, Z., Zhao, R., Modayil, J., White, A., and Machado,
+                                                                      chopharmacology, 33(1):18–41, 2008. URL https:
+  M. C. Loss of plasticity in continual deep reinforce-
+                                                                      //doi.org/10.1038/sj.npp.1301559.
+  ment learning. In Proceedings of the 2nd Conference
+  on Lifelong Learning Agents, pp. 620–636, 2023. URL               Cohen, G., Afshar, S., Tapson, J., and Van Schaik, A. EM-
+  https://proceedings.mlr.press/v232/a                                NIST: Extending MNIST to handwritten letters. In Pro-
+  bbas23a.html.                                                       ceedings of the 2017 International Joint Conference on
+                                                                      Neural Networks, 2017. URL https://doi.org/
+Asadi, K., Fakoor, R., and Sabach, S. Resetting the opti-             10.1109/IJCNN.2017.7966217.
+  mizer in deep RL: An empirical study. In Proceedings of
+  the 37th Conference on Neural Information Processing              Dean, J., Corrado, G., Monga, R., Chen, K., Devin, M., Mao,
+  Systems, 2023. URL https://openreview.net                           M., Ranzato, M., Senior, A., Tucker, P., Yang, K., and Ng,
+  /forum?id=AnFUgNC3Yc.                                               A. Large scale distributed deep networks. In Advances in
+                                                                      neural information processing systems, volume 25, 2012.
+Ash, J. and Adams, R. P. On warm-starting neural network              URL https://proceedings.neurips.cc/p
+  training. In Advances in Neural Information Processing              aper_files/paper/2012/file/6aca97005
+  Systems, pp. 3884–3894, 2020. URL https://proc                      c68f1206823815f66102863-Paper.pdf.
+  eedings.neurips.cc/paper_files/paper
+  /2020/file/288cd2567953f06e460a33951                              Dinh, L., Pascanu, R., Bengio, S., and Bengio, Y. Sharp
+  f55daaf-Paper.pdf.                                                  minima can generalize for deep nets. In Proceedings of
+                                                                      the 34th International Conference on Machine Learning,
+Bai, Y., Mei, J., Yuille, A. L., and Xie, C. Are transformers         pp. 1019–1028, 2017. URL https://proceeding
+  more robust than CNNs? In Advances in Neural Informa-               s.mlr.press/v70/dinh17b.html.
+  tion Processing Systems, pp. 26831–26843, 2021. URL               Dohare, S., Sutton, R. S., and Mahmood, A. R. Continual
+  https://proceedings.neurips.cc/paper                                backprop: Stochastic gradient descent with persistent
+  _files/paper/2021/file/e19347e1c3ca0                                randomness. arXiv preprint arXiv:2108.06325, 2021.
+  c0b97de5fb3b690855a-Paper.pdf.                                      URL https://arxiv.org/abs/2108.06325.
+Bauschke, H. H., Bolte, J., and Teboulle, M. A descent              Dohare, S., Hernandez-Garcia, J. F., Lan, Q., Rahman, P.,
+  lemma beyond lipschitz gradient continuity: First-order             Mahmood, A. R., and Sutton, R. S. Loss of plasticity
+  methods revisited and applications. Mathematics of Op-              in deep continual learning. Nature, 632(8026):768–774,
+  erations Research, 42(2):330–348, 2017. URL https:                  2024. URL https://doi.org/10.1038/s415
+  //doi.org/10.1287/moor.2016.0817.                                   86-024-07711-7.
+
+Berariu, T., Czarnecki, W., De, S., Bornschein, J., Smith,          Elsayed, M. and Mahmood, A. R. Addressing loss of
+  S. L., Pascanu, R., and Clopath, C. A study on the plastic-         plasticity and catastrophic forgetting in continual learn-
+  ity of neural networks. arXiv preprint arXiv:2106.00042,            ing. In Proceedings of the Twelfth International Confer-
+  2021. URL url={https://arxiv.org/abs/21                             ence on Learning Representations, 2024. URL https:
+  06.00042}.                                                          //openreview.net/forum?id=sKPzAXoylB.
+
+                                                                    Frati, L., Traft, N., Clune, J., and Cheney, N. Reset it
+Bian, A., Li, W., Yuan, H., Yu, C., Wang, M., Zhao, Z., Lu,
+                                                                      and forget it: Relearning last-layer weights improves
+  A., Ji, P., and Feng, T. Make continual learning stronger
+                                                                      continual and transfer learning. In Proceedings of the
+  via c-flat. In Proceedings of the Thirty-eighth Annual
+                                                                      27th European Conference on Artificial Intelligence, pp.
+  Conference on Neural Information Processing Systems,
+                                                                      2998–3005, 2024. URL http://dx.doi.org/10.
+  2024. URL https://openreview.net/forum
+                                                                      3233/FAIA240840.
+  ?id=Dokew2u49m.
+                                                                    Goodfellow, I. J., Mirza, M., Xiao, D., Courville, A., and
+Chung, W., Cherif, L., Meger, D., and Precup, D. Parseval             Bengio, Y. An empirical investigation of catastrophic for-
+  regularization for continual reinforcement learning. In             getting in gradient-based neural networks. arXiv preprint
+  Advances in Neural Information Processing Systems, pp.              arXiv:1312.6211, 2015. URL https://arxiv.or
+  127937–127967, 2024. URL https://proceeding                         g/abs/1312.6211.
+  s.neurips.cc/paper_files/paper/2024/
+  file/e6df4efa20adf8ef9acb80e94072a42                              He, K., Zhang, X., Ren, S., and Sun, J. Deep residual learn-
+  9-Paper-Conference.pdf.                                             ing for image recognition. In Proceedings of the IEEE
+
+                                                                9
+                             Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+  Conference on Computer Vision and Pattern Recognition,              Lee, H., Cho, H., Kim, H., Gwak, D., Kim, J., Choo, J., Yun,
+  2016. URL https://openaccess.thecvf.co                                S.-Y., and Yun, C. PLASTIC: Improving input and label
+  m/content_cvpr_2016/papers/He_Deep_R                                  plasticity for sample efficient reinforcement learning. In
+  esidual_Learning_CVPR_2016_paper.pdf.                                 Proceedings of the 37th Conference on Advances in Neu-
+                                                                        ral Information Processing Systems, pp. 62270–62295,
+Jain, N., Martius, G., and Vlastelica, M. Revive and re-                2023. URL https://openreview.net/forum
+   couple: Mitigating plasticity loss in transformer archi-             ?id=c5WOU7p4ES.
+   tectures. Online Manuscript, 2026. URL https:
+  //openreview.net/forum?id=ahcb5auRmy.                               Lee, H., Cho, H., Kim, H., Kim, D., Min, D., Choo, J., and
+                                                                        Lyle, C. Slow and steady wins the race: Maintaining plas-
+Kilgarriff, A. I don’t believe in word senses. Computers                ticity with hare and tortoise networks. In Proceedings of
+  and the Humanities, 31:91–113, 1997. URL https:                       the 41st International Conference on Machine Learning,
+  //doi.org/10.1023/A:1000583911091.                                    pp. 26416–26438, 2024. URL https://proceedi
+                                                                        ngs.mlr.press/v235/lee24d.html.
+Kingma, D. P. and Ba, J. Adam: A method for stochastic
+                                                                      Lewandowski, A., Tanaka, H., Schuurmans, D., and
+  optimization. In Proceedings of International Conference
+                                                                        Machado, M. C. Directions of curvature as an explanation
+  on Learning Representations, 2015. URL https://do
+                                                                        for loss of plasticity. arXiv preprint arXiv:2312.00246,
+  i.org/10.48550/arXiv.1412.6980.
+                                                                        2024. URL https://arxiv.org/abs/2312.0
+Kirkpatrick, J., Pascanu, R., Rabinowitz, N., Veness, J., Des-          0246.
+  jardins, G., Rusu, A. A., Milan, K., Quan, J., Ramalho, T.,         Lewandowski, A., Bortkiewicz, M., Kumar, S., György,
+  Grabska-Barwinska, A., Hassabis, D., Clopath, C., Ku-                 A., Schuurmans, D., Ostaszewski, M., and Machado,
+  maran, D., and Hadsell, R. Overcoming catastrophic for-               M. C. Learning continually by spectral regularization. In
+  getting in neural networks. National Academy of Sciences,             Proceedings of the Thirteenth International Conference
+  114(13):3521–3526, 2017. URL https://www.pnas                         on Learning Representations, 2025a. URL https://
+  .org/doi/abs/10.1073/pnas.1611835114.                                 openreview.net/forum?id=Hcb2cgPbMg.
+Krogh, A. and Hertz, J. A simple weight decay can improve             Lewandowski, A., Schuurmans, D., and Machado, M. C.
+  generalization. In Advances in Neural Information Pro-                Plastic learning with deep fourier features. In Proceedings
+  cessing Systems, 1991. URL https://proceeding                         of the Thirteenth International Conference on Learning
+  s.neurips.cc/paper_files/paper/1991/                                  Representations, 2025b. URL https://openrevi
+  file/8eefcfdf5990e441f0fb6f3fad709e2                                  ew.net/forum?id=NIkfix2eDQ.
+  1-Paper.pdf.
+                                                                      Li, M., Zhang, T., Chen, Y., and Smola, A. J. Efficient mini-
+Kumar, S., Marklund, H., and Roy, B. V. Maintaining plas-                batch training for stochastic optimization. In Proceedings
+  ticity in continual learning via regenerative regularization.          of the 20th ACM SIGKDD International Conference on
+  In Proceedings of the 3rd Conference on Lifelong Learn-               Knowledge Discovery and Data Mining, pp. 661–670,
+  ing Agents, 2023. URL https://lifelong-ml.                             2014. URL https://doi.org/10.1145/2623
+  cc/Conferences/2024/acceptedpapersan                                   330.2623612.
+  dvideos/conf-2024-26.
+                                                                      Lillo, L. and Cheney, N. Activation function design sustains
+                                                                        plasticity in continual learning. In Proceedings of the 14th
+Laurino, J., De Deyne, S., Cabana, A., and Kaczer, L. The
+                                                                        International Conference on Learning Representations,
+  pandemic in words: Tracking fast semantic changes via a
+                                                                        2026. URL https://openreview.net/forum
+  large-scale word association task. Open Mind, 7:221–239,
+                                                                        ?id=XZf6wObHX4.
+  2023. ISSN 2470-2986. URL https://doi.org/
+  10.1162/opmi_a_00081.                                               Lyle, C., Rowland, M., and Dabney, W. Understanding
+                                                                        and preventing capacity loss in reinforcement learning.
+Le, Y. and Yang, X. Tiny imagenet visual recognition chal-              In Proceedings of International Conference on Learning
+  lenge, 2015. URL https://cs231n.stanford.                             Representations, 2022. URL https://openreview
+  edu/reports/2015/pdfs/yle_project.pdf.                                .net/forum?id=ZkC8wKoLbQ7.
+  CS231N course project, Stanford University.
+                                                                      Lyle, C., Zheng, Z., Nikishin, E., Avila Pires, B., Pascanu,
+LeCun, Y., Cortes, C., and Burges, C. J. C. The MNIST                   R., and Dabney, W. Understanding plasticity in neural
+  database of handwritten digits. http://yann.lecun                     networks. In Proceedings of the 40th International Con-
+  .com/exdb/mnist/, 1998.                                               ference on Machine Learning, pp. 23190–23211, 2023.
+
+                                                                 10
+                            Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+  URL https://proceedings.mlr.press/v2                                  (140):1–67, 2020. URL http://jmlr.org/paper
+  02/lyle23b.html.                                                      s/v21/20-074.html.
+
+Lyle, C., Zheng, Z., Khetarpal, K., van Hasselt, H., Pascanu,         Ring, M. B. Child: A first step towards continual learning.
+  R., Martens, J., and Dabney, W. Disentangling the causes              Machine Learning, 28(1):77–104, 1997. URL https:
+  of plasticity loss in neural networks. In Proceedings of              //doi.org/10.1023/A:1007331723572.
+  the 3rd Conference on Lifelong Learning Agents, 2024.
+  URL https://lifelong-ml.cc/Conferenc                                Rodriguez, J., Olabarria, M., Chvatal, A., and Verkhratsky,
+  es/2024/acceptedpapersandvideos/conf                                  A. Astroglia in dementia and alzheimer’s disease. Cell
+ -2024-9.                                                               Death & Differentiation, 16(3):378–385, 2009. URL
+                                                                        https://doi.org/10.1038/cdd.2008.172.
+Ma, G., Li, L., Zhang, S., Liu, Z., Wang, Z., Chen, Y., Shen,
+ L., Wang, X., and Tao, D. Revisiting plasticity in visual re-
+                                                                      Ruvolo, P. and Eaton, E. ELLA: An efficient lifelong learn-
+ inforcement learning: Data, modules and training stages.
+                                                                        ing algorithm. In Proceedings of the 30th International
+ In Proceedings of the Twelfth International Conference
+                                                                        Conference on Machine Learning, pp. 507–515, 2013.
+ on Learning Representations, 2024. URL https:
+                                                                        URL https://proceedings.mlr.press/v28/
+ //openreview.net/forum?id=0aR1s9YxoL.
+                                                                        ruvolo13.html.
+Mayr, E. Populations, Species, and Evolution: An Abridg-
+ ment of Animal Species and Evolution. Harvard Univer-                Shin, B., Oh, J., Cho, H., and Yun, C. DASH: Warm-starting
+ sity Press, 1970. URL https://archive.org/de                           neural network training in stationary settings without
+ tails/populationsspeci0000unse/page/                                   loss of plasticity. In Proceedings of the 38th Annual
+ 2/mode/2up.                                                            Conference on Neural Information Processing Systems,
+                                                                        2024. URL https://openreview.net/forum
+Mitra, S., Mitra, R., Maity, S. K., Riedl, M., Biemann,                 ?id=IdQuUYMA1t.
+ C., Goyal, P., and Mukherjee, A. An automatic ap-
+ proach to identify word sense changes in text media                  Shin, H., Lee, J. K., Kim, J., and Kim, J. Continual
+ across timescales. Natural Language Engineering, 21                    learning with deep generative replay. In Advances in
+ (5):773–798, 2015. URL https://doi.org/10.1                            Neural Information Processing Systems, 2017. URL
+ 017/S135132491500011X.                                                 https://proceedings.neurips.cc/paper
+                                                                        _files/paper/2017/file/0efbe98067c6c
+Müller, R., Kornblith, S., and Hinton, G. E. When does                 73dba1250d2beaa81f9-Paper.pdf.
+ label smoothing help? In Advances in Neural Information
+ Processing Systems, 2019. URL https://proceedi                       Sokar, G., Agarwal, R., Castro, P. S., and Evci, U. The dor-
+ ngs.neurips.cc/paper_files/paper/201                                   mant neuron phenomenon in deep reinforcement learn-
+ 9/file/f1748d6b0fd9d439f71450117eba2                                   ing. In Proceedings of the 40th International Conference
+ 725-Paper.pdf.                                                         on Machine Learning, pp. 32145–32168, 2023. URL
+                                                                        https://proceedings.mlr.press/v202/s
+Nikishin, E., Schwarzer, M., D’Oro, P., Bacon, P.-L., and
+                                                                        okar23a.html.
+  Courville, A. The primacy bias in deep reinforcement
+  learning. In Proceedings of the 39th International Con-
+                                                                      Sterelny, K. From hominins to humans: How sapiens be-
+  ference on Machine Learning, pp. 16828–16847, 2022.
+                                                                        came behaviourally modern. Philosophical Transactions
+  URL https://proceedings.mlr.press/v1
+                                                                        of the Royal Society B: Biological Sciences, 366(1566):
+  62/nikishin22a.html.
+                                                                        809–822, 2011. URL https://doi.org/10.109
+Obando Ceron, J., Bellemare, M., and Castro, P. S. Small                8/rstb.2010.0301.
+  batch deep reinforcement learning. In Advances in Neural
+ Information Processing Systems, pp. 26003–26024, 2023.               Tang, H., Obando-Ceron, J., Castro, P. S., Courville, A., and
+  URL https://proceedings.neurips.cc/p                                  Berseth, G. Mitigating plasticity loss in continual rein-
+  aper_files/paper/2023/file/528388f1a                                  forcement learning by reducing churn. In Proceedings of
+  d3a481249a97cbb698d2fe6-Paper-Confere                                 the 42nd International Conference on Machine Learning,
+  nce.pdf.                                                              2025. URL https://openreview.net/forum
+                                                                        ?id=EkoFXfSauv.
+Raffel, C., Shazeer, N., Roberts, A., Lee, K., Narang, S.,
+  Matena, M., Zhou, Y., Li, W., and Liu, P. J. Exploring              Thrun, S. Lifelong Learning Algorithms. Springer US, 1998.
+  the limits of transfer learning with a unified text-to-text           URL https://doi.org/10.1007/978-1-461
+  transformer. Journal of Machine Learning Research, 21                 5-5529-2_8.
+
+                                                                 11
+                           Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+Wu, Y., Huang, L.-K., Wang, R., Meng, D., and Wei, Y.
+ Meta continual learning revisited: Implicitly enhancing
+ online hessian approximation via variance reduction. In
+ Proceedings of the Twelfth International Conference on
+ Learning Representations, 2024. URL https://open
+ review.net/forum?id=TpD2aG1h0D.
+Zilly, J., Achille, A., Censi, A., and Frazzoli, E. On
+  plasticity, invariance, and mutually frozen weights in
+  sequential task learning. In Advances in Neural Informa-
+  tion Processing Systems, pp. 12386–12399, 2021. URL
+  https://proceedings.neurips.cc/paper
+  _files/paper/2021/file/6738fc33dd0b3
+  906cd3626397cd247a7-Paper.pdf.
+
+
+
+
+                                                             12
+                            Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+A. Proofs of Lemmas and Theorem
+For completeness, we restate the descent lemma (Bauschke et al., 2017) below.
+Lemma A.1 (Descent Lemma). Let f : Rd → R be a differentiable function. If f is β-smooth, then for all x, y ∈ Rd ,
+
+                                                                               β
+                                     f (y) ≤ f (x) + ⟨∇f (x), y − x⟩ +           ∥y − x∥2 .                           (4)
+                                                                               2
+
+Proof. Let h = y − x and define the scalar function ϕ(t) = f (x + th) for t ∈ [0, 1]. By the fundamental theorem of
+calculus,
+                                                      Z 1
+                                      f (y) − f (x) =     ∇f (x + th)⊤ h dt.                                    (5)
+                                                             0
+
+Subtracting and adding ∇f (x)⊤ h inside the integral gives
+                                                             Z 1
+                                                        ⊤
+                             f (y) − f (x) − ∇f (x) h =              [∇f (x + th) − ∇f (x)]⊤ h dt.                    (6)
+                                                                 0
+
+Since f is β-smooth, we have ∥∇f (x + th) − ∇f (x)∥ ≤ βt∥h∥. Applying the Cauchy–Schwarz inequality and integrating
+over t ∈ [0, 1] yields
+                                                                     Z 1
+                                                                                         β
+                                 f (y) − f (x) − ∇f (x)⊤ h ≤               βt∥h∥2 dt =     ∥h∥2 .                     (7)
+                                                                       0                 2
+
+Rearranging the terms gives the desired result.
+
+A.1. Proof of Lemma 4.3
+Proof. Since x∗f is a local minimizer, ∇f (x∗f ) = 0.
+By β-smoothness (Def. 4.1),
+
+
+
+                                  ∥∇f (xk )∥ = ∥∇f (xk ) − ∇f (x∗f )∥ ≤ β∥xk − x∗f ∥.                                 (8)
+
+Part (1): Iterates remain inside Dx∗f .
+From the GD update xk+1 = xk − η∇f (xk ) and (8),
+
+                                      ∥xk+1 − x∗f ∥ ≤ ∥xk − x∗f ∥ + ηβ∥xk − x∗f ∥.                                    (9)
+
+       r−∥xk −x∗ ∥
+If η ≤ β∥xk −x∗f∥ is the binding constraint, then ηβ∥xk − x∗f ∥ ≤ r − ∥xk − x∗f ∥, so (9) gives ∥xk+1 − x∗f ∥ ≤ r.
+               f
+                                r−∥xk −x∗ ∥
+If instead η ≤ 1/β, then 1/β ≤ β∥xk −x∗f∥ , which implies ∥xk −x∗f ∥ ≤ r/2, so (9) gives ∥xk+1 −x∗f ∥ ≤ 2∥xk −x∗f ∥ ≤ r.
+                                        f
+In both cases xk+1 ∈ Dx∗f , and the claim follows by induction.
+Part (2): Geometric convergence.
+By the descent lemma (Lemma A.1) with y = xk − η∇f (xk ) and η ≤ 1/β:
+
+                                                                   η
+                                              f (xk+1 ) ≤ f (xk ) − ∥∇f (xk )∥2 .                                    (10)
+                                                                   2
+
+From local strong convexity (Def. 4.2) and ∇f (x∗f ) = 0, we have f (xk ) − f (x∗f ) ≥ µ2 ∥xk − x∗f ∥2 , which combined
+with (8) yields ∥∇f (xk )∥2 ≥ 2µ f (xk ) − f (x∗f ) .
+                                                   
+
+
+                                                              13
+                              Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+By substituting we have:
+
+
+                                      f (xk+1 ) − f (x∗f ) ≤ (1 − ηµ) f (xk ) − f (x∗f ) .
+                                                                                        
+                                                                                                                      (11)
+
+
+Since ηµ ≤ µ/β ≤ 1, the function values converge geometrically, which implies geometric decay and xk → x∗f as
+k → ∞.
+
+A.2. Proof of Lemma 4.4
+Proof. The gradient of g is ∇g(x) = W ⊤ ∇f (W x). For any x, y ∈ Rd ,
+
+           ∥∇g(x) − ∇g(y)∥ = ∥W ⊤ (∇f (W x) − ∇f (W y))∥ ≤ ∥W ∥2 · β∥x − y∥ ≤ β(1 + ϵ)2 ∥x − y∥,                      (12)
+
+so g is β ′ = β(1 + ϵ)2 -smooth.
+Next, since f is µ-strongly convex,
+
+                             f (W x) ≥ f (W y) + ∇f (W y)⊤ (W x − W y) + µ2 ∥W (x − y)∥2 .                            (13)
+
+By the chain rule, ∇g(y) = W ⊤ ∇f (W y), and using ∥W (x − y)∥ ≥ σmin (W )∥x − y∥ ≥ 1+ϵ
+                                                                                     1
+                                                                                        ∥x − y∥, we have
+                                                                                   2
+                                   g(x) ≥ g(y) + ∇g(y)⊤ (x − y) + µ2           1
+                                                                              1+ϵ        ∥x − y∥2 .                   (14)
+
+Thus g is (r′ , µ′ )-locally strongly convex with µ′ = µ(1 + ϵ)−2 .
+Finally, for any x satisfying ∥x − x∗g ∥ ≤ r′ = r/σmax (W ), we have ∥W x − x∗f ∥ ≤ ∥W ∥ · ∥x − x∗g ∥ ≤ σmax (W )r′ = r,
+which implies W x ∈ Dx∗f . Hence x ∈ Dx∗g , completing the proof.
+
+A.3. Proof of Lemma 4.5
+Proof. For any x ∈ Rd satisfying ∥x − x∗g ∥ ≤ r(1 − ϵ), we have
+
+                           ∥W x − x∗f ∥ = ∥W (x − x∗g )∥ ≤ ∥W ∥ ∥x − x∗g ∥ ≤ 1−ϵ
+                                                                              1
+                                                                                 r(1 − ϵ) = r.                        (15)
+
+Hence W x ∈ Dx∗f , which implies x ∈ Dx∗g . Therefore, the ball of radius r(1 − ϵ) around x∗g is fully contained within the
+preimage of the strongly convex basin Dx∗f .
+
+A.4. Proof of Lemma 4.6
+Proof. Since g(x) = f (W x), we have ∇g(x) = W ⊤ ∇f (W x). Setting ∇g(x∗g ) = 0 and using full rank of W gives
+∇f (W x∗g ) = 0, hence W x∗g = x∗f and x∗g = W −1 x∗f .
+                                         ϵ
+The near-identity assumption ∥I − W ∥ ≤ 1+ϵ < 1 ensures that the Neumann series W −1 = (I − (I − W ))−1 =
+P∞             k
+  k=0 (I − W ) converges, giving
+                                             ∞
+                                             X                       ∥I − W ∥     ϵ/(1 + ϵ)
+                             ∥W −1 − I∥ =          (I − W )k ≤                  ≤           = ϵ.                      (16)
+                                                                   1 − ∥I − W ∥   1/(1 + ϵ)
+                                             k=1
+
+The shift between the two minimizers is therefore bounded by
+
+                               ∥x∗f − x∗g ∥ = ∥(I − W −1 )x∗f ∥ ≤ ∥I − W −1 ∥ ∥x∗f ∥ ≤ ϵ∥x∗f ∥.                       (17)
+                    r−c
+Substituting ϵ = r−c+∥x ∗ ∥ we have:
+                         f
+
+                                                                                         !
+                                   (r − c)∥x∗f ∥                    ∥x∗f ∥
+                       ϵ∥x∗f ∥ =                  = (r − c) 1 −                              = (r − c)(1 − ϵ).        (18)
+                                   r − c + ∥x∗f ∥               r − c + ∥x∗f ∥
+
+
+                                                              14
+                            Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+
+
+If ∥x − x∗f ∥ ≤ c(1 − ϵ), then by the triangle inequality,
+
+                     ∥x − x∗g ∥ ≤ ∥x − x∗f ∥ + ∥x∗f − x∗g ∥ ≤ c(1 − ϵ) + (r − c)(1 − ϵ) = r(1 − ϵ),                      (19)
+
+which implies x ∈ Dx∗g by Lemma 4.5.
+Since g is β ′ -smooth and (r′ , µ′ )-locally strongly convex in Dx∗g by Lemma 4.4 (with β ′ = β(1 + ϵ)2 , µ′ = µ(1 + ϵ)−2 ,
+                                                                                 r ′ −∥xk −x∗ ∥ 
+r′ = r(1 − ϵ)), Lemma 4.3 ensures that xk → x∗g for a step size η ≤ min β1′ , β ′ ∥xk −x∗g∥ .
+                                                                                           g
+
+Note that the effective smoothness β may vary slightly as the environment evolves.
+
+A.5. Proof of Theorem 4.7
+Proof. We begin with x∗0 , a benign minimizer of f0 , and initialize GD within its locally strongly convex and β-smooth basin
+Dx∗0 . When the loss transitions from f0 to f1 (x) = f0 (W1 x), the spectral constraint on W1 ensures the minimizer shift is
+bounded:
+
+                    ∥x∗0 − x∗1 ∥ = ∥x∗0 − W1−1 x∗0 ∥ ≤ ∥I − W1−1 ∥ ∥x∗0 ∥ ≤ ϵ∥x∗0 ∥ ≤ (r − c)(1 − ϵ).                    (20)
+
+During optimization, Lemma 4.3 guarantees that the GD iterates xk contract toward x∗0 , eventually satisfying ∥xk − x∗0 ∥ ≤
+c(1 − ϵ). By Lemma 4.6, this implies xk ∈ Dx∗1 , ensuring convergence to the new minimizer x∗1 .
+Assuming the result holds for x∗i , the same argument applies recursively to the transition fi 7→ fi+1 under the corre-
+sponding Wi+1 satisfying the same spectral condition. By induction, GD converges to each successive shifted minimizer
+x∗1 , x∗2 , . . . , x∗t .
+
+B. Experiment Details
+B.1. Tasks and Models
+B.1.1. T RAINABILITY E VALUATIONS
+Random Image Labeling. To simulate continual learning, the Random Image Labeling environment randomly relabels
+the images as a new task. It has been studied the most in loss of plasticity research (Lyle et al., 2023; 2024; Lewandowski
+et al., 2024; Kumar et al., 2023; Tang et al., 2025) and is also adopted in our evaluation. In particular, we consider
+three image benchmark datasets with increasing scales: MNIST (LeCun et al., 1998), CIFAR-10 (He et al., 2016), and
+Tiny-ImageNet (Le & Yang, 2015). Most previous plasticity studies have used selected datasets for their evaluation of
+trainability, but we include all three in our work.
+For MNIST, we utilize a 4-layer Multi-Layer Perceptron (MLP) with 256 units per layer. Each hidden layer consists of a
+linear transformation followed by Layer Normalization and a ReLU nonlinearity. For the more complex CIFAR-10 and
+Tiny-ImageNet tasks, we employ an off-the-shelf ResNet-18 (He et al., 2016) architecture comprising four cascaded residual
+blocks with batch normalization and skip connections, totaling approximately 11 million parameters.
+
+Random Seq2Seq. To enrich the evaluation of trainability preservation, we propose a Random Seq2Seq environment,
+following the spirit of Random Image Labeling. The Random Seq2Seq environment presents a similar challenge of
+memorizing arbitrary mappings but in the text domain.
+We adopt a pre-trained T5-small model (Raffel et al., 2020) but only keep the first Transformer block. Note that Transformers
+are powerful models; however, our Random Seq2Seq is synthetic and relatively simple. Therefore, we restrict the Transformer
+capacity to study the phenomenon of loss of plasticity in our research environment.
+
+B.1.2. G ENERALIZABILITY E VALUATIONS
+Random Pixel Permuting: This environment random permutes the input image pixels for each task (Goodfellow et al.,
+2015). It is a standard benchmark for studying generalization in supervised continual learning (Dohare et al., 2024; Kumar
+et al., 2023; Lewandowski et al., 2025a), a protocol we similarly adopt for our evaluation. We evaluate this setting using the
+
+                                                             15
+                            Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+EMNIST dataset (Cohen et al., 2017), employing the same 4-layer MLP model utilized for the Random MNIST Labeling
+task.
+
+Bigram Cipher: To diversify the evaluation of generalization, we propose a Random Bigram Cipher task. This is a
+synthetic sequence-to-sequence task where the output sequence is generated by applying a cipher to each bigram of the
+input sequence. We evaluate this task using the same T5-small architecture employed in the Random Seq2Seq task.
+
+B.2. General Setups
+All experiments were optimized using Adam (Kingma & Ba, 2015). The learning rate was selected via a sweep over
+{0.005, 0.001, 0.0005, 0.0001}; a learning rate of 0.001 performed best for MNIST, Tiny-ImageNet, and the Bigram Cipher
+task, while 0.0001 was optimal for the remaining experiments. All results are averaged over 5 random seeds, and shaded
+regions in figures indicate the standard error of the mean.
+For our interpolation and task sampling methods, the key hyperparameter is the interpolation/sampling granularity, i.e., the
+number of intermediate micro-tasks per task transition. A finer granularity preserves more plasticity (see §5.3). We used 50
+intermediate steps per transition across all experiments for consistency.
+All experiments were conducted on a computer with four NVIDIA Quadro RTX 6000 GPUs (24GB each) and an Intel Core
+i9-9940X CPU (14 cores).
+
+B.3. Baseline and Hyperparameters
+For all baseline methods, hyperparameters were tuned via grid search over the following candidate values:
+
+  • L2/Spectral Regularization Regularization strength is selected from {0.1, 0.01, 10−3 , 10−4 , 10−5 , 10−6 , 10−7 }.
+  • Shrink&Perturb.           The shrink factor is chosen from {0.5, 0.7, 0.9}, and the perturb factor from
+    {0.1, 0.01, 10−3 , 10−4 , 10−5 }.
+  • ReDO. Recycling frequency is selected from {10, 100, 1000, 10000} iterations.
+
+The best configuration for each baseline was selected independently per benchmark.
+
+B.4. Dataset and Training Configurations
+MNIST. 28 × 28 grayscale images from 10 classes. We uniformly sampled 5120 training examples across classes and used
+a batch size of 512. All methods were trained for 240 epochs per task.
+CIFAR-10. 32 × 32 color images from 10 classes. All 50,000 training images were used with a batch size of 250 for 120
+epochs per task.
+Tiny-ImageNet. 64 × 64 color images spanning 200 classes. All 100,000 training samples were used with a batch size of
+250 for 120 epochs per task.
+Random Seq2Seq. Synthetic text generated from the English alphabet with word length 5, input sequence length 50, target
+length 5, and 5120 total samples. Batch size of 64, trained for 900 epochs per task.
+Bigram Cipher. Synthetic text generated from the English alphabet with word length 5, input sequence length 10, target
+length 10. 1280 samples for training and 512 for testing. Batch size of 64, trained for 200 epochs per task.
+
+C. Analysis on Task Transition Granularity
+We investigate how interpolation granularity affects the loss landscape and internal network behavior by tracking three
+properties across different granularity levels. These properties are evaluated on the Random Image Labeling benchmark
+using a 4-layer MLP and the Bigram Cipher benchmark using T5-small.
+
+Maximum Hessian Eigenvalue. The maximum eigenvalue of the Hessian measures the sharpness of the loss land-
+scape (Dinh et al., 2017; Lewandowski et al., 2024; Lyle et al., 2022). A higher value indicates a sharper region, which is
+
+                                                            16
+                                Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+
+
+
+Figure 7. Finer-grained transitions consistently produce lower maximum eigenvalues, indicating that the optimizer remains in a flatter,
+better-conditioned region of the loss landscape. This aligns with our theoretical analysis that under small task changes, the local
+smoothness is preserved.
+
+
+
+
+Figure 8. Smaller interpolation steps better preserve the ability to update hidden representations between consecutive tasks, indicating that
+smoother task changes preserve the network’s ability to learn (plasticity).
+
+
+associated with greater difficulty in optimization. We compute the maximum Hessian eigenvalue at checkpoints after each
+task transition, under varying numbers of interpolation steps. As shown in Figure 7, finer-grained transitions consistently
+produce lower maximum eigenvalues, indicating that the optimizer stays in a flatter, better-conditioned region. This aligns
+with our theoretical analysis that local smoothness is preserved under small task changes.
+
+Relative Representation Change. Relative representation change captures how much hidden representations shift between
+consecutive tasks, serving as a proxy for the network’s ability to learn (Lewandowski et al., 2025a). We measure the change
+in hidden representations between consecutive task checkpoints on a fixed probe batch:
+                                                                                      
+                                                               ∥hcurr (x) − hprev (x)∥
+                                     RelRepChange = Ex                                   ,
+                                                                      ∥hprev (x)∥
+
+where h(x) is the hidden representation of input x. As shown in Figure 8, smaller interpolation steps better preserve the
+ability to update hidden representations between consecutive tasks. This suggests that smoother task transitions maintain the
+network’s capacity to adapt to new data.
+
+Dormant Unit Fraction. A dormant neuron is one that rarely fires, and a high dormant fraction has been linked to
+plasticity loss (Dohare et al., 2024; Sokar et al., 2023). Following Dohare et al. (2024), a unit is dormant if its post-ReLU
+activation is positive on fewer than τ = 1% of probe inputs:
+                                                     PL PH l h 1 PN             l             i
+                                                        l=1   i=1 1 N   n=1  1  ai,n > 0   ≤  τ
+                             DormantFraction =                       PL                           ,
+                                                                             l
+                                                                       l=1 H
+
+                                                                     17
+                              Do Neural Networks Lose Plasticity in a Gradually Changing World?
+
+
+
+
+      Figure 9. Finer-grained transitions consistently have a lower fraction of dormant neurons while also preserving plasticity.
+
+
+where l is the layer index, H l the number of hidden units in layer l, N the number of probe inputs, and ali,n the post-ReLU
+activation of neuron i in layer l on input n. As shown in Figure 9, finer-grained transitions consistently produce fewer
+dormant neurons. This is consistent with prior findings that plasticity loss is closely tied to neuron dormancy, and suggests
+that gradual transitions help keep more of the network active and trainable.
+
+D. Limitations and Future Work
+Our theoretical analysis assumes Lipschitz smoothness and local strong convexity of the loss landscape, which may not hold
+for all real-world tasks. That said, both are standard assumptions in optimization theory. Local strong convexity naturally
+arises near well-behaved minima through second-order Taylor approximation, and Lipschitz smoothness is widely adopted
+in convergence analysis (Bian et al., 2024; Wu et al., 2024).
+For empirical analysis, we evaluated on four tasks, which may not cover all possible environments. However, we selected
+image benchmarks widely used in prior work and additionally proposed more challenging language tasks to broaden the
+evaluation. Therefore, we believe our experiments are broad and convincing.
+In the future, we are interested in automatically pre-determining the appropriate task transition granularity for a given
+continual learning application, rather than relying on manual selection.
+
+
+
+
+                                                                  18
+

@@ -1,0 +1,42 @@
+\section{Experiments}
+\label{sec:experiments}
+
+% Evidence: docs/reproducibility/results/ablation_scores.jsonl; src/eval/ablation.py
+
+\subsection{Experimental Setup}
+
+Four 1B-parameter configurations: \texttt{baseline} (attention-only),
+\texttt{tier1\_only}, \texttt{tier12}, and \texttt{full\_amc}.
+Benchmarks: AMC-Memory, RULER NIAH, LongBench-v2, GSM8K, MMLU-57
+(as implemented in \texttt{src/eval/ablation.py}).
+
+\subsection{Main Ablation (Oracle Smoke)}
+
+Table~\ref{tab:ablation} reports scores from
+\texttt{docs/reproducibility/results/ablation\_scores.jsonl}
+(oracle mode, 5 seeds on AMC-Memory). GSM8K and MMLU show harness
+stubs at 1.0 until \texttt{ABLATION\_MODE=engine} with trained weights.
+
+\input{tables/ablation_main.tex}
+
+\subsection{Adversarial Safety}
+
+Six probes from T29; results in
+\texttt{docs/reproducibility/results/security\_audit.json}
+(Table~\ref{tab:safety}).
+
+\input{tables/safety_audit.tex}
+
+\subsection{Reproducibility and Cross-Validation}
+
+Local smoke cross-validation: PASS
+(\texttt{docs/reproducibility/CROSS\_VALIDATION\_REPORT.md}).
+External clean-machine run: \textbf{NOT EXECUTED}.
+
+\subsection{Limitations}
+
+Oracle ablation does not substitute for trained-checkpoint engine eval.
+Long-context and standard benchmarks remain \textbf{TODO} until GPU training
+and \texttt{ABLATION\_MODE=engine} complete.
+P-values use paired bootstrap in \texttt{src/eval/ablation.py}, not
+two-sample $t$-tests.

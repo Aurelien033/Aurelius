@@ -1,0 +1,50 @@
+\documentclass{article}
+
+\usepackage{hyperref}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{natbib}
+
+\title{The Aurelian Memory Core: \\Per-Layer Differentiable Memory for Transformer Models}
+
+\author{
+  Anonymous Authors \\
+  \texttt{anonymous@anonymous.com}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We present the Aurelian Memory Core (AMC), a per-layer differentiable
+three-tier memory hierarchy integrated into the transformer forward pass.
+Tier-1 working memory uses Mamba-2 selective state spaces; Tier-2 episodic
+memory uses surprise heads and Gumbel-softmax promotion gates; Tier-3
+long-term storage uses trust-aware consolidation with quarantine.
+On AMC-Memory (oracle smoke, $n{=}5$), scores increase from
+TODO\_BASELINE to TODO\_FULL\_AMC (see
+\texttt{ablation\_scores.jsonl}); GPU-trained deltas are
+\textbf{TODO\_DELTA}. Standard-benchmark parity (GSM8K, MMLU) is
+\textbf{TODO\_PVALUE} until engine evaluation on trained
+\textbf{TODO\_MODEL\_SIZE} checkpoints. We release reproducibility
+scripts, a claims ledger, and adversarial safety probes (6/6 PASS in
+structural audit).
+\end{abstract}
+
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_method}
+\input{sections/04_training}
+\input{sections/05_experiments}
+\input{sections/06_analysis}
+\input{sections/07_conclusion}
+\input{sections/appendix}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

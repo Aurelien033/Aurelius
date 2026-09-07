@@ -1,0 +1,38 @@
+# Ring 1 Tranche 1 — Foundation & Trace Infrastructure
+# Minimal config for generating valid 4–12 step traces with memory event logging.
+
+tranche: 1
+version: "0.1"
+description: >
+  Tranche 1 dummy trace collection. No real MCTS, tool calling, or AMC execution.
+  Produces spec-compliant traces for infrastructure validation.
+
+seeds:
+  base_seed: 4242
+
+model:
+  checkpoint_path: checkpoints/aurelius-1.3b
+  variant: amc_1b_class
+
+domains:
+  - multi_hop_qa
+  - tool_use
+  - closed_world_planning
+
+trace_length_distribution:
+  "4": 0.15
+  "6-8": 0.55
+  "10-12": 0.30
+
+layer_range: [8, 12, 16, 20, 24]
+surprise_threshold: 0.65
+
+collection:
+  default_num_traces: 50
+  max_steps: 12
+  output_dir: data/ring1_traces/tranche1
+
+reproducibility:
+  record_git_sha: true
+  record_config_hash: true
+  record_checkpoint_sha256: true

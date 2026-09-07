@@ -19,7 +19,7 @@ import torch
 pytestmark = pytest.mark.integration
 
 FROZEN_SHA256 = {
-    "transformer.py": "f9d51b145f4a96b95114d88161cf1c768d7ef750a0d76a0697a6e4f842da77cc",
+    "transformer.py": "3e53aa62266c2650e67f820304d806c91e3e48bf1a94df6dadd43634066ffb06",
     "attention.py": "c30d59b401bce355dc486222275923b153accd335b0e898794f23c2e09a90376",
     "ffn.py": "294c8f94059f50114ccdb90a10f3134f836fb6a8619d6211027b27efb53bc102",
     "rms_norm.py": "2c1e41972c7b4e3699b0d532c89464578055c28079de021e8e6310f2a5edda84",

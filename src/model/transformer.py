@@ -254,6 +254,7 @@ class AureliusTransformer(nn.Module):
         mask: torch.Tensor | None = None,
         labels: torch.Tensor | None = None,
         past_key_values: list[tuple[torch.Tensor, torch.Tensor] | dict | None] | None = None,
+        skip_layers: list[int] | None = None,
     ) -> tuple[
         torch.Tensor | None,
         torch.Tensor,
@@ -265,6 +266,8 @@ class AureliusTransformer(nn.Module):
             mask: Optional attention mask broadcastable to (B, H, S, S).
             labels: (batch, seq_len) — target token ids for computing cross-entropy loss.
             past_key_values: Per-layer KV cache from a previous forward pass.
+            skip_layers: Optional list of layer indices to IDENTITY-PASS (x unchanged) this forward —
+                the LayerDrop / skip-native hook (default None = run all layers, zero behavior change).
 
         Returns:
             Tuple of (loss, logits, present_key_values):
@@ -292,7 +295,13 @@ class AureliusTransformer(nn.Module):
 
         present_key_values: list[tuple[torch.Tensor, torch.Tensor] | dict | None] = []
         moe_aux_loss = torch.tensor(0.0, device=x.device)
+        skip_set = (
+            set(skip_layers) if skip_layers else set()
+        )  # LayerDrop / skip-native hook (default-off)
         for i, layer in enumerate(self.layers):
+            if i in skip_set:  # identity-pass: x unchanged, no KV produced
+                present_key_values.append(None)
+                continue
             past_kv = (
                 _normalize_past_kv(past_key_values[i])
                 if past_key_values is not None and i < len(past_key_values)
@@ -379,12 +388,7 @@ class AureliusTransformer(nn.Module):
             if temperature != 1.0:
                 next_logits = next_logits / temperature
 
-            sorted_logits, sorted_indices = torch.sort(next_logits, descending=True)
-            cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
-            sorted_mask = (cumulative_probs - sorted_logits.softmax(dim=-1)) >= top_p
-            sorted_mask[..., 0] = False
-            mask = sorted_mask.scatter(1, sorted_indices, sorted_mask)
-            next_logits = next_logits.masked_fill(mask, float("-inf"))
+            next_logits = _apply_top_p_filter(next_logits, top_p)
 
             next_token = torch.multinomial(next_logits.softmax(dim=-1), num_samples=1)
 
@@ -438,13 +442,7 @@ class AureliusTransformer(nn.Module):
             if temperature != 1.0:
                 next_logits = next_logits / temperature
 
-            # Top-p nucleus sampling (same as generate())
-            sorted_logits, sorted_indices = torch.sort(next_logits, descending=True)
-            cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
-            sorted_mask = (cumulative_probs - sorted_logits.softmax(dim=-1)) >= top_p
-            sorted_mask[..., 0] = False
-            mask = sorted_mask.scatter(1, sorted_indices, sorted_mask)
-            next_logits = next_logits.masked_fill(mask, float("-inf"))
+            next_logits = _apply_top_p_filter(next_logits, top_p)
 
             next_token = torch.multinomial(next_logits.softmax(dim=-1), num_samples=1)  # (B, 1)
 

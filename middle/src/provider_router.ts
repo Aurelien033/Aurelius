@@ -248,10 +248,15 @@ export class ProviderRouter {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    if (config.serviceApiKey) {
-      headers.Authorization = `Bearer ${config.serviceApiKey}`;
-      headers['X-Api-Key'] = config.serviceApiKey;
+    // M-17 (CSV): fail closed — do not call upstream without auth when it is
+    // expected. Upstream (gateway) now always requires API key (C-01 fix).
+    if (!config.serviceApiKey) {
+      throw new Error(
+        'BFF serviceApiKey not configured; refusing unauthenticated upstream call (fail-closed, M-17)'
+      );
     }
+    headers.Authorization = `Bearer ${config.serviceApiKey}`;
+    headers['X-Api-Key'] = config.serviceApiKey;
 
     try {
       const controller = new AbortController()

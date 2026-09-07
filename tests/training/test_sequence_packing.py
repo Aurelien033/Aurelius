@@ -6,7 +6,10 @@ from aurelius.training.sequence_packing import (
     PackedSequence,
     PackingStats,
     SequencePacker,
+    attach_tbp_accounting,
 )
+
+from src.training.tbp_accounting import BoundaryKind, BoundarySpan
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -39,6 +42,31 @@ def test_packed_sequence_fields():
     assert hasattr(ps, "seq_boundaries")
     assert hasattr(ps, "labels")
     assert ps.labels is None  # default
+    assert ps.raw_bytes == 0
+    assert ps.boundary_mask == ()
+    assert ps.memory_boundary_mask == ()
+    assert ps.tbp_accounting is None
+
+
+def test_attach_tbp_accounting_preserves_real_length_and_masks():
+    packer = SequencePacker(max_length=6, pad_token_id=0)
+    packed = packer.pack([torch.tensor([0, 0, 0], dtype=torch.long)])[0]
+    enriched = attach_tbp_accounting(
+        packed,
+        raw_text="abc",
+        boundary_spans=[
+            BoundarySpan(start=0, end=2, kind=BoundaryKind.MEMORY_SPAN),
+            BoundarySpan(start=2, end=3, kind=BoundaryKind.TOKEN),
+        ],
+        pad_token_id=0,
+        elapsed_seconds=1.0,
+    )
+    assert enriched.real_length == 3
+    assert enriched.raw_bytes == 3
+    assert enriched.tbp_accounting is not None
+    assert enriched.tbp_accounting.real_tokens_seen == 3
+    assert sum(enriched.memory_boundary_mask) == 2
+    assert enriched.tbp_accounting.effective_sample_throughput == 3.0
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +163,15 @@ def test_pack_empty_input_returns_empty():
     assert result == []
 
 
+def test_pack_records_real_length_for_pad_token_values():
+    packer = SequencePacker(max_length=6, pad_token_id=0)
+    seqs = [torch.tensor([0, 0, 0], dtype=torch.long)]
+
+    result = packer.pack(seqs)
+
+    assert result[0].real_length == 3
+
+
 # ---------------------------------------------------------------------------
 # pack_with_labels
 # ---------------------------------------------------------------------------
@@ -207,6 +244,29 @@ def test_collator_attention_mask_real_tokens():
     batch = [{"input_ids": [1, 2, 3]}]
     out = collator(batch)
     # First 3 tokens should be real (mask=True), rest padding
+    assert out["attention_mask"][0, :3].all()
+    assert not out["attention_mask"][0, 3:].any()
+
+
+def test_collator_attention_mask_counts_real_pad_token_values():
+    packer = SequencePacker(max_length=8, pad_token_id=0)
+    collator = PackedBatchCollator(packer)
+    batch = [{"input_ids": [0, 0, 0]}]
+
+    out = collator(batch)
+
+    assert out["input_ids"][0].tolist() == [0, 0, 0, 0, 0, 0, 0, 0]
+    assert out["attention_mask"][0, :3].all()
+    assert not out["attention_mask"][0, 3:].any()
+
+
+def test_collator_attention_mask_preserves_trailing_real_pad_token_values():
+    packer = SequencePacker(max_length=8, pad_token_id=0)
+    collator = PackedBatchCollator(packer)
+    batch = [{"input_ids": [7, 0, 0]}]
+
+    out = collator(batch)
+
     assert out["attention_mask"][0, :3].all()
     assert not out["attention_mask"][0, 3:].any()
 

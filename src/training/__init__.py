@@ -164,3 +164,47 @@ from src.training.warmup_scheduler import (  # noqa: E402
 )
 
 __all__ += ["SchedulerType", "WarmupScheduler"]
+
+# ---------------------------------------------------------------------------
+# SFT Experiment Modules — ADDITIVE: new training mechanisms for SFT
+# ---------------------------------------------------------------------------
+from src.training.loss_masking import TokenDifficultyMask, TokenMaskConfig  # noqa: E402
+from src.training.contrastive_loss import ContrastiveToolLoss, ContrastiveSFTConfig, NegativeGenerator  # noqa: E402
+from src.training.self_sft_loop import SelfSFTLoop, SelfSFTConfig, SimpleVerifier  # noqa: E402
+from src.training.forgetting_tracker import ForgettingTracker, ForgettingTrackerConfig, ReplayBuffer  # noqa: E402
+from src.training.auxiliary_losses import MultiLossSFT, AuxiliaryLossConfig  # noqa: E402
+from src.training.fim_sft import FIMConverter, FIMSFTConfig  # noqa: E402
+from src.training.adaptive_sft import AdaptiveSFTDataSelector, AdaptiveSFTConfig  # noqa: E402
+from src.training.calibrated_sft import CalibratedSFTLoss, CalibratedSFTConfig  # noqa: E402
+from src.training.self_consistency_sft import SelfConsistencyLoss, SelfConsistencyConfig  # noqa: E402
+from src.training.progressive_self_sft import ProgressiveSelfSFT, ProgressiveSelfSFTConfig  # noqa: E402
+from src.training.data_flywheel import DataFlywheel, FlywheelConfig, InferenceLogger  # noqa: E402
+
+SFT_EXPERIMENT_REGISTRY: dict[str, type] = {
+    "token_difficulty_masking": TokenDifficultyMask,
+    "contrastive_tool_sft": ContrastiveToolLoss,
+    "self_sft_loop": SelfSFTLoop,
+    "forgetting_aware_sft": ForgettingTracker,
+    "multi_loss_auxiliary": MultiLossSFT,
+    "fim_sft": FIMConverter,
+    "adaptive_sft": AdaptiveSFTDataSelector,
+    "calibrated_sft": CalibratedSFTLoss,
+    "self_consistency_sft": SelfConsistencyLoss,
+    "progressive_self_sft": ProgressiveSelfSFT,
+    "data_flywheel": DataFlywheel,
+}
+
+__all__ += [
+    "TokenDifficultyMask", "TokenMaskConfig",
+    "ContrastiveToolLoss", "ContrastiveSFTConfig", "NegativeGenerator",
+    "SelfSFTLoop", "SelfSFTConfig", "SimpleVerifier",
+    "ForgettingTracker", "ForgettingTrackerConfig", "ReplayBuffer",
+    "MultiLossSFT", "AuxiliaryLossConfig",
+    "FIMConverter", "FIMSFTConfig",
+    "AdaptiveSFTDataSelector", "AdaptiveSFTConfig",
+    "CalibratedSFTLoss", "CalibratedSFTConfig",
+    "SelfConsistencyLoss", "SelfConsistencyConfig",
+    "ProgressiveSelfSFT", "ProgressiveSelfSFTConfig",
+    "DataFlywheel", "FlywheelConfig", "InferenceLogger",
+    "SFT_EXPERIMENT_REGISTRY",
+]

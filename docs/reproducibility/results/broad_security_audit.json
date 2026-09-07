@@ -1,0 +1,1944 @@
+{
+  "amc_audit": {
+    "all_passed": true,
+    "passed": 6,
+    "results": [
+      {
+        "note": "",
+        "status": "PASS",
+        "test": "forge_verification"
+      },
+      {
+        "note": "",
+        "status": "PASS",
+        "test": "mutation_after_verify"
+      },
+      {
+        "note": "",
+        "status": "PASS",
+        "test": "secret_leakage"
+      },
+      {
+        "note": "confidence gate works; source trust not yet implemented",
+        "status": "PASS",
+        "test": "memory_poisoning"
+      },
+      {
+        "note": "",
+        "status": "PASS",
+        "test": "constitutional_integrity"
+      },
+      {
+        "note": "",
+        "status": "PASS",
+        "test": "replay_chain"
+      }
+    ],
+    "total": 6
+  },
+  "bandit_output_excerpt": "{\n  \"errors\": [],\n  \"generated_at\": \"2026-05-28T12:05:35Z\",\n  \"metrics\": {\n    \"_totals\": {\n      \"CONFIDENCE.HIGH\": 486,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 50,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 535,\n      \"SEVERITY.MEDIUM\": 1,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 404140,\n      \"nosec\": 7,\n      \"skipped_tests\": 28\n    },\n    \"agent/__init__.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 7,\n      \"nosec\": 0,\n      \"skipped_tests\": 0\n    },\n    \"agent/absolute_zero.py\": {\n      \"CONFIDENCE.HIGH\": 0,\n      \"CONFIDENCE.LOW\": 0,\n      \"CONFIDENCE.MEDIUM\": 0,\n      \"CONFIDENCE.UNDEFINED\": 0,\n      \"SEVERITY.HIGH\": 0,\n      \"SEVERITY.LOW\": 0,\n      \"SEVERITY.MEDIUM\": 0,\n      \"SEVERITY.UNDEFINED\": 0,\n      \"loc\": 8,\n      ",
+  "bandit_status": "FAIL",
+  "patterns_found": [
+    {
+      "file": "src/serving/chat_session.py",
+      "line": 280,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/serving/model_warmer.py",
+      "line": 59,
+      "pattern": "torch_load_no_weights_only",
+      "snippet": "state_dict = torch.load(path, map_location=self._device, weights_only=True)"
+    },
+    {
+      "file": "src/memory/memcoe.py",
+      "line": 292,
+      "pattern": "eval_usage",
+      "snippet": "self._encoder.eval()"
+    },
+    {
+      "file": "src/security/backdoor_detector.py",
+      "line": 126,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/security/sandbox_executor.py",
+      "line": 205,
+      "pattern": "exec_usage",
+      "snippet": "_py_builtins.exec(compiled, globs, globs)  # noqa: S102"
+    },
+    {
+      "file": "src/security/model_watermark.py",
+      "line": 89,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/security/model_watermark.py",
+      "line": 110,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/security/model_watermark.py",
+      "line": 141,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/security/model_watermark.py",
+      "line": 172,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/security/network_intrusion_detector.py",
+      "line": 104,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/security/model_extraction.py",
+      "line": 42,
+      "pattern": "eval_usage",
+      "snippet": "oracle_model.eval()"
+    },
+    {
+      "file": "src/security/model_extraction.py",
+      "line": 108,
+      "pattern": "eval_usage",
+      "snippet": "clone_model.eval()"
+    },
+    {
+      "file": "src/security/prompt_injection_detector.py",
+      "line": 151,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/weight_sharing_nas.py",
+      "line": 253,
+      "pattern": "eval_usage",
+      "snippet": "self.supernet.eval()"
+    },
+    {
+      "file": "src/training/cross_lingual_transfer.py",
+      "line": 350,
+      "pattern": "eval_usage",
+      "snippet": "self.encoder.eval()"
+    },
+    {
+      "file": "src/training/cross_lingual_transfer.py",
+      "line": 351,
+      "pattern": "eval_usage",
+      "snippet": "self.task_head.eval()"
+    },
+    {
+      "file": "src/training/launch_amc_training.py",
+      "line": 181,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/fisher_merging.py",
+      "line": 82,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/fisher_merging.py",
+      "line": 284,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/fisher_merging.py",
+      "line": 434,
+      "pattern": "eval_usage",
+      "snippet": "merged_model.eval()"
+    },
+    {
+      "file": "src/training/fisher_merging.py",
+      "line": 441,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/continual_learning.py",
+      "line": 54,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/continual_learning.py",
+      "line": 252,
+      "pattern": "eval_usage",
+      "snippet": "self._teacher.eval()"
+    },
+    {
+      "file": "src/training/clip_alignment.py",
+      "line": 265,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/self_improve.py",
+      "line": 101,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/self_improve.py",
+      "line": 132,
+      "pattern": "eval_usage",
+      "snippet": "self.reward_model.eval()"
+    },
+    {
+      "file": "src/training/delta_checkpoint.py",
+      "line": 200,
+      "pattern": "torch_load_no_weights_only",
+      "snippet": "return torch.load(path, map_location=\"cpu\", weights_only=True)"
+    },
+    {
+      "file": "src/training/delta_checkpoint.py",
+      "line": 207,
+      "pattern": "torch_load_no_weights_only",
+      "snippet": "self._base_state = torch.load(base_path, map_location=\"cpu\", weights_only=True)"
+    },
+    {
+      "file": "src/training/delta_checkpoint.py",
+      "line": 209,
+      "pattern": "torch_load_no_weights_only",
+      "snippet": "delta = torch.load(path, map_location=\"cpu\", weights_only=True)"
+    },
+    {
+      "file": "src/training/compression_pipeline.py",
+      "line": 252,
+      "pattern": "eval_usage",
+      "snippet": "teacher.eval()"
+    },
+    {
+      "file": "src/training/compression_pipeline.py",
+      "line": 310,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/dense_retriever.py",
+      "line": 199,
+      "pattern": "eval_usage",
+      "snippet": "self.query_encoder.eval()"
+    },
+    {
+      "file": "src/training/dense_retriever.py",
+      "line": 200,
+      "pattern": "eval_usage",
+      "snippet": "self.passage_encoder.eval()"
+    },
+    {
+      "file": "src/training/program_synthesis.py",
+      "line": 144,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/program_synthesis.py",
+      "line": 221,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/program_synthesis.py",
+      "line": 289,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/simcse.py",
+      "line": 305,
+      "pattern": "eval_usage",
+      "snippet": "self.encoder.eval()"
+    },
+    {
+      "file": "src/training/online_learning.py",
+      "line": 122,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/openai_training.py",
+      "line": 219,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/openai_training.py",
+      "line": 474,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/patient_kd.py",
+      "line": 249,
+      "pattern": "eval_usage",
+      "snippet": "self.teacher.eval()"
+    },
+    {
+      "file": "src/training/rlhf.py",
+      "line": 83,
+      "pattern": "eval_usage",
+      "snippet": "self.policy.eval()"
+    },
+    {
+      "file": "src/training/rlhf.py",
+      "line": 84,
+      "pattern": "eval_usage",
+      "snippet": "self.reward_model.eval()"
+    },
+    {
+      "file": "src/training/anthropic_training.py",
+      "line": 123,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/training/anthropic_training.py",
+      "line": 169,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/anthropic_training.py",
+      "line": 170,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/training/anthropic_training.py",
+      "line": 318,
+      "pattern": "eval_usage",
+      "snippet": "self.reward_model.eval()"
+    },
+    {
+      "file": "src/training/anthropic_training.py",
+      "line": 464,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/anthropic_training.py",
+      "line": 568,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/adversarial_training.py",
+      "line": 213,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/amc_trainer.py",
+      "line": 54,
+      "pattern": "eval_usage",
+      "snippet": "def eval(self) -> Any: ..."
+    },
+    {
+      "file": "src/training/amc_trainer.py",
+      "line": 212,
+      "pattern": "torch_load_no_weights_only",
+      "snippet": "return torch.load(Path(path), map_location=\"cpu\", weights_only=False)"
+    },
+    {
+      "file": "src/training/amc_trainer.py",
+      "line": 359,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/model_breadcrumbs.py",
+      "line": 198,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/optimizer_offload.py",
+      "line": 59,
+      "pattern": "torch_load_no_weights_only",
+      "snippet": "loaded = torch.load(path, weights_only=True)"
+    },
+    {
+      "file": "src/training/structured_pruning.py",
+      "line": 193,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/structured_pruning.py",
+      "line": 322,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/ewc.py",
+      "line": 49,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/implicit_cot.py",
+      "line": 235,
+      "pattern": "eval_usage",
+      "snippet": "self.teacher.eval()"
+    },
+    {
+      "file": "src/training/swa_training.py",
+      "line": 163,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/online_dpo.py",
+      "line": 69,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/online_dpo.py",
+      "line": 291,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/training/quantization_aware_training.py",
+      "line": 369,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/quantization_aware_training.py",
+      "line": 472,
+      "pattern": "eval_usage",
+      "snippet": "model_fp.eval()"
+    },
+    {
+      "file": "src/training/quantization_aware_training.py",
+      "line": 473,
+      "pattern": "eval_usage",
+      "snippet": "model_qat.eval()"
+    },
+    {
+      "file": "src/training/sam_optimizer.py",
+      "line": 378,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/sam_optimizer.py",
+      "line": 404,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/ppo_trainer_v2.py",
+      "line": 299,
+      "pattern": "eval_usage",
+      "snippet": "self.policy_model.eval()"
+    },
+    {
+      "file": "src/training/ppo_trainer_v2.py",
+      "line": 300,
+      "pattern": "eval_usage",
+      "snippet": "self.value_head.eval()"
+    },
+    {
+      "file": "src/training/multitask_learning.py",
+      "line": 205,
+      "pattern": "eval_usage",
+      "snippet": "self.shared_model.eval()"
+    },
+    {
+      "file": "src/training/continual.py",
+      "line": 178,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/sharpness.py",
+      "line": 150,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/latent_repr_alignment.py",
+      "line": 223,
+      "pattern": "eval_usage",
+      "snippet": "self.teacher_model.eval()"
+    },
+    {
+      "file": "src/training/loss_estimator.py",
+      "line": 29,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/trainer.py",
+      "line": 550,
+      "pattern": "torch_load_no_weights_only",
+      "snippet": "state_dict = torch.load(legacy_pt, map_location=\"cpu\", weights_only=True)"
+    },
+    {
+      "file": "src/training/trainer.py",
+      "line": 1042,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/knowledge_distillation_v2.py",
+      "line": 290,
+      "pattern": "eval_usage",
+      "snippet": "self.teacher_model.eval()"
+    },
+    {
+      "file": "src/training/process_reward_model.py",
+      "line": 403,
+      "pattern": "eval_usage",
+      "snippet": "self.prm.eval()"
+    },
+    {
+      "file": "src/training/nce.py",
+      "line": 346,
+      "pattern": "eval_usage",
+      "snippet": "self.backbone.eval()"
+    },
+    {
+      "file": "src/training/nce.py",
+      "line": 347,
+      "pattern": "eval_usage",
+      "snippet": "self.projector.eval()"
+    },
+    {
+      "file": "src/training/raft.py",
+      "line": 256,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/diffusion_lm.py",
+      "line": 380,
+      "pattern": "eval_usage",
+      "snippet": "self.score_net.eval()"
+    },
+    {
+      "file": "src/training/reward_model_training.py",
+      "line": 326,
+      "pattern": "eval_usage",
+      "snippet": "self.reward_model.eval()"
+    },
+    {
+      "file": "src/training/schedule_free.py",
+      "line": 83,
+      "pattern": "eval_usage",
+      "snippet": "Public alias avoids confusion with Python built-in eval()."
+    },
+    {
+      "file": "src/training/schedule_free.py",
+      "line": 91,
+      "pattern": "eval_usage",
+      "snippet": "def eval(self):  # noqa: A003"
+    },
+    {
+      "file": "src/training/schedule_free.py",
+      "line": 253,
+      "pattern": "eval_usage",
+      "snippet": "def eval(self):  # noqa: A003"
+    },
+    {
+      "file": "src/training/sparse_training.py",
+      "line": 117,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/grpo_trainer.py",
+      "line": 285,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/training/feature_distillation.py",
+      "line": 276,
+      "pattern": "eval_usage",
+      "snippet": "self.teacher.eval()"
+    },
+    {
+      "file": "src/training/feature_distillation.py",
+      "line": 525,
+      "pattern": "eval_usage",
+      "snippet": "self.student.eval()"
+    },
+    {
+      "file": "src/training/graph_reasoning.py",
+      "line": 329,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/curriculum_pacing.py",
+      "line": 127,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/fisher_merge.py",
+      "line": 60,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/test_time_training.py",
+      "line": 197,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/training/layer_distillation.py",
+      "line": 273,
+      "pattern": "eval_usage",
+      "snippet": "self.teacher.eval()"
+    },
+    {
+      "file": "src/training/layer_distillation.py",
+      "line": 378,
+      "pattern": "eval_usage",
+      "snippet": "self.teacher.eval()"
+    },
+    {
+      "file": "src/training/layer_distillation.py",
+      "line": 379,
+      "pattern": "eval_usage",
+      "snippet": "self.student.eval()"
+    },
+    {
+      "file": "src/training/dpo_trainer.py",
+      "line": 124,
+      "pattern": "eval_usage",
+      "snippet": "self._ref_model.eval()"
+    },
+    {
+      "file": "src/training/quantization_aware.py",
+      "line": 308,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/training/knowledge_distillation_v3.py",
+      "line": 315,
+      "pattern": "eval_usage",
+      "snippet": "self.teacher_model.eval()"
+    },
+    {
+      "file": "src/training/distillation.py",
+      "line": 104,
+      "pattern": "eval_usage",
+      "snippet": "self.teacher.eval()"
+    },
+    {
+      "file": "src/training/flow_matching.py",
+      "line": 219,
+      "pattern": "eval_usage",
+      "snippet": "self.vf_net.eval()"
+    },
+    {
+      "file": "src/agent/skill_library.py",
+      "line": 136,
+      "pattern": "exec_usage",
+      "snippet": "exec(test_case, {}, namespace)  # noqa: S102  # nosec B102 - test case code is trusted skill verification input"
+    },
+    {
+      "file": "src/agent/skill_library.py",
+      "line": 142,
+      "pattern": "exec_usage",
+      "snippet": "exec(setup, {}, namespace)  # noqa: S102  # nosec B102 - test case code is trusted skill verification input"
+    },
+    {
+      "file": "src/agent/skill_library.py",
+      "line": 154,
+      "pattern": "exec_usage",
+      "snippet": "exec(str(assertion), {}, namespace)  # noqa: S102  # nosec B102 - test case code is trusted skill verification input"
+    },
+    {
+      "file": "src/agent/skill_library.py",
+      "line": 187,
+      "pattern": "exec_usage",
+      "snippet": "exec(skill.code, {}, base_namespace)  # noqa: S102  # nosec B102 - skill code is loaded from the local skill library"
+    },
+    {
+      "file": "src/cli/main.py",
+      "line": 239,
+      "pattern": "torch_load_no_weights_only",
+      "snippet": "state = torch.load(str(p), map_location=\"cpu\", weights_only=True)"
+    },
+    {
+      "file": "src/cli/main.py",
+      "line": 242,
+      "pattern": "torch_load_no_weights_only",
+      "snippet": "state = torch.load(str(p / \"pytorch_model.bin\"), map_location=\"cpu\", weights_only=True)"
+    },
+    {
+      "file": "src/cli/main.py",
+      "line": 245,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/optimizers/schedule_free_adamw.py",
+      "line": 27,
+      "pattern": "eval_usage",
+      "snippet": "``train_mode()`` swaps back to ``y``.  ``eval()`` and ``train()`` are aliases"
+    },
+    {
+      "file": "src/optimizers/schedule_free_adamw.py",
+      "line": 137,
+      "pattern": "eval_usage",
+      "snippet": "def eval(self) -> None:  # noqa: A003 - intentional name"
+    },
+    {
+      "file": "src/quantization/quantize.py",
+      "line": 127,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/safety/prism_security_layer.py",
+      "line": 502,
+      "pattern": "exec_usage",
+      "snippet": "\"exec(\","
+    },
+    {
+      "file": "src/safety/prism_security_layer.py",
+      "line": 503,
+      "pattern": "eval_usage",
+      "snippet": "\"eval(\","
+    },
+    {
+      "file": "src/safety/prism_security_layer.py",
+      "line": 505,
+      "pattern": "os_system",
+      "snippet": "\"os.system(\","
+    },
+    {
+      "file": "src/safety/rule_engine.py",
+      "line": 405,
+      "pattern": "eval_usage",
+      "snippet": "\"name\": \"Use of eval()\","
+    },
+    {
+      "file": "src/safety/rule_engine.py",
+      "line": 415,
+      "pattern": "eval_usage",
+      "snippet": "\"message\": \"Dynamic eval() in generated code -- reject.\","
+    },
+    {
+      "file": "src/safety/rule_engine.py",
+      "line": 424,
+      "pattern": "exec_usage",
+      "snippet": "\"name\": \"Use of exec()\","
+    },
+    {
+      "file": "src/safety/rule_engine.py",
+      "line": 434,
+      "pattern": "exec_usage",
+      "snippet": "\"message\": \"Dynamic exec() in generated code -- reject.\","
+    },
+    {
+      "file": "src/safety/safety_token_regularization.py",
+      "line": 92,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/retrieval/hyde_embedder.py",
+      "line": 28,
+      "pattern": "md5_usage",
+      "snippet": "digest = hashlib.md5(text.encode(), usedforsecurity=False).digest()"
+    },
+    {
+      "file": "src/model/byte_level_model.py",
+      "line": 353,
+      "pattern": "eval_usage",
+      "snippet": "self.eval()"
+    },
+    {
+      "file": "src/model/byte_level_model.py",
+      "line": 394,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/model/rope_variants.py",
+      "line": 339,
+      "pattern": "eval_usage",
+      "snippet": "module.eval()"
+    },
+    {
+      "file": "src/model/rope_variants.py",
+      "line": 387,
+      "pattern": "eval_usage",
+      "snippet": "module.eval()"
+    },
+    {
+      "file": "src/model/multi_token_prediction_v3.py",
+      "line": 288,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/model/mixture_of_experts_v2.py",
+      "line": 332,
+      "pattern": "eval_usage",
+      "snippet": "self.eval()"
+    },
+    {
+      "file": "src/model/activation_functions.py",
+      "line": 270,
+      "pattern": "eval_usage",
+      "snippet": "ffn.train(False)  # inference mode \u2014 no eval() call"
+    },
+    {
+      "file": "src/model/activation_patching.py",
+      "line": 193,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/model/forward_replay.py",
+      "line": 45,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/model/amc_surprise.py",
+      "line": 117,
+      "pattern": "eval_usage",
+      "snippet": "self.head.eval()"
+    },
+    {
+      "file": "src/model/flow_matching.py",
+      "line": 278,
+      "pattern": "eval_usage",
+      "snippet": "self.velocity_network.eval()"
+    },
+    {
+      "file": "src/alignment/reward_ensemble.py",
+      "line": 333,
+      "pattern": "eval_usage",
+      "snippet": "self.ensemble.eval()"
+    },
+    {
+      "file": "src/alignment/rso.py",
+      "line": 324,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/alignment/rlvr.py",
+      "line": 133,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/rlvr.py",
+      "line": 266,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/alignment/rlaif.py",
+      "line": 262,
+      "pattern": "eval_usage",
+      "snippet": "self.policy_model.eval()"
+    },
+    {
+      "file": "src/alignment/rlaif.py",
+      "line": 263,
+      "pattern": "eval_usage",
+      "snippet": "self.judge_model.eval()"
+    },
+    {
+      "file": "src/alignment/self_refine.py",
+      "line": 149,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/alignment/grpo_advanced.py",
+      "line": 45,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/grpo_advanced.py",
+      "line": 243,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/alignment/kto.py",
+      "line": 207,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/alignment/still.py",
+      "line": 186,
+      "pattern": "eval_usage",
+      "snippet": "self.model.training  # access attribute without calling .eval()"
+    },
+    {
+      "file": "src/alignment/online_preference_opt.py",
+      "line": 148,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/online_preference_opt.py",
+      "line": 149,
+      "pattern": "eval_usage",
+      "snippet": "reward_model.eval()"
+    },
+    {
+      "file": "src/alignment/online_preference_opt.py",
+      "line": 380,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/alignment/safety_cot.py",
+      "line": 87,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/safety_cot.py",
+      "line": 128,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/simcse.py",
+      "line": 144,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/alignment/regression_gate.py",
+      "line": 60,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/reward_distill.py",
+      "line": 134,
+      "pattern": "eval_usage",
+      "snippet": "self.teacher.eval()"
+    },
+    {
+      "file": "src/alignment/reward_distill.py",
+      "line": 324,
+      "pattern": "eval_usage",
+      "snippet": "self.student.eval()"
+    },
+    {
+      "file": "src/alignment/cross_stage_distillation.py",
+      "line": 44,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/alignment/rm_trainer.py",
+      "line": 248,
+      "pattern": "eval_usage",
+      "snippet": "self.reward_model.eval()"
+    },
+    {
+      "file": "src/alignment/rm_trainer.py",
+      "line": 249,
+      "pattern": "eval_usage",
+      "snippet": "self.score_head.eval()"
+    },
+    {
+      "file": "src/alignment/sapo.py",
+      "line": 539,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/alignment/adversarial_training.py",
+      "line": 183,
+      "pattern": "eval_usage",
+      "snippet": "self.classifier.eval()"
+    },
+    {
+      "file": "src/alignment/adversarial_training.py",
+      "line": 210,
+      "pattern": "eval_usage",
+      "snippet": "self.generator.eval()"
+    },
+    {
+      "file": "src/alignment/adversarial_training.py",
+      "line": 219,
+      "pattern": "eval_usage",
+      "snippet": "self.classifier.eval()"
+    },
+    {
+      "file": "src/alignment/adversarial_training.py",
+      "line": 276,
+      "pattern": "eval_usage",
+      "snippet": "classifier.eval()"
+    },
+    {
+      "file": "src/alignment/rlvr_trainer.py",
+      "line": 115,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/rlvr_trainer.py",
+      "line": 335,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/alignment/reward_uncertainty.py",
+      "line": 75,
+      "pattern": "eval_usage",
+      "snippet": "self.eval()"
+    },
+    {
+      "file": "src/alignment/grpo_v2.py",
+      "line": 176,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/alignment/constitutional_ai.py",
+      "line": 372,
+      "pattern": "eval_usage",
+      "snippet": "self.policy.eval()"
+    },
+    {
+      "file": "src/alignment/token_dpo.py",
+      "line": 124,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_policy.eval()"
+    },
+    {
+      "file": "src/alignment/activation_steering.py",
+      "line": 157,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/activation_steering.py",
+      "line": 355,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/alignment/reward_soup.py",
+      "line": 136,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/reward_soup.py",
+      "line": 160,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/reward_soup.py",
+      "line": 199,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/online_dpo.py",
+      "line": 252,
+      "pattern": "eval_usage",
+      "snippet": "self.policy.eval()"
+    },
+    {
+      "file": "src/alignment/online_dpo.py",
+      "line": 296,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/alignment/self_play.py",
+      "line": 75,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/self_play.py",
+      "line": 122,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/self_play.py",
+      "line": 123,
+      "pattern": "eval_usage",
+      "snippet": "opponent_model.eval()"
+    },
+    {
+      "file": "src/alignment/contrastive_preference.py",
+      "line": 168,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_policy.eval()"
+    },
+    {
+      "file": "src/alignment/ia3.py",
+      "line": 158,
+      "pattern": "torch_load_no_weights_only",
+      "snippet": "state: dict[str, Tensor] = torch.load(path, weights_only=True)"
+    },
+    {
+      "file": "src/alignment/mdpo.py",
+      "line": 219,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/alignment/recursive_reward.py",
+      "line": 61,
+      "pattern": "eval_usage",
+      "snippet": "self.reward_model.eval()"
+    },
+    {
+      "file": "src/alignment/recursive_reward.py",
+      "line": 355,
+      "pattern": "eval_usage",
+      "snippet": "node.reward_model.eval()"
+    },
+    {
+      "file": "src/alignment/ppo_trainer.py",
+      "line": 263,
+      "pattern": "eval_usage",
+      "snippet": "self.policy.eval()"
+    },
+    {
+      "file": "src/alignment/ppo_trainer.py",
+      "line": 264,
+      "pattern": "eval_usage",
+      "snippet": "self.value_head.eval()"
+    },
+    {
+      "file": "src/alignment/warp.py",
+      "line": 216,
+      "pattern": "eval_usage",
+      "snippet": "self._ref_model.eval()"
+    },
+    {
+      "file": "src/alignment/warp.py",
+      "line": 289,
+      "pattern": "eval_usage",
+      "snippet": "policy.eval()"
+    },
+    {
+      "file": "src/alignment/warp.py",
+      "line": 332,
+      "pattern": "eval_usage",
+      "snippet": "final_model.eval()"
+    },
+    {
+      "file": "src/alignment/sequence_reward.py",
+      "line": 164,
+      "pattern": "eval_usage",
+      "snippet": "self.eval()"
+    },
+    {
+      "file": "src/alignment/weak_to_strong.py",
+      "line": 34,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/alignment/reward_model.py",
+      "line": 138,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/alignment/safety_classifier.py",
+      "line": 137,
+      "pattern": "eval_usage",
+      "snippet": "self.classifier.eval()"
+    },
+    {
+      "file": "src/alignment/safety_classifier.py",
+      "line": 142,
+      "pattern": "eval_usage",
+      "snippet": "self.classifier.eval()"
+    },
+    {
+      "file": "src/alignment/stepwise_dpo.py",
+      "line": 179,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_policy.eval()"
+    },
+    {
+      "file": "src/alignment/red_team_auto.py",
+      "line": 145,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/grpo_trainer.py",
+      "line": 71,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/grpo_trainer.py",
+      "line": 195,
+      "pattern": "eval_usage",
+      "snippet": "ref_model.eval()"
+    },
+    {
+      "file": "src/alignment/grpo_trainer.py",
+      "line": 362,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/alignment/dpo.py",
+      "line": 348,
+      "pattern": "eval_usage",
+      "snippet": "self.reference.eval()"
+    },
+    {
+      "file": "src/alignment/dpo.py",
+      "line": 529,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_model.eval()"
+    },
+    {
+      "file": "src/alignment/constitutional_constraints.py",
+      "line": 287,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/alignment/constitutional_constraints.py",
+      "line": 311,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/alignment/constitutional_constraints.py",
+      "line": 483,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/alignment/constitutional_constraints.py",
+      "line": 525,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/alignment/reward_distillation.py",
+      "line": 118,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/alignment/iterative_dpo.py",
+      "line": 98,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_policy.eval()"
+    },
+    {
+      "file": "src/alignment/iterative_dpo.py",
+      "line": 120,
+      "pattern": "eval_usage",
+      "snippet": "self.policy.eval()"
+    },
+    {
+      "file": "src/alignment/iterative_dpo.py",
+      "line": 230,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_policy.eval()"
+    },
+    {
+      "file": "src/alignment/iterative_dpo.py",
+      "line": 381,
+      "pattern": "eval_usage",
+      "snippet": "self.ref_policy.eval()"
+    },
+    {
+      "file": "src/alignment/contrastive_cot.py",
+      "line": 425,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/inference/confidence_calibration.py",
+      "line": 290,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/inference/cot_verifier.py",
+      "line": 133,
+      "pattern": "eval_usage",
+      "snippet": "self.step_verifier.eval()"
+    },
+    {
+      "file": "src/inference/latent_reasoning.py",
+      "line": 126,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/inference/latent_reasoning.py",
+      "line": 155,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/inference/latent_reasoning.py",
+      "line": 177,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/inference/code_execution.py",
+      "line": 259,
+      "pattern": "exec_usage",
+      "snippet": "exec(compiled, restricted_globals)  # nosec B102"
+    },
+    {
+      "file": "src/inference/code_execution.py",
+      "line": 441,
+      "pattern": "exec_usage",
+      "snippet": "exec(compiled, namespace)  # noqa: S102  # nosec B102"
+    },
+    {
+      "file": "src/inference/uncertainty.py",
+      "line": 108,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()  # Keep BN in eval mode"
+    },
+    {
+      "file": "src/inference/rag_fusion.py",
+      "line": 107,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/inference/rag_fusion.py",
+      "line": 238,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/inference/mc_dropout.py",
+      "line": 77,
+      "pattern": "eval_usage",
+      "snippet": "module.eval()"
+    },
+    {
+      "file": "src/inference/neural_watermark.py",
+      "line": 166,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/inference/seq2seq_beam_search.py",
+      "line": 416,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/inference/seq2seq_beam_search.py",
+      "line": 611,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/inference/ensemble.py",
+      "line": 146,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/inference/hierarchical_summarizer.py",
+      "line": 115,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/inference/fusion_in_decoder.py",
+      "line": 56,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/inference/fusion_in_decoder.py",
+      "line": 168,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/inference/fusion_in_decoder.py",
+      "line": 212,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/inference/lookahead.py",
+      "line": 92,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/inference/abstention.py",
+      "line": 168,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/inference/best_of_n.py",
+      "line": 70,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/eval/multiple_choice.py",
+      "line": 94,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/semantic_entropy.py",
+      "line": 233,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/eval/commonsense_eval.py",
+      "line": 276,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/sparse_circuits.py",
+      "line": 144,
+      "pattern": "eval_usage",
+      "snippet": "self.sae.eval()"
+    },
+    {
+      "file": "src/eval/sparse_circuits.py",
+      "line": 186,
+      "pattern": "eval_usage",
+      "snippet": "self.sae.eval()"
+    },
+    {
+      "file": "src/eval/sparse_circuits.py",
+      "line": 234,
+      "pattern": "eval_usage",
+      "snippet": "self.sae.eval()"
+    },
+    {
+      "file": "src/eval/sparse_circuits.py",
+      "line": 318,
+      "pattern": "eval_usage",
+      "snippet": "self.sae.eval()"
+    },
+    {
+      "file": "src/eval/llm_probing.py",
+      "line": 168,
+      "pattern": "eval_usage",
+      "snippet": "self.eval()"
+    },
+    {
+      "file": "src/eval/llm_probing.py",
+      "line": 177,
+      "pattern": "eval_usage",
+      "snippet": "self.eval()"
+    },
+    {
+      "file": "src/eval/llm_probing.py",
+      "line": 231,
+      "pattern": "eval_usage",
+      "snippet": "self.eval()"
+    },
+    {
+      "file": "src/eval/llm_probing.py",
+      "line": 240,
+      "pattern": "eval_usage",
+      "snippet": "self.eval()"
+    },
+    {
+      "file": "src/eval/long_context_eval.py",
+      "line": 202,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/long_context_eval.py",
+      "line": 331,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/eval/probing_v2.py",
+      "line": 160,
+      "pattern": "eval_usage",
+      "snippet": "probe.eval()"
+    },
+    {
+      "file": "src/eval/probing_v2.py",
+      "line": 255,
+      "pattern": "eval_usage",
+      "snippet": "probe.eval()"
+    },
+    {
+      "file": "src/eval/semantic_similarity.py",
+      "line": 60,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/code_eval.py",
+      "line": 359,
+      "pattern": "eval_usage",
+      "snippet": "Checked patterns: os.system, subprocess, eval(), exec(), open(), __import__()."
+    },
+    {
+      "file": "src/eval/code_eval.py",
+      "line": 482,
+      "pattern": "exec_usage",
+      "snippet": "exec(compiled_solution, namespace)  # noqa: S102  # nosec B102"
+    },
+    {
+      "file": "src/eval/code_eval.py",
+      "line": 498,
+      "pattern": "exec_usage",
+      "snippet": "exec(compiled_test, namespace)  # noqa: S102  # nosec B102"
+    },
+    {
+      "file": "src/eval/sandboxed_evaluator.py",
+      "line": 40,
+      "pattern": "subprocess_shell_true",
+      "snippet": "\"subprocess.call(shell=True)\","
+    },
+    {
+      "file": "src/eval/sandboxed_evaluator.py",
+      "line": 41,
+      "pattern": "subprocess_shell_true",
+      "snippet": "\"subprocess.Popen(shell=True)\","
+    },
+    {
+      "file": "src/eval/sandboxed_evaluator.py",
+      "line": 43,
+      "pattern": "exec_usage",
+      "snippet": "\"exec(\","
+    },
+    {
+      "file": "src/eval/sandboxed_evaluator.py",
+      "line": 44,
+      "pattern": "eval_usage",
+      "snippet": "\"eval(\","
+    },
+    {
+      "file": "src/eval/g_eval.py",
+      "line": 174,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/eval/symbolic_reasoning.py",
+      "line": 267,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/perplexity.py",
+      "line": 57,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/constitutional_cot_scorer.py",
+      "line": 185,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/eval/head_pruning.py",
+      "line": 80,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/head_pruning.py",
+      "line": 153,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/head_pruning.py",
+      "line": 298,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/uncertainty.py",
+      "line": 160,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/eval/reasoning_bench.py",
+      "line": 401,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/reasoning_bench.py",
+      "line": 475,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/token_importance.py",
+      "line": 97,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/token_importance.py",
+      "line": 149,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/token_importance.py",
+      "line": 191,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/uncertainty_estimation.py",
+      "line": 63,
+      "pattern": "eval_usage",
+      "snippet": "module.eval()"
+    },
+    {
+      "file": "src/eval/uncertainty_estimation.py",
+      "line": 164,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/probing_classifiers.py",
+      "line": 71,
+      "pattern": "eval_usage",
+      "snippet": "self.eval()"
+    },
+    {
+      "file": "src/eval/probing_classifiers.py",
+      "line": 85,
+      "pattern": "eval_usage",
+      "snippet": "self.eval()"
+    },
+    {
+      "file": "src/eval/probing_classifiers.py",
+      "line": 160,
+      "pattern": "eval_usage",
+      "snippet": "self.eval()"
+    },
+    {
+      "file": "src/eval/probing_classifiers.py",
+      "line": 174,
+      "pattern": "eval_usage",
+      "snippet": "self.eval()"
+    },
+    {
+      "file": "src/eval/probing.py",
+      "line": 72,
+      "pattern": "eval_usage",
+      "snippet": "self.eval()"
+    },
+    {
+      "file": "src/eval/head_analysis.py",
+      "line": 111,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/head_analysis.py",
+      "line": 246,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/eval/probing_suite.py",
+      "line": 245,
+      "pattern": "eval_usage",
+      "snippet": "self.probe.eval()"
+    },
+    {
+      "file": "src/eval/probing_suite.py",
+      "line": 264,
+      "pattern": "eval_usage",
+      "snippet": "self.probe.eval()"
+    },
+    {
+      "file": "src/eval/crosslingual_transfer.py",
+      "line": 127,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/eval/crosslingual_transfer.py",
+      "line": 213,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/eval/integrated_gradients.py",
+      "line": 92,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/eval/integrated_gradients.py",
+      "line": 240,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/data/quality_scorer.py",
+      "line": 253,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/data/data_selection_llm.py",
+      "line": 191,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/data/lm_filter.py",
+      "line": 60,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/data/difficulty_scorer.py",
+      "line": 65,
+      "pattern": "eval_usage",
+      "snippet": "self.model.eval()"
+    },
+    {
+      "file": "src/data/cwe_synthesis.py",
+      "line": 58,
+      "pattern": "subprocess_shell_true",
+      "snippet": "\"    subprocess.run(f'ping -c 1 {{{arg}}}', shell=True)\\n\""
+    },
+    {
+      "file": "src/data/cwe_synthesis.py",
+      "line": 174,
+      "pattern": "md5_usage",
+      "snippet": "\"Legacy auth module still hashes passwords with hashlib.md5 for 'compatibility'.\","
+    },
+    {
+      "file": "src/data/cwe_synthesis.py",
+      "line": 180,
+      "pattern": "md5_usage",
+      "snippet": "\"    return hashlib.md5({arg}.encode()).hexdigest()\\n\""
+    },
+    {
+      "file": "src/data/anthropic_datasets_ext.py",
+      "line": 5,
+      "pattern": "eval_usage",
+      "snippet": "1. llm_global_opinions       \u2014 calibration eval (opinion distributions)"
+    },
+    {
+      "file": "src/data/anthropic_datasets.py",
+      "line": 7,
+      "pattern": "eval_usage",
+      "snippet": "- Anthropic/discrim-eval      (fairness / demographic bias evaluation)"
+    },
+    {
+      "file": "src/data/synthetic_code.py",
+      "line": 417,
+      "pattern": "md5_usage",
+      "snippet": "h = hashlib.md5(ex.code.encode(), usedforsecurity=False).hexdigest()"
+    },
+    {
+      "file": "src/interpretability/activation_clustering.py",
+      "line": 282,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/interpretability/probing.py",
+      "line": 108,
+      "pattern": "eval_usage",
+      "snippet": "probe.eval()"
+    },
+    {
+      "file": "src/interpretability/probing.py",
+      "line": 133,
+      "pattern": "eval_usage",
+      "snippet": "probe.eval()"
+    },
+    {
+      "file": "src/interpretability/probe_intervention.py",
+      "line": 138,
+      "pattern": "eval_usage",
+      "snippet": "self.probe.eval()"
+    },
+    {
+      "file": "src/interpretability/probe_intervention.py",
+      "line": 155,
+      "pattern": "eval_usage",
+      "snippet": "self.probe.eval()"
+    },
+    {
+      "file": "src/interpretability/mechanistic_interp.py",
+      "line": 144,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/interpretability/mechanistic_interp.py",
+      "line": 171,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/interpretability/mechanistic_interp.py",
+      "line": 204,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/interpretability/mechanistic_interp.py",
+      "line": 269,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "src/model/architectures/rag_agents.py",
+      "line": 94,
+      "pattern": "eval_usage",
+      "snippet": "\"calculator\": lambda x: str(eval(x, {\"__builtins__\": {}}, {})),  # nosec B307  # noqa: S307"
+    },
+    {
+      "file": "gateway/chat_session.py",
+      "line": 280,
+      "pattern": "eval_usage",
+      "snippet": "model.eval()"
+    },
+    {
+      "file": "gateway/model_warmer.py",
+      "line": 59,
+      "pattern": "torch_load_no_weights_only",
+      "snippet": "state_dict = torch.load(path, map_location=self._device, weights_only=True)"
+    },
+    {
+      "file": "gateway/rate_limit.py",
+      "line": 99,
+      "pattern": "eval_usage",
+      "snippet": "allowed = self._client.eval(script, 1, key, self._limit, self._window, time.time())"
+    },
+    {
+      "file": "tools/code_runner_tool.py",
+      "line": 59,
+      "pattern": "exec_usage",
+      "snippet": "message=\"exec() is disallowed\","
+    },
+    {
+      "file": "tools/code_runner_tool.py",
+      "line": 65,
+      "pattern": "eval_usage",
+      "snippet": "message=\"eval() is disallowed\","
+    },
+    {
+      "file": "agent/tool_sandbox_denylist.py",
+      "line": 251,
+      "pattern": "eval_usage",
+      "snippet": "message=\"eval() primitive is disallowed\","
+    },
+    {
+      "file": "agent/tool_sandbox_denylist.py",
+      "line": 257,
+      "pattern": "exec_usage",
+      "snippet": "message=\"exec() primitive is disallowed\","
+    },
+    {
+      "file": "agent/tool_sandbox_denylist.py",
+      "line": 276,
+      "pattern": "pickle_load",
+      "snippet": "message=\"pickle.load[s] is disallowed (RCE primitive)\","
+    },
+    {
+      "file": "agent/skill_library.py",
+      "line": 125,
+      "pattern": "exec_usage",
+      "snippet": "exec(test_case, {}, namespace)  # noqa: S102  # nosec B102 - test case code is trusted skill verification input"
+    },
+    {
+      "file": "agent/skill_library.py",
+      "line": 131,
+      "pattern": "exec_usage",
+      "snippet": "exec(setup, {}, namespace)  # noqa: S102  # nosec B102 - test case code is trusted skill verification input"
+    },
+    {
+      "file": "agent/skill_library.py",
+      "line": 143,
+      "pattern": "exec_usage",
+      "snippet": "exec(str(assertion), {}, namespace)  # noqa: S102  # nosec B102 - test case code is trusted skill verification input"
+    },
+    {
+      "file": "agent/skill_library.py",
+      "line": 176,
+      "pattern": "exec_usage",
+      "snippet": "exec(skill.code, {}, base_namespace)  # noqa: S102  # nosec B102 - skill code is loaded from the local skill library"
+    },
+    {
+      "file": "agent/code_execution_tool.py",
+      "line": 185,
+      "pattern": "exec_usage",
+      "snippet": "\"exec(\","
+    },
+    {
+      "file": "agent/code_execution_tool.py",
+      "line": 186,
+      "pattern": "eval_usage",
+      "snippet": "\"eval(\","
+    }
+  ],
+  "patterns_summary": {
+    "eval_usage": 275,
+    "exec_usage": 20,
+    "md5_usage": 4,
+    "os_system": 1,
+    "pickle_load": 1,
+    "subprocess_shell_true": 3,
+    "torch_load_no_weights_only": 11
+  },
+  "scanned_files": 2392,
+  "skipped_dirs": []
+}

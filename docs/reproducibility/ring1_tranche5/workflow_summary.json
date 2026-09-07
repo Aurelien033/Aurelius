@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "amc_traces": "data/ring1_traces/tranche4/amc/traces.jsonl",
+  "baseline_traces": "data/ring1_traces/tranche4/no_memory/traces.jsonl",
+  "amc_count": 400,
+  "baseline_count": 400,
+  "checkpoint_weights": "checkpoints/aurelius-1.3b/step-0000002/model.safetensors",
+  "checkpoint_sha256": "3bcfccc73b005f2614958d26135884a1fad73c9cd115b66370b1399e0cbcc216",
+  "param_hash_unchanged": true,
+  "lift_mode": "measured",
+  "absolute_lift_pp": 3.1213994516292587,
+  "preliminary_all_gates_passed": true,
+  "r1_ga_passed": true,
+  "r1_gb_passed": true,
+  "r1_gc_passed": true,
+  "repro_pack": "docs/reproducibility/ring1_tranche5/ring1-repro-20260531-46ee2f13.tar.gz",
+  "gate_report": "docs/reproducibility/ring1_tranche5/gate_verification_report.json"
+}

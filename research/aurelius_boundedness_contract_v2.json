@@ -1,0 +1,331 @@
+{
+  "schema_version": "2.0.0",
+  "date": "2026-07-15",
+  "status": "DESIGN_REVIEW_COMPLETE__IMPLEMENTATION_NOT_CERTIFIED",
+  "training_status": "BLOCKED_TRAINING_DATA_NOT_ADMISSIBLE",
+  "capability_status": "SOURCE_AND_DESIGN_VALIDATED_CAPABILITY_UNMEASURED",
+  "frontier_parity": "NOT_MADE",
+  "canonical_policy": {
+    "current_control": "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+    "base_candidate_01": "Qwen/Qwen3.6-27B",
+    "base_candidate_promoted": false,
+    "foundation_mutation_by_recursive_loop": false,
+    "public_clean_teacher_only": true,
+    "private_self_trained_deltas_may_be_published_with_teacher": false
+  },
+  "core_decision": {
+    "frozen_verifier_interpretation": "EPOCH_FROZEN_CONTENT_ADDRESSED_SIGNED_AND_INDEPENDENTLY_GOVERNED",
+    "permanently_static_verifier": "REJECT_STALE_AND_GAMEABLE",
+    "verifier_evolution": "SHADOW_ONLY_THEN_HUMAN_SIGNED_EPOCH_TRANSITION",
+    "candidate_self_promotion": false,
+    "candidate_verifier_authority": false,
+    "candidate_release_authority": false,
+    "candidate_deployment_authority": false
+  },
+  "trust_planes": [
+    {
+      "id": "PROPOSAL_TRAINING",
+      "trust": "LOW",
+      "writes": ["candidate_workspace"],
+      "forbidden_reads": ["sealed_item_level_evidence", "signing_keys"],
+      "forbidden_writes": ["verifier_epoch", "sealed_evidence", "risk_ledger", "release_manifest", "deployment_pointer", "rollback_controller"]
+    },
+    {
+      "id": "EVALUATION",
+      "trust": "INDEPENDENT",
+      "reads": ["immutable_candidate", "sealed_shard", "verifier_epoch"],
+      "writes": ["signed_evaluation_receipt", "append_only_log"],
+      "candidate_mounted_read_only": true
+    },
+    {
+      "id": "RELEASE",
+      "trust": "INDEPENDENT",
+      "reads": ["evaluation_receipt", "provenance_receipt", "release_policy"],
+      "writes": ["signed_release_manifest"]
+    },
+    {
+      "id": "DEPLOYMENT",
+      "trust": "INDEPENDENT",
+      "accepts_unsigned_artifacts": false,
+      "writes": ["canary_state", "deployment_log"]
+    },
+    {
+      "id": "ROLLBACK",
+      "trust": "INDEPENDENT_OF_CANDIDATE",
+      "requires_candidate_cooperation": false
+    },
+    {
+      "id": "SHADOW_VERIFIER",
+      "trust": "NON_AUTHORITATIVE",
+      "may_gate_current_candidates": false,
+      "may_promote_itself": false
+    }
+  ],
+  "invariants": [
+    "I0_AUTHORITY_SEPARATION",
+    "I1_CANONICAL_FOUNDATION_IDENTITY",
+    "I2_PUBLIC_CLEAN_TEACHER_FIREWALL",
+    "I3_NO_CANDIDATE_ACCESS_TO_SEALED_ITEM_LEVEL_EVIDENCE",
+    "I4_FAIL_CLOSED",
+    "I5_DUAL_ROOT_AND_INCUMBENT_ANCHORS",
+    "I6_NO_AGGREGATE_COMPENSATION_FOR_CRITICAL_HARM",
+    "I7_SELF_GENERATED_AGREEMENT_IS_NOT_INDEPENDENT_EVIDENCE",
+    "I8_BOUNDED_RESOURCES_AND_AUTHORITY",
+    "I9_INDEPENDENT_REVERSIBLE_DEPLOYMENT",
+    "I10_ONE_VARIABLE_CAUSAL_ATTRIBUTION",
+    "I11_VERIFIER_EPOCH_TRANSITIONS_INVALIDATE_DEPENDENT_EVIDENCE",
+    "I12_DATA_ADMISSION_PRECEDES_TRAINING",
+    "I13_HUMAN_META_POLICY_AND_RELEASE_AUTHORITY"
+  ],
+  "lanes": [
+    {
+      "id": "E0_EPHEMERAL_INFERENCE",
+      "examples": ["best_of_n", "tools", "retrieval", "transient_repair", "search_beam"],
+      "persistent_auto_change": false
+    },
+    {
+      "id": "S1_BOUNDED_SCAFFOLD",
+      "examples": ["prompt", "non_privileged_skill", "deterministic_routing_table", "repair_template", "tool_budget"],
+      "automatic_internal_promotion": "ALLOWED_ONLY_FOR_NON_PRIVILEGED_NON_LEARNED_EXACTLY_REVERSIBLE_ARTIFACTS_UNDER_FINITE_CAMPAIGN",
+      "excluded_surfaces": ["privilege", "network_policy", "security_policy", "verifier", "release", "deployment"]
+    },
+    {
+      "id": "A2_PRIVATE_LEARNED_ATTACHMENT",
+      "examples": ["lora", "qlora", "learned_router", "critic", "sidecar", "draft_head"],
+      "training_requires_human_authorization": true,
+      "data_admission_required": true,
+      "autonomous_train_and_promote": false,
+      "public_clean_teacher_bundle": false,
+      "merge_into_canonical_base": false
+    },
+    {
+      "id": "M3_NATIVE_MODEL_LINEAGE",
+      "examples": ["qwen36_27b_foundation_challenger", "qwen36_35b_a3b_192_expert_derivative", "dense_to_moe_pilot"],
+      "separate_checkpoint_identity": true,
+      "recursive_auto_promotion": false,
+      "human_release_required": true
+    },
+    {
+      "id": "V_VERIFIER_AND_META_POLICY",
+      "examples": ["prm", "genrm", "trap_suite", "threshold", "metric_weight", "release_policy"],
+      "ordinary_candidate_lane": false,
+      "shadow_first": true,
+      "evaluator_independent_anchor_required": true,
+      "human_signed_epoch_transition": true
+    }
+  ],
+  "campaign_required_fields": [
+    "campaign_id",
+    "lane",
+    "root_artifact_sha256",
+    "incumbent_artifact_sha256",
+    "verifier_epoch_sha256",
+    "release_policy_sha256",
+    "max_proposals",
+    "max_confirmations",
+    "max_cycles",
+    "max_wall_seconds",
+    "max_generation_tokens",
+    "max_tool_calls",
+    "max_compute_units",
+    "max_candidate_bytes",
+    "network_policy",
+    "writable_paths",
+    "critical_metrics",
+    "noninferiority_margins",
+    "target_metric",
+    "minimum_meaningful_gain",
+    "statistical_mode",
+    "campaign_alpha",
+    "alpha_allocation",
+    "screening_data_commitment",
+    "confirmation_shard_commitments",
+    "trap_suite_commitment",
+    "rollback_manifest_sha256",
+    "human_authorization"
+  ],
+  "statistical_protocol": {
+    "claim_class": "FALSE_PROXY_PROMOTION_CONTROL_NOT_PROBABILITY_OF_HARM_CONTROL",
+    "screening_spends_alpha": false,
+    "confirmation_requires_fresh_sealed_shard": true,
+    "confirmation_shard_reuse": false,
+    "decision_order": [
+      "artifact_integrity",
+      "deterministic_hard_constraints",
+      "verifier_calibration",
+      "critical_noninferiority_vs_incumbent_and_root",
+      "target_superiority_or_verified_efficiency",
+      "cumulative_drift",
+      "reproducibility",
+      "lane_authority"
+    ],
+    "allowed_modes": [
+      "FIXED_N_PAIRED",
+      "CANDIDATE_LOCAL_E_PROCESS"
+    ],
+    "mode_combination_or_rule": false,
+    "fixed_n_hoeffding_lcb": "mean_x - (b-a)*sqrt(log(1/alpha)/(2*n))",
+    "target_acceptance": "target_lcb > minimum_meaningful_gain",
+    "critical_noninferiority": "critical_metric_lcb > -pre_registered_margin",
+    "per_candidate_metric_alpha_sum_must_not_exceed_candidate_alpha": true,
+    "e_process": {
+      "wealth_reset_per_candidate": true,
+      "wealth_carried_between_candidates": false,
+      "centered_y": "(x-minimum_meaningful_gain)/max(abs(a-minimum_meaningful_gain),abs(b-minimum_meaningful_gain))",
+      "lambda_predictable": true,
+      "lambda_range": [0.0, 1.0],
+      "factor": "1 + lambda*y",
+      "acceptance": "candidate_local_wealth >= 1/target_alpha",
+      "conditional_null_required": "E[y_i | past] <= 0"
+    },
+    "across_candidate_schedule": "alpha_t = campaign_alpha/(t*H_B) for confirmation index t and finite max confirmations B",
+    "suggested_max_campaign_alpha": {
+      "S1_INTERNAL_REVERSIBLE": 0.05,
+      "A2_PRIVATE_LEARNED": 0.01,
+      "M3_V_OR_PUBLIC": 0.001
+    },
+    "power_analysis_required": true,
+    "paired_flip_reporting": {
+      "report_up_down_and_discordant_counts": true,
+      "formula_id_preregistered": true,
+      "existing_n_134_can_certify_effect_zero": false,
+      "sealed_planning_target_n": 500,
+      "null_interpretation": "NOT_DETECTED_AT_PREREGISTERED_MDE"
+    },
+    "hoeffding_examples_for_x_in_minus1_plus1_at_alpha_0_001": {
+      "meaningful_gain_0_10_min_n": 1382,
+      "meaningful_gain_0_05_min_n": 5527,
+      "meaningful_gain_0_02_min_n": 34539
+    }
+  },
+  "verifier_calibration": {
+    "required_traps": [
+      "correct_controls",
+      "incorrect_controls",
+      "base_response_controls",
+      "candidate_matched_controls",
+      "obfuscated_controls",
+      "causal_interventions",
+      "reward_hacking_adversaries",
+      "out_of_domain_shift",
+      "repeatability",
+      "abstention_cases"
+    ],
+    "required_metrics": [
+      "precision",
+      "false_positive_rate",
+      "recall",
+      "false_negative_rate",
+      "specificity",
+      "sensitivity",
+      "calibration",
+      "confidence_bounds",
+      "subgroup_breakdown",
+      "coverage",
+      "abstention_rate"
+    ],
+    "verification_horizon_axes": [
+      "scalability",
+      "faithfulness",
+      "robustness"
+    ],
+    "false_positive_ceiling_example": 0.02,
+    "zero_false_positive_min_n_for_one_sided_99pct_upper_below_0_02": 228,
+    "learned_judge_may_override_deterministic_failure": false,
+    "material_disagreement_action": "HOLD"
+  },
+  "executable_environment_authority": {
+    "states": [
+      "STATIC_CANDIDATE",
+      "EXECUTION_AUTHORITATIVE",
+      "SEMANTICALLY_AUTHORITATIVE",
+      "TRAINING_ELIGIBLE"
+    ],
+    "tests_are_ground_truth_by_construction": false,
+    "authority_factors": [
+      "patch_applies",
+      "all_fail_to_pass",
+      "all_pass_to_pass",
+      "all_hidden_tests",
+      "integrity_probes",
+      "policy_rollout_correspondence",
+      "fresh_environment"
+    ],
+    "authority_factors_are_noncompensable": true,
+    "mutation_and_toxicity_probes_required": true,
+    "semantic_false_positive_upper_bound_required": true,
+    "host_subprocess_certifies": false,
+    "fake_backend_certifies": false,
+    "operator_boolean_certifies": false,
+    "phase_a_macos_cpu": "INTERFACE_AND_ESCAPE_SUITE_ONLY_CERTIFYING_FALSE",
+    "phase_b_linux": "REAL_DIGEST_PINNED_ISOLATION_AND_INDEPENDENT_REPLAY_REQUIRED"
+  },
+  "drift_protocol": {
+    "incumbent_relative": true,
+    "root_relative": true,
+    "sahoo_weights_reused": false,
+    "gdi_threshold_0_44_adopted": false,
+    "gdi_is_release_authority": false,
+    "gdi_convergence_implies_safety": false,
+    "critical_constraint_failure": "REJECT"
+  },
+  "verifier_epoch_transition": {
+    "shadow_candidate_required": true,
+    "content_addressed": true,
+    "gold_anchor_required": true,
+    "adversarial_evaluation_required": true,
+    "overlap_mode_required": true,
+    "human_signature_required": true,
+    "dependent_old_evidence": "INVALIDATE_OR_REEVALUATE",
+    "rollback_required": true
+  },
+  "aurelius_application": {
+    "primary_modular_architecture": "IMMUTABLE_FOUNDATION_PLUS_PRIVATE_VERSIONED_ROUTED_DELTAS_AND_EXTERNAL_VERIFIER",
+    "learned_router_lane": "A2_PRIVATE_LEARNED_ATTACHMENT",
+    "adapter_lane": "A2_PRIVATE_LEARNED_ATTACHMENT",
+    "native_192_expert_challenger_lane": "M3_NATIVE_MODEL_LINEAGE",
+    "moe_rl_rollout_routing_replay_required": true,
+    "train_serve_route_mismatch": "CONTRACT_FAILURE",
+    "policy_or_router_update_invalidates_rollout_and_kv_cache": true,
+    "revised_phase_8_name": "BOUNDED_REGISTRY_ASSISTED_DEVELOPMENT",
+    "agent_may": [
+      "cluster_failures",
+      "propose_data_hypotheses",
+      "propose_module_hypotheses",
+      "generate_untrusted_candidate_artifacts"
+    ],
+    "agent_may_not": [
+      "authorize_training",
+      "select_release_verifier",
+      "promote_learned_artifact",
+      "sign_release",
+      "deploy_candidate",
+      "reset_campaign_budget"
+    ]
+  },
+  "current_code_classification": {
+    "src/training/verifier_recursion.py": "RESEARCH_PROTOTYPE_ONLY__NON_CERTIFYING",
+    "src/training/multi_domain_verifier.py": "DEVELOPMENT_REWARD_SHAPING_ONLY",
+    "src/security/integrity_verifier.py": "CHECKSUM_HELPER_NOT_TRUST_ROOT",
+    "agent/budget_bounded_loop.py": "USEFUL_RUNTIME_BOUND__PROMOTION_FAIL_CLOSED_MISSING",
+    "src/alignment/regression_gate.py": "DEVELOPMENT_SMOKE_TEST_ONLY",
+    "src/composer/edit_verifier.py": "LOCAL_ENGINEERING_FEEDBACK_ONLY"
+  },
+  "implementation_priorities": [
+    "P0_BLOCK_FALSE_CERTIFICATION",
+    "P1_ESTABLISH_TRUST_ROOT",
+    "P2_IMPLEMENT_EVALUATION_PROTOCOL",
+    "P3_RUN_SCAFFOLD_ONLY_S1_PILOT_BEFORE_ANY_TRAINING"
+  ],
+  "claims": {
+    "spec_implemented": false,
+    "verifier_cryptographically_frozen": false,
+    "sealed_evaluation_service_deployed": false,
+    "signed_release_authority_deployed": false,
+    "model_downloaded_for_this_work": false,
+    "training_run": false,
+    "capability_gain_measured": false,
+    "safety_certified": false,
+    "foundation_promoted": false
+  }
+}

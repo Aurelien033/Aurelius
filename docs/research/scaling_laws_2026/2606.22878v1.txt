@@ -1,0 +1,1398 @@
+                                                                                                                                                                                     1
+
+
+
+
+                                                Priority-Aware Learning-Unlearning Correction
+                                                for Dynamic Decentralized LoRA Fine-Tuning
+                                                     Nuocheng Yang, Yechen He, Student Member, IEEE, Sihua Wang, Zihan Chen, Member, IEEE,
+                                                           Tony Q. S. Quek, Fellow, IEEE, and Changchuan Yin, Senior Member, IEEE.
+
+
+
+                                            Abstract—As large language models (LLMs) are increasingly                fine-tuning incurs prohibitive computation and communication
+                                         deployed at the network edge to provide pervasive generative AI             costs and raises serious privacy concerns. Low-rank adaptation
+                                         services, decentralized federated learning (DFL) provides a vital           (LoRA) [6] alleviates this burden by freezing the pretrained
+                                         mechanism for privacy-preserving, domain-specific fine-tuning
+
+
+
+
+arXiv:2606.22878v1 [cs.LG] 22 Jun 2026
+                                         through peer-to-peer exchanges of parameter-efficient updates.              base model and training only lightweight low-rank adapter
+                                         However, the dynamic nature of practical decentralized edge                 matrices, thereby substantially reducing per-device computa-
+                                         networks, where devices may dynamically join or leave the col-              tion and communication overhead. Building on this advantage,
+                                         laborative training process, requires the system to continuously            collaborative LoRA fine-tuning has emerged as a practical
+                                         adapt to new data while selectively removing prior contributions.           paradigm in which devices fine-tune LLMs through local
+                                         This correction process remains a significant bottleneck, as
+                                         individual device updates become deeply entangled within the                training and federated or decentralized exchange of LoRA
+                                         global fine-tuned parameters. To address this challenge, we pro-            updates, without sharing raw private data [5], [7]–[10]. Based
+                                         pose a priority-aware learning-unlearning correction framework              on this, collaborative fine-tuning, however, is rarely conducted
+                                         based on orthogonal LoRA that can enhance the knowledge                     over a fixed set of devices. In practical edge environments,
+                                         evaluation through topology adjustment. Specifically, we first              devices join with new task-specific knowledge and leave due
+                                         design an orthogonal LoRA mechanism that yields post-training
+                                         contribution coordinates, enabling history-free projection addi-            to mobility, energy constraints, or privacy withdrawal requests
+                                         tion and deletion in response to membership changes. We then                under regulations such as GDPR [11], [12]. Each membership
+                                         analyze the correction bottleneck and develop a priority-aware              change alters the optimization objective. Newly joined devices
+                                         policy that selects among topology refinement, local correction,            introduce knowledge to be absorbed, while departing devices
+                                         proximal damping, and synchronization scheduling according to               require their learned contributions to be removed. The system
+                                         the dominant residual term. A resource allocation algorithm is
+                                         further developed to allocate limited communication across layer            must therefore correct the model after each event rather than
+                                         groups, prioritizing the primary bottlenecks within per-round               merely continue training under a fixed objective.
+                                         wireless constraints. Experiments demonstrate that the proposed                This post-event correction faces three fundamental chal-
+                                         framework achieves robust post-event correction for both device             lenges. First, the optimization target itself is unstable be-
+                                         join and leave events and validate that different residual regimes          cause each membership event shifts the optimal model, yet
+                                         necessitate distinct correction actions.
+                                                                                                                     the limited per-round communication budget prevents the
+                                           Index Terms—Decentralized learning, LoRA fine-tuning, ma-                 system from tracking this shift quickly, so the correction
+                                         chine unlearning, topology optimization, dynamic edge intelli-              process accumulates error from outdated targets at every
+                                         gence.
+                                                                                                                     step. Second, device parameters are tightly coupled in the
+                                                                                                                     shared LoRA adapter. Because individual contributions are
+                                                                  I. I NTRODUCTION                                   inseparable after decentralized training, forgetting a depart-
+                                            Large language models (LLMs) are reshaping intelligent                   ing device either leaves residual influence or inadvertently
+                                         services by providing powerful language understanding, rea-                 damages other devices’ knowledge, while a newly joined
+                                         soning, and generation capabilities across a wide range of                  device’s parameters interfere with existing ones. Third, con-
+                                         applications, such as general-purpose task solving, code intel-             vergence is inherently slow under communication constraints
+                                         ligence, autonomous agents, healthcare, and networking [1]–                 arising from the parameter-exchange topology design, where
+                                         [5]. As LLM-enabled services increasingly operate over user-                each round transmits only a small set of LoRA parameters
+                                         specific and domain-specific data at the network edge, adapting             over bandwidth-limited device-to-device links, requiring many
+                                         LLMs to distributed edge environments has become an impor-                  rounds to converge, yet the system has a finite correction
+                                         tant direction for next-generation edge intelligence. However,              budget and cannot afford unbounded iterations.
+                                         such adaptation is challenging because private-domain data                     A number of works extend parameter-efficient fine-tuning
+                                         are naturally distributed across edge devices, while centralized            to distributed settings by introducing decentralized federated
+                                                                                                                     LoRA methods [13]–[18]. They design adaptive aggregation,
+                                           N. Yang, Y. He, S. Wang, and C. Yin are with the Beijing Laboratory       heterogeneous LoRA allocation, orthogonalization, and quan-
+                                         of Advanced Information Network, and the Beijing Key Laboratory of
+                                         Network System Architecture and Convergence, Beijing University of Posts    tization strategies to improve training efficiency under wireless
+                                         and Telecommunications, Beijing 100876, China (emails: {yangnuocheng,       constraints. However, when devices dynamically join and
+                                         heyechen, sihuawang, ccyin}@bupt.edu.cn).                                   leave, these methods encounter two concrete difficulties. First,
+                                           Z. Chen and T. Q. S. Quek are with the Information Systems Technology
+                                         and Design Pillar, Singapore University of Technology and Design, 487372,   the shared adapter parameters form an indivisible aggregate,
+                                         Singapore (emails: zihan chen@mymail.sutd.edu.sg, tonyquek@sutd.edu.sg).    and there is no mechanism to isolate and extract a single
+                                                                                                                                     2
+
+
+
+device’s contribution. A departing device forces the system          timization convergence rate, and they optimize communica-
+to either discard the entire adapter (losing all other devices’      tion topology to accelerate training under bandwidth con-
+knowledge) or retain stale influence (violating the removal          straints [37], [38]. The critical limitation is that these topol-
+request). Second, without a per-device contribution index,           ogy methods are designed to accelerate consensus toward
+newly joined devices cannot be efficiently incorporated by           a fixed training target. When a membership event changes
+identifying compatible directions in the existing adapter space,     the optimization objective, accelerating consensus toward the
+so the system must either retrain from scratch or risk inter-        old target becomes actively harmful, since devices would
+ference between old and new knowledge. Thus, in dynamic              converge faster to an outdated model. Moreover, topology
+membership scenarios, these methods lack both the isolation          optimization allocates edges to maximize training throughput,
+granularity and the incorporation mechanism that post-event          but in post-event correction, communication resources must
+correction demands. Departure-side methods, namely feder-            serve a different purpose, propagating the correction signal
+ated and decentralized unlearning, aim to remove client or           rather than the training signal. In the nonconvex LoRA correc-
+data influence without full retraining [19]–[21]. They pro-          tion regime, dense topologies risk propagating locally biased
+pose model-agnostic meta-unlearning [19], influence-function-        updates across the network before local optimization can
+based removal [22], knowledge distillation [23], and certified       correct them, amplifying rather than reducing the post-event
+deletion protocols [24]. LLM unlearning further studied to           error. Topology methods, therefore, lack the ability to adapt
+address the retain-forget tradeoff in language models [25]. Yet,     their communication topology to the dominant error source,
+these unlearning methods assume infrastructure that is absent        which in post-event correction may be local optimization bias
+in a fully decentralized LoRA system. Federated unlearning re-       or client drift rather than consensus disagreement.
+quires a central server to coordinate the forgetting process [26].
+                                                                        To fill these gaps, this paper proposes a priority-aware
+Without such a coordinator, the remaining devices cannot
+                                                                     learning-unlearning correction framework for dynamic decen-
+agree on a consistent removal target. Historical update trajec-
+                                                                     tralized LoRA fine-tuning. The core idea is to equip each
+tories stored on a server enable precise influence estimation,
+                                                                     device with a contribution identifier that persists across mem-
+but in a D2D-only network, each device retains only its current
+                                                                     bership changes, so that individual device influences can be
+adapter state. Auxiliary teacher models used for distillation-
+                                                                     approximately isolated after decentralized training. Under this
+based forgetting are unavailable when devices share only low-
+                                                                     identifier, a leaving device can be removed without historical
+rank adapters. As a result, directly applying these protocols
+                                                                     gradient records, and a newly joined device can extend the
+would either incur prohibitive synchronization overhead or
+                                                                     existing model without overwriting other devices’ knowledge.
+produce inconsistent forgetting across devices, breaking the
+                                                                     We then formulate the post-event correction as an optimization
+correctness guarantees that their centralized operation relies
+                                                                     problem under per-round communication constraints and ana-
+on. Join-side methods address the complementary problem
+                                                                     lyze how local residual, consensus residual, and heterogeneity
+of absorbing new devices or tasks into an existing model.
+                                                                     residual each contribute to the finite-round correction error.
+Federated continual learning [27], [28] mitigates catastrophic
+                                                                     This analysis reveals which error source dominates under dif-
+forgetting when new clients with novel data distributions
+                                                                     ferent conditions, informing a corrective policy that allocates
+arrive, cold-start federated training [29] initializes newcomers
+                                                                     communication edges and local computation steps accordingly.
+without disrupting the existing model, and flexible participa-
+tion protocols [30], [31] analyze convergence under arbitrary          The main contributions are summarized as follows.
+client churn patterns. In the parameter-efficient space, LoRA
+composition methods such as LoRAHub [32] and orthogo-                  • We formulate a unified learning-unlearning event objec-
+nal subspace merging [33] enable modular combination of                  tive for dynamic, decentralized LoRA fine-tuning that
+independently trained adapters. However, these join methods              captures both device join and leave events under per-
+address only one direction of membership change. Federated               round communication constraints.
+continual learning and cold-start protocols focus exclusively          • We introduce a frozen random orthogonal LoRA projec-
+on integrating new knowledge. When a device later departs,               tion mechanism that turns each device-specific basis into
+they offer no mechanism to precisely remove its contribution             a post-training contribution index. For join events, the
+without retraining the remaining model from scratch. LoRA                orthogonal basis naturally extends the existing subspace,
+composition methods merge adapters additively, so subtraction            allowing new knowledge to be incorporated without in-
+requires retaining the exact pre-merge checkpoint and the                terfering with existing devices’ coordinates. For leave
+adapter being removed, information that decentralized devices            events, this enables no-history projection deletion without
+do not store after aggregation. More fundamentally, once                 affecting other devices’ knowledge.
+adapters are aggregated through decentralized aggregation,             • We analyze the correction gap to identify that the dom-
+individual contributions become inseparable regardless of how            inant factors are per-group curvature and post event
+they were initially incorporated, so any join-only method is             initial gap. We then transform these two quantities into
+structurally incapable of supporting subsequent unlearning.              computable rank-order priority proxies based on Fisher
+   Topology-aware decentralized learning explains how net-               information for curvature, post-projection gradient energy
+work aggregation and gossip communication affect conver-                 for initial gap that can enable a priority-based allocation
+gence [34]–[36]. These methods characterize the relationship             of local steps, proximal damping, and mixing density
+between the aggregation matrix’s spectral gap and the op-                across layer groups without solving the full bound.
+                                                                                                                                   3
+
+
+
+                     II. R ELATED W ORK                             unlearning, fully decentralized certified unlearning, and decen-
+A. Networked LLM and LoRA-Based Collaborative Fine-                 tralized AIGC-service unlearning. These works demonstrate
+Tuning                                                              that unlearning can be performed without a single coordinator,
+                                                                    but they often add distillation, certification, ensemble, or
+   Networked LLM studies establish why LLM adaptation
+                                                                    trust structures. In contrast, this paper focuses on a lighter
+is becoming a communication-system problem. The authors
+                                                                    LoRA correction setting where the available information is
+in [5], [7]–[9] investigated LLMs for networking, mobile
+                                                                    the current adapter state and the frozen device bases. LLM
+network analysis, and federated LLM fine-tuning. The authors
+                                                                    unlearning introduces an additional retain-forget conflict. The
+in [39]–[41] further considered wireless fine-tuning and client
+                                                                    authors in [21], [25], [57]–[59] studied LLM unlearning,
+selection for LLMs. The common assumption in these studies
+                                                                    sparse-adapter knowledge overwriting, hierarchical federated
+is that the main difficulty is efficient training or serving
+                                                                    LLM unlearning, selective forgetting, and continual LLM un-
+over a network. In a dynamic decentralized system, however,
+                                                                    learning. Training-free and influence-based ideas in [60], [61]
+the device population itself changes, so the model must be
+                                                                    further motivate approximate deletion without full retraining.
+corrected after join and leave events rather than only trained
+                                                                    These works support the need to compare the post-unlearning
+under a fixed population. Parameter-efficient LoRA methods
+                                                                    model with a retraining or retain-aware oracle. What remains
+reduce the cost of such collaborative adaptation. The authors in
+                                                                    open is how to connect this retain-forget objective with de-
+[6] introduced low-rank adaptation by freezing the base model
+                                                                    centralized topology and finite-round LoRA correction after
+and updating a small set of adapter parameters. The authors in
+                                                                    membership events.
+[13]–[15], [42] proposed adaptive aggregation, heterogeneous
+LoRA allocation, layer-wise deployment, and alternating low-        C. Decentralized Learning, Gossip, and Topology-Aware Op-
+rank aggregation for federated or decentralized fine-tuning.        timization
+The authors in [17], [43]–[45] further studied orthogonaliza-
+                                                                       Decentralized learning provides the algorithmic basis for
+tion, quantization-aware LoRA, wireless heterogeneous LoRA,
+                                                                    serverless model adaptation. The authors in [34], [35], [62],
+and fair aggregation. These works make collaborative LLM
+                                                                    [63] studied communication-efficient federated learning, de-
+fine-tuning feasible, but the adapter coordinates are designed
+                                                                    centralized federated learning fundamentals, decentralized
+for training efficiency, not for identifying which part of the
+                                                                    stochastic gradient methods, and fully decentralized federated
+trained adapter belongs to a leaving device. Adapter hetero-
+                                                                    learning. The authors in [64]–[66] analyzed communication-
+geneity and interference have also been studied in multi-
+                                                                    computation tradeoffs and decentralized learning costs. These
+task and peer-to-peer settings. The authors in [46]–[50] stud-
+                                                                    works show that local computation and communication are
+ied rank-wise mixture, task-heterogeneity-aware adaptation,
+                                                                    coupled, but the analyzed objective is typically a stationary
+cross-task interference, orthogonal LoRA mixtures, and sparse
+                                                                    training loss. Gossip and topology-aware optimization explain
+foundation-model fine-tuning. The authors in [16], [51]–[53]
+                                                                    the consensus part of decentralized convergence. The authors
+investigated decentralized low-rank fine-tuning and peer-to-
+                                                                    in [36]–[38], [67] studied topology effects beyond spectral
+peer LLM collaboration, while [18] considered sparse-and-
+                                                                    gap, multiple gossip steps, diameter-constrained topology or-
+orthogonal LoRA for wireless multi-task LLM fine-tuning.
+                                                                    chestration, and expander-graph-based decentralized optimiza-
+These studies show that adapter subspaces are not neutral
+                                                                    tion. The authors in [66], [68], [69] investigated peer-to-
+averaging variables. This paper uses that insight differently:
+                                                                    peer variational learning, consensus-based distillation, and
+the LoRA basis is fixed as a contribution coordinate so that
+                                                                    communication-computation tradeoffs over arbitrary networks.
+membership-driven unlearning can be followed by decentral-
+                                                                    These studies justify using topology when disagreement dom-
+ized correction.
+                                                                    inates, but they also imply a limitation: faster aggregation
+                                                                    is only one correction action and may not solve local drift
+B. Federated, Decentralized, and LLM Unlearning                     or retain-forget conflict. Recent decentralized systems further
+   Federated unlearning aims to remove client or data influence     consider heterogeneity, reliability, and resource-aware topol-
+without full retraining. The authors in [19], [22], [23], [26]      ogy design. The authors in [70]–[74] studied bandwidth-
+proposed client-level removal, knowledge-distillation-based         aware topology optimization, energy-efficient topology design,
+unlearning, recovery from historical updates, and influence-        pair-wise gossip, edge-based communication optimization, and
+approximation-based federated unlearning. The surveys in            acceleration in heterogeneous edge computing. The authors
+[11], [12] summarized federated unlearning methods and open         in [75]–[79] considered fairness-aware peer-to-peer learning,
+challenges. These methods clarify the deletion objective, but       secure microchained DFL, reputation-aware coalitions, con-
+many of them rely on a server, stored update trajectories,          nected industrial systems, and Byzantine-resilient decentral-
+retraining-like recovery, or an auxiliary teacher. These require-   ized SGD.
+ments are difficult to satisfy when devices only hold their cur-
+rent decentralized LoRA adapters. Decentralized unlearning          D. Wireless Resource Allocation for Networked Learning
+removes the central server assumption and is therefore closer          Wireless edge learning turns correction design into a con-
+to the target scenario. The authors in [54] studied Bayesian        strained resource-allocation problem. The authors in [80]–
+variational federated learning and unlearning in decentralized      [83] studied cooperative federated learning over heteroge-
+networks. The authors in [20], [24], [55], [56] studied het-        neous edge/fog networks, joint learning-communication de-
+erogeneous decentralized unlearning, certified decentralized        sign, wireless communications for collaborative federated
+                                                                                                                                                             4
+
+
+
+                                                                                  epoch t, the active devices’ set is Mt = {1, 2, . . . , Mt }. Each
+           Retain Device 𝑝 ∈ ℳ! \𝒰!                    Retain Device 𝑞 ∈ ℳ! \𝒰!   device i ∈ Mt holds a private local dataset Di,t which may
+                                      LoRA                                        correspond to different downstream tasks or data distributions.
+                   Frozen LoRA Adapter 𝑩!,#              Frozen LoRA
+                   LLM 𝑨! 𝑩!,#                           LLM 𝑨$ 𝑩$,#              To reduce the computational overhead of full-parameter train-
+                                      𝑩$,#
+                                             LoRA                                 ing, a LoRA-based method is introduced, where each device
+                                             Adapter                              freezes the L layer pretrained model θ0 = [θ0,1 , · · · , θ0,L ] and
+           𝑨%       Assigning New                            Projection
+                                                                                  trains an additional low-rank adapter per layer. For layer ℓ with
+           𝑩%,#        Basis 𝑨"                             Deletion via 𝑨#       pre-trained parameter θ0,ℓ ∈ Rdℓ ×kℓ , the low-rank adapted
+              Join Devices 𝑖 ∈ 𝒥!                      Leave Devices 𝑗 ∈ 𝒰!
+                                                                                  parameter is given by
+                  Frozen LoRA         Device set
+                                                          Frozen LoRA                                                           (ℓ) ⊤
+                                       update                                                                (ℓ)         (ℓ)
+                  LLM    𝑨% 𝑩%,#       ℳ!$% =             LLM 𝑨& 𝑩&,#                                  ∆Wi,t = Bi,t Ai                   ,                 (1)
+                                      (ℳ! \𝒰! )
+                                      ∪ 𝒥!                                                                                               (ℓ)
+                                                                                  Specifically, in the proposed method, Ai ∈ Rdℓ ×rℓ is a
+                                                                                  device-specific, frozen projection matrix sampled indepen-
+                                                                                  dently from a zero-mean, unit-variance Gaussian distribu-
+                                                                                          (ℓ)
+Fig. 1. Illustration of the considered dynamic DFL framework.
+                                                                                  tion. Bi,t ∈ Rkℓ ×rℓ is the trainable expansion matrix and
+                                                                                                              (ℓ)                 (ℓ)
+                                                                                  rℓ ≪ min(dℓ , kℓ ). Since Ai is frozen, only Bi,t is trained
+                                                                                  and exchanged between devices during the collaborative fine-
+learning, and distributed learning over wireless networks. The                    tuning process. For an local stored input-output data pair
+authors in [84]–[86] further studied communication-energy-                        (x, y) ∈ Di,t , the autoregressive loss under Ai and Bi,t is
+efficient decentralized learning, graph-neural-network-based                      given by
+collaborative FL energy optimization, and secure distributed
+Bayesian FL. These works show that wireless constraints                                                            |y|
+                                                                                                                   X
+cannot be treated as an afterthought, but the learning task                         ℓ(y|x; θ0 , Ai , Bi,t ) = −          log pθ0 ,Ai ,Bi,t (ys |x, y<s ), (2)
+remains standard model training rather than membership-                                                            s=1
+event learning-unlearning correction. Graph-based wireless                                                                               (0)         (L)
+optimization provides scalable tools for link and resource                        where θ0 = [θ0,1 , . . . , θ0,L ], Ai = [Ai , . . . , Ai ], and
+                                                                                             (0)          (L)
+decisions. The authors in [87]–[90] studied graph neural net-                     Bi,t = [Bi,t , . . . , Bi,t ]. The fine-tuned ℓ-th layer’s parameter
+                                                                                        (ℓ)                      (ℓ)
+works for wireless communications, graph-embedding-based                          is Wi,t = θ0,ℓ + ∆Wi,t . The local training objective of
+link scheduling, GNN-based resource allocation, and super-                        device i is
+vision levels for wireless link scheduling. The authors in
+[91]–[93] studied UAV trajectory design, random-edge GNN                              Ltr
+                                                                                       i,t (Bi,t ; Di,t ) = E(x,y)∈Di,t [ℓ(y|x; θ0 , Ai , Bi,t )] .        (3)
+resource allocation, and scalable radio resource management.
+These methods can optimize links once the network objective                       During decentralized LoRA fine-tuning, each device alternates
+is known, but they do not specify whether a post-event LoRA                       between nℓ steps of local updates and a model aggregation step
+system should prioritize edges, local steps, proximal damping,                    from neighbors. Each local step updates the expansion matrix
+or synchronization. Hierarchical and mobility-aware systems                       using gradient descent.
+further illustrate why dynamic correction is necessary. The
+authors in [94]–[98] studied network support for distributed
+machine learning, vehicular edge FL, hierarchical FL, decen-                      B. Model Transmission and Aggregation
+tralized wireless FL with differential privacy, and proxy-model
+sharing. These works capture realistic deployment pressures,                         After local fine-tuning, devices will exchange their LoRA
+                                                                                                                                   (ℓ)
+while this paper focuses on the missing correction logic: when                    parameters with a subset of neighbors. Let Et be the undi-
+the membership changes, the wireless network should support                       rected model exchange edge set selected for layer ℓ at round
+                                                                                               (ℓ)
+not only faster training communication but also faster learning-                  t, and let di,t be the degree of device i in this graph (i.e., the
+unlearning recovery.                                                              number of neighbors to exchange model parameter). Device
+                                                                                  i’s model aggregated from neighbors through model exchange
+                                                                                              (ℓ)
+    III. S YSTEM M ODEL AND P ROBLEM F ORMULATION                                 edge set Et can be given by
+A. Dynamic Decentralized LoRA System                                                                (ℓ)
+                                                                                                          X h (ℓ)         i
+                                                                                                                                 (ℓ)
+                                                                                                   Bi,t =       Wt (γℓ )       Bj,t .            (4)
+   Consider a distributed wireless network in which a set of                                               j∈Mt
+                                                                                                                                   i,j
+edge devices collaboratively fine-tune an L-layer LLM without
+relying on a central parameter server. Devices exchange only                      The damped aggregation matrix is given by
+the fine-tuned LoRA adapter parameters via device-to-device
+                                                                                                     (ℓ)                                       (ℓ)
+links, rather than raw data. Unlike the traditional system                                       Wt (γℓ ) = (1 − γℓ )I + γℓ Wt ,                           (5)
+model, which assumes a fixed set of devices that attend to
+collaborative training, the members who attend collaborative                      where γℓ ∈ [0, 1] controls the blending between purely local
+fine-tuning change across training epochs. Specifically, at                       correction (γℓ = 0) and full neighbor aggregation (γℓ = 1),
+                                                                                                                                                                                                                 5
+
+
+
+                                                           TABLE I
+     C OMPARISON BETWEEN REPRESENTATIVE RELATED WORKS AND THE CONSIDERED DYNAMIC DECENTRALIZED L O RA LEARNING - UNLEARNING
+                                                     CORRECTION PROBLEM .
+
+ Work category           Representative works                     LLM/LoRA       Dynamic join/leave   Unlearning    No-history removal     Decentralized constraint   Main limitation for this paper
+ Federated and decen-    [6], [13]–[18], [42]                        Yes              Limited            No                No                      Partial            They reduce adapter training and com-
+ tralized LoRA fine-                                                                                                                                                  munication costs, but do not provide a
+ tuning                                                                                                                                                               post-training device contribution index
+                                                                                                                                                                      for leave events.
+ LLM collaboration       [18], [46]–[50], [52], [53]                 Yes              Limited          Limited             No                      Partial            They study collaboration, mixture, and
+ and           adapter                                                                                                                                                interference in adapter spaces, but
+ interference control                                                                                                                                                 do not formulate dynamic learning-
+                                                                                                                                                                      unlearning correction.
+ Federated and decen-      [11], [12], [19], [20], [22]–[24],       Partial           Limited            Yes            Usually no                 Partial            They remove data or client influence,
+ tralized unlearning     [26], [54], [55]                                                                                                                             but often require history, server-side
+                                                                                                                                                                      control, distillation, certification, or
+                                                                                                                                                                      retraining-like signals.
+ LLM and adapter un-     [21], [25], [56]–[60]                       Yes              Limited            Yes              Partial                  Limited            They address retain-forget behavior,
+ learning                                                                                                                                                             but do not jointly handle device-level
+                                                                                                                                                                      contribution indexing and decentral-
+                                                                                                                                                                      ized finite-round correction.
+ Decentralized learn-    [34]–[38], [62], [63], [67]              No/Partial           Partial           No                No                        Yes              They explain consensus and topology
+ ing and gossip topol-                                                                                                                                                effects for fixed training objectives,
+ ogy                                                                                                                                                                  but not post-event learning-unlearning
+                                                                                                                                                                      residual decomposition.
+ Wireless networked      [80]–[85], [87], [88]                      Partial            Partial           No                No                        Yes              They optimize communication, energy,
+ learning          and                                                                                                                                                and wireless links, but do not decide
+ resource allocation                                                                                                                                                  whether topology or local correction
+                                                                                                                                                                      should be prioritized after membership
+                                                                                                                                                                      events.
+ Proposed framework      This paper                                  Yes                Yes              Yes               Yes                       Yes              It uses frozen orthogonal LoRA bases
+                                                                                                                                                                      for no-history contribution indexing
+                                                                                                                                                                      and a Fisher-driven priority allocation
+                                                                                                                                                                      framework that distributes correction
+                                                                                                                                                                      resources across layer groups.
+
+
+
+                                                          (ℓ)              (ℓ)
+and the base Metropolis matrix Wt                                = [wi,j,t ]i,j∈Mt+1 can                into a single budget measure as
+be given by                                                                                                                                                    (ℓ)
+                                                                                                                                          (ℓ)      (ℓ)        bi,j,t
+                                                                                                                                         ci,j,t = bi,j,t + βτ        ,                                     (8)
+               1                                                                                                                                             Ri,j,t
+                                                                             (ℓ)
+                            ,                                  if (i, j) ∈ Et ,         i ̸= j,
+               (ℓ)    (ℓ)
+          max{di,t , dj,t }
+         
+                                                                                                       where βτ ≥ 0 converts latency into the same budget unit as
+                                                                                                                  (ℓ)
+  (ℓ)
+ wi,j,t = 1 −    P             (ℓ)                                                                      payload, bi,j,t is the transmission data size.
+                           wi,m,t ,                            if i = j,
+         
+             m∈Mt ,m̸=i
+                                                                                                        C. Unified Membership Event Objective
+         
+         
+           0,                                              otherwise.
+                                                                (6)                                        After the local training and aggregation stage, the system
+Here, we can see that the design variable is the feasible edge                                          may experience a membership event. Specifically, at epoch t,
+      (ℓ)
+set Et and once it is selected, all model aggregation weights                                           a set Jt of Jt devices joins the system with fully initialized
+are determined.                                                                                         model parameters to train on their local datasets. There may
+   We further define the correction schedule of layer ℓ as                                              also be a set Ut of Ut devices that leave the system and request
+Πℓ = (nℓ , ηℓ , λprox
+                 ℓ    , γℓ ). Πℓ consists of four quantities, which                                     the removal of their contributions from the model parameters
+include the number of local steps nℓ , the step size ηℓ , the                                           that are already trained. In this scenario, the active device set
+proximal coefficient λprox     , and the aggregation strength γℓ ,                                      at epoch t + 1 can be given by
+                           ℓ
+collectively specifying the correction schedule for layer ℓ. Let                                                                     Mt+1 = (Mt \ Ut ) ∪ Jt .                                              (9)
+sℓ be the data size of LoRA scalars of layer ℓ, and let qb be the
+number of quantization bits per scalar. The data set of device                                          This membership event is denoted by et = (Jt , Ut ). Let
+                                             (ℓ)
+i transmitting its model to device j is bi,j,t = qb sℓ .                                                Dret (et ), Djoin (et ), and Dfor (et ) denote the retain, join, and
+                                                                                                        forget sets induced by event et . For the forget set, yf denotes
+   We adopt the OFDMA scheme for wireless model transmis-
+                                                                                                        the desired post-unlearning response, such as a refusal, neutral,
+sion. The achievable transmission rate from device i to device
+                                                                                                        or sanitized target response. Thus, the final event objective is
+j at round t is given by
+                                                                                                                 (e )
+                                                                                                            Levtt (B) =E(x,y)∈Dret (et ) [ℓ(y|x; θ0 , A, B)]
+                                                                                       !
+                                                      p h                                                                        + λj E(x,y)∈Djoin (et ) [ℓ(y|x; θ0 , A, B)]
+             ch
+   Ri,j,t = Bi,j,t log2               1+             P i,t i,j,t                            , (7)
+                                                σ 2 + m∈Ij,t pm,k hmj,t                                                          + λf E(x,yf )∈Dfor (et ) [ℓ(yf |x; θ0 , A, B)] , (10)
+                                                                                                        where λj ≥ 0 and λf ≥ 0 control the learning and forgetting
+         ch                                                                                             terms. If the event contains only a leave request, λj = 0, if it
+where Bi,j,t  is the available bandwidth, pi,t is the transmit
+power, hi,j,t being the channel gain. σ 2 is the noise power,                                           contains only a join request, λf = 0.
+                                                                                                                                    (e )
+and Ij,t being co-channel interference set. The per-edge com-                                              Let Be⋆t = arg minB Levtt (B) be the optimal adapter. In
+munication cost combines payload and transmission latency                                               particular, the oracle cannot be computed in the decentralized
+                                                                                                                                                    6
+
+
+
+setting, so the goal is to approximate it via finite-round                         each layer ℓ and remains fixed during training and aggregation,
+decentralized gradient descent (DGD) correction. The event                         which can benefit the unlearning process. To establish this,
+correction gap after K DGD rounds is                                               we first make the following assumption that formalizes the
+                                (e )                  (e )                         projection basis structure.
+           Eevt (et , K) = Levtt (B̄K ) − Levtt (Be⋆t ),                    (11)
+                                                                                   Assumption 1 (Frozen random orthogonal bases). For each
+                             (1)           (L)                       (ℓ)                                  (ℓ)
+where    B̄
+        P K
+                   =      (B̄K , . . . , B̄K )
+                                           and             =       B̄K             device i and layer ℓ, Ai ∈ Rdℓ ×rℓ has independently
+   1                 (ℓ)
+|Mt+1 |    i∈Mt+1  B i,K is the  device-averaged   expansion                       sampled elements and remains frozen during training and
+factor at layer ℓ.                                                                 correction.
+   Remark. Note that the forget term cannot be minimized
+                                                                                     Then, we can analyze the impact between projection metric
+directly by DGD, since the departing devices are unavailable.
+                                                                                   as the following Lemma.
+
+D. Problem Formulation                                                             Lemma 1 (Orthogonal projection leakage). Under Assumption
+                                                                                           (ℓ)         (ℓ)
+                                                                                   1, if Ai and Aj are independently generated by Gaussian
+  We formulate our optimization problem whose goal is                              sampling, then
+to minimize the event correction gap within K correction                                   "                      #
+                                                                                                                2
+rounds while jointly considering communication constraints                                     
+                                                                                                  (ℓ)
+                                                                                                      ⊤
+                                                                                                            (ℓ)      r2
+                                                   (ℓ)                                   E       Ai        Aj       = ℓ ≈ 0, if rℓ ≪ dℓ . (13)
+by adjusting Πℓ and feasible communication graphs Et . The                                                      F    dℓ
+optimization problem is formulated as
+                                                                                   Proof. See Appendix A.
+                         min            Eevt (et , K)                       (12)                                                      (ℓ)         (ℓ)
+                              (ℓ)
+                      {Πℓ ,Et }                                                       Lemma 1 shows that randomly sampled Ai and Aj
+                                                                                   satisfy orthogonal bases that provide low-overlap device-
+                     L                                                             specific coordinates rather than shared semantic directions.
+                                           (ℓ)
+                     X        X
+              s.t.                        ci,j,t ≤ Ct ,      ∀t,           (12a)   This property is what enables contribution separation. For
+                     ℓ=1 (i,j)∈E (ℓ)
+                                    t
+                                                                                   each device u, we can define its projection operator and its
+                      (ℓ)                                                          orthogonal complement as
+                     bi,j,t
+                              ≤ τtmax ,          ∀(i, j), g, t,            (12b)                               ⊤
+                                                                                                                       (ℓ)
+                     Ri,j,t                                                                 Pu(ℓ) = A(ℓ)
+                                                                                                      u    A(ℓ)
+                                                                                                            u      , Pu,⊥ = I − Pu(ℓ) .    (14)
+where Ct is the available per-round communication budget,                          When device u leaves, each remaining device i projects its
+and τtmax is the maximum tolerable link latency in round                                                                               (ℓ)
+                                                                                   LoRA adapter to remove the component aligned with Au as
+t. The budget is not accumulated across rounds; every cor-
+                                                                                                            (ℓ)        (ℓ)     (ℓ)
+rection round must satisfy its own wireless constraint. The                                           ∆Wi         = ∆Wi      Pu,⊥ .             (15)
+optimization problem is hard to solve due to the following
+                                                                                                         (ℓ)
+reasons. First, the optimization problem is a mixed-integer                        Since the basis Ai          is frozen, this is equivalent to
+                                                                                                                                 (ℓ)          (ℓ)
+program whose objective depends on the unknown event oracle                        re-initiation the expansion matrix as Bi,0 = Bi,t −
+Be⋆t and involves discrete graph variables coupled with con-                          (ℓ)   (ℓ)⊤ (ℓ)    (ℓ)⊤ (ℓ)
+                                                                                   Bi,t (Ai Au )Au Ai , where the correction term is
+tinuous policy parameters. Second, event membership causes                                             (ℓ)⊤ (ℓ)
+                                                                                   small because Ai Au ≈ 0. Through (15) device i
+unstable object changes, which introduce unstable training
+                                                                                   can eliminate device u’s contribution through that projec-
+and parameter exchange. Further, since the departing devices
+                                                                                   tion wheres device u’s knowledge learned during training is
+are unavailable, a data-free unlearning algorithm needs to be                                                                                     (ℓ)
+                                                                                   encoded in the subspace spanned by its frozen basis Au .
+designed.
+                                                                                   By projecting out this subspace from the shared adapter, the
+                                                                                   information contributed by u is eliminated while other devices’
+    IV. P ROBLEM A NALYSIS AND P ROPOSED M ETHOD                                   knowledge, residing in approximately orthogonal subspaces, is
+   To address problem (12), in this section, we need to analyze                    preserved. Thus, the proposed unlearning method can enable
+the relationship between the event correction gap and derive                       a stable subspace deletion without retaining. Further, this
+a residual-level rule for selecting corrective actions. Further,                   operation is local, incurs no communication cost, and requires
+since the fine-tuning forget term cannot be minimized directly                     no historical gradients.
+via gradient descent, we first propose a model initialization                         Similarly, when a new device j joins, it generates its own
+                                                                                                                     (ℓ)                  (ℓ)
+method that enables unlearning without using unlearning data.                      orthogonal projection matrix Aj and initializes Bj from
+                                                                                                                (ℓ)
+                                                                                   its local data. Because Aj is approximately orthogonal to
+                                                                                                                                       (ℓ)     (ℓ)
+A. Orthogonal Projection Matrix Mechanism and Post-Event                           the existing bases (Lemma 1), the new adapter Bj (Aj )⊤
+Initialization                                                                     extends the active subspace without interfering with previously
+   We begin by introducing a novel LoRA mechanism that                             learned knowledge. The surviving devices’ expansion matrixs
+                                                                                      (ℓ)
+enables a fast post-event initialization without storing the                       Bi,t remain unchanged during this step. Thus, both events are
+history gradient, which is commonly used in traditional works.                     handled by a single mechanism as follows
+In particular, based on (1), each device i is initialized with a                      • Device leave: We can remove a device’s subspace com-
+                                               (ℓ)
+frozen random orthogonal projection basis Ai ∈ Rdℓ ×rℓ for                                ponent via orthogonal projection.
+                                                                                                                                          7
+
+
+
+  •  Device join: We can add a new orthogonal subspace                   Under this assumption, the gap between the initialization
+     component via direct initialization.                             after membership event and the event oracle in objective value
+   These benefits are both enabled by the frozen orthogonal           is bounded by the parameter residual as
+basis structure. To further quantify its impact, we have the             (e )           (e )               Lℓ e (ℓ)               2
+following lemma, which bounds the residual transfer between
+                                                                              e 0 ) − L t (B ⋆ ) ≤
+                                                                       Levtt (B        evt  et                 B0 (et ) − Be⋆,(g)   . (18)
+                                                                                                            2                   t
+                                                                                                                                  2
+different devices’ subspaces and controls both how much of a
+                                                                      After leave-side projection deletion, the pre-event consensus
+leaving device’s contribution leaks into other subspaces and                                   old,(ℓ)
+how much a joining device’s basis interferes with existing            expansion factor Bt              is updated to
+ones.                                                                   Be (ℓ) (et ) = B old,(ℓ) − B old,(ℓ) A(ℓ)⊤ A(ℓ) A(ℓ)⊤ A(ℓ) ,
+                                                                                                                                     
+                                                                           del            t             t                u      u
+Lemma 2 (Projection transfer residual). Under Assumption 1,                                                                           (19)
+                                                   (ℓ)                                                                                  (ℓ)
+for any i ̸= j and layer ℓ, the expansion matrix Bi,t satisfies       where the correction term is bounded by the basis leakage χiu
+                                                                      from Lemma 2.
+                ⊤      2                     ⊤       2
+     (ℓ)
+         
+            (ℓ)     (ℓ)          (ℓ)        (ℓ)      (ℓ)                 When a new device j ∈ Jt joins, it trains an initial
+  Bi,t Ai          Pj     ≤ ∥Bi,t ∥2F     Ai       Aj        .                                  (ℓ)
+                        F                                  2
+                                                                      expansion factor Bj,0 from its local data. The post-event
+                                                               (16)   expansion factor B
+                                                                                              (ℓ)
+                                                                                            e (et ) is then the horizontal concatenation
+                                                                                              0
+Proof. See Appendix B.                                                of the projected consensus and all joining devices’ factors:
+                                                                                     e (ℓ) (et ) = B
+                                                                                                     (ℓ)
+                  (ℓ)                                                                                  e (et ), {B (ℓ) }j∈J ,
+                                                                                                                               
+   Since each Ai is sampled independently, the overlap                               B 0                del          j,0     t        (20)
+between different devices’ projection matrices is provably                                          (ℓ)        (ℓ)
+limited. When j is a leaving device, this bound controls how          with the aggregate basis Apost = [Ai ]i∈Mt+1 . Together, the
+much of device i’s adapter leaks into the leaving subspace            two membership event types reduce to a well-defined finite-
+after projection deletion. When i is a joining device, the bound      round correction problem.
+controls the interference between the new basis and existing            The parameter residual from the post-event initialization to
+                                                                                           (ℓ)        e (ℓ) (et ) − Be⋆,(g)
+ones. Together with Lemma 1 and Lemma 2, we can see                   the event oracle is r0 (et ) = B 0               t    . Under the
+that the orthogonal basis mechanism produces a well-defined           Lℓ -smoothness condition in Assumption 2, the initialization
+                                              (ℓ)                     gap admits a direct bound.
+post-event initialization based on frozen Ai . Prior work on
+projection-based unlearning [99], [100], orthogonal subspace          Theorem 1 (Dynamic membership initialization gap). Under
+adaptation [101], and project-then-recover pipelines [102],           Assumptions 1 and 2, after event et , the per-layer event
+[103] supports the view that such an initialization falls within      objective gap before DGD correction satisfies
+a recoverable neighborhood of the event objective. Then, we
+can see that the orthogonal basis mechanism produces a well-                             (ℓ)              Lℓ (ℓ)     2
+                                                                                        Eevt (et , 0) ≤      r (et ) 2 .              (21)
+defined post-event initialization without stored history. Pro-                                            2 0
+jection deletion bounds the leaving device’s residual transfer,                                                       (e )
+                                                                      Proof. Since Be⋆t is a local optimum, ∇Levtt (Be⋆t ) = 0. By
+while orthogonal basis extension limits the joining device’s                                             e 0 ) − L(B ⋆ ) ≤ Lℓ ∥B
+                                                                      Lℓ -smoothness (Assumption 2), L(B                   2
+                                                                                                                               e0 −
+interference with existing coordinates. Both membership event           ⋆ 2    Lℓ     2
+                                                                      B ∥2 = 2 ∥r0 ∥2 .
+types reduce to the same subsequent step: finite-round DGD
+correction starting from a recoverable neighborhood. However,            Theorem 1 shows that the orthogonal basis mechanism
+the per-round communication budget and finite correction              converts both leave and join events into a bounded initial-
+horizon K require allocating correction resources across layer        ization gap proportional to ∥r0 ∥2 . For leave events, projection
+groups according to each group’s sensitivity. To further analyze      deletion provides a controlled starting point that approximately
+the convergence of DGD correction from this initialization, we        removes the departing device’s contribution without requiring
+adopt standard regularity assumptions on the objective as in          historical gradients. For join events, the orthogonal structure
+[104]–[106].                                                          ensures that a new device’s basis does not significantly inter-
+                                                                      fere with existing coordinates, so the join-side initialization
+Assumption 2 (Local PL-regularity after projection initializa-
+                             (e )                                     gap remains bounded by the pairwise basis leakage quantified
+tion). For each layer ℓ, Levtt as a function of B (ℓ) (with other
+                                                                      in Lemma 1. Together, the two membership event types reduce
+layers fixed) satisfies a local µℓ -PL condition in a neighbor-
+                                                                      to a well-defined finite-round correction problem.
+hood that contains both the post-event initialization produced
+by the projection steps above and the centralized optimum
+                                                       (ℓ)
+model. Each local correction objective Ltr      i,t (Bi,t ; Di,t ) is Lℓ -
+                                                                             B. Correction Gap Analysis under DGD
+                 (et )                        (ℓ)
+smooth, and Levt as a function of B                 (with other layers          Having obtained a bounded initialization, we now analyze
+fixed) is also Lℓ -smooth [104], [106]. The step size satisfies how the correction gap evolves over rounds of DGD. Starting
+0 < ηc ≤ 1/Lℓ . The local objective mismatch near the from the initialization process, each device runs local cor-
+optimum is finite and can be given by                                        rection steps and aggregation steps for K rounds. To model
+               1                                                          2  the parameter convergence, we model the following standard
+                                        (ℓ)
+                        X
+ζ̃ℓ2 (et ) =                   ∇Ltr
+                                  i,t (Bi,t ; Di,t )(B
+                                                         (g),⋆
+                                                               (et ); et ) . result, which bounds how much one aggregation step reduces
+             |Mt+1 |                                                      2
+                      i∈Mt+1                                                 disagreement across devices [35], [85], [106].
+                                                                      (17)
+                                                                                                                                                                                                                                                             8
+
+
+
+                                𝒚𝒚                                                                         𝒚𝒚                                                          the learning-unlearning convergence bound of the gap in the
+                                                 𝒘𝒘𝒊𝒊,𝒍𝒍,𝒕𝒕 = 𝑩𝑩𝑖𝑖,𝑙𝑙,𝑡𝑡 𝑨𝑨𝑖𝑖,𝑙𝑙
+                                                      𝑎𝑎1 , 𝑏𝑏1 , 𝑐𝑐1
+                                                                                                                                                                       following theorem, which combines these mechanisms.
+                                                                                                                 𝑩𝑩𝑖𝑖,𝑙𝑙,𝑡𝑡 𝑨𝑨𝑖𝑖,𝑙𝑙
+                  𝑨𝑨𝑗𝑗,𝑙𝑙
+                                                                                                                  0, 𝑏𝑏1 , 0
+
+                                                     𝒘𝒘𝒋𝒋,𝒍𝒍,𝒕𝒕 = 𝑩𝑩𝑗𝑗,𝑙𝑙,𝑡𝑡 𝑨𝑨𝑗𝑗,𝑙𝑙
+                                                                                                                                                                       Theorem 2 (Correction gap decomposition). Under Assump-
+                      𝑨𝑨𝑖𝑖,𝑙𝑙                                                                𝑨𝑨𝑖𝑖,𝑙𝑙
+                                                          {𝑎𝑎2 , 𝑏𝑏2 , 𝑐𝑐2 }                                                                               𝒙𝒙          tions 1–2 and Theorem 1, after K DGD correction rounds,
+                                                                 𝒙𝒙                                                                   𝑩𝑩𝑗𝑗,𝑙𝑙,𝑡𝑡 𝑨𝑨𝑗𝑗,𝑙𝑙
+                                                                                                                                                                       there exist constants ccon,ℓ > 0 and chet,ℓ > 0 depending only
+                                                                                                                                       𝑎𝑎2 , 0,0
+                                                                                                       𝑨𝑨𝑗𝑗,𝑙𝑙
+         𝒛𝒛                                                                            𝒛𝒛
+                                                                                                                                                                       on local regularity constants such that
+                                a) Traditional LoRA:                                 b) Proposed Sparse-and-Orthogonal LoRA:                                                         (ℓ)                        (ℓ)
+      𝑩𝑩𝑖𝑖,𝑙𝑙,𝑡𝑡 𝑨𝑨𝑖𝑖,𝑙𝑙 + 𝑩𝑩𝑗𝑗,𝑙𝑙,𝑡𝑡 𝑨𝑨𝑗𝑗,𝑙𝑙 = {𝑎𝑎1 + 𝑎𝑎2 , 𝑏𝑏1 + 𝑏𝑏2 , 𝑐𝑐1 + 𝑐𝑐2 }           𝑩𝑩𝑖𝑖,𝑙𝑙,𝑡𝑡 𝑨𝑨𝑖𝑖,𝑙𝑙 + 𝑩𝑩𝑗𝑗,𝑙𝑙,𝑡𝑡 𝑨𝑨𝑗𝑗,𝑙𝑙 = 𝑎𝑎2 , 𝑏𝑏1 , 0                             Eevt (et , K) ≤Rloc (K, et ) + R(ℓ)
+                                                                                                                                                                                                                   con (K, et )
+Fig.                    1.𝑨𝑨      and
+    2. Comparison of update conflicts 1. in
+                            𝑖𝑖,𝑙𝑙          𝑨𝑨 𝑗𝑗,𝑙𝑙 are not orthogonal                     𝑨𝑨𝑖𝑖,𝑙𝑙 and 𝑨𝑨𝑗𝑗,𝑙𝑙
+                                                                                                      conventional are mutually orthogonal LoRA and              the
+               2.𝑩𝑩𝑖𝑖,𝑙𝑙,𝑡𝑡 and 𝑩𝑩𝑗𝑗,𝑙𝑙,𝑡𝑡 conflict with each other                   2. 𝑩𝑩𝑖𝑖,𝑙𝑙,𝑡𝑡 and 𝑩𝑩𝑗𝑗,𝑙𝑙,𝑡𝑡 operate without contention                                                                         (ℓ)                    (ℓ)
+proposed orthogonal LoRA method.                                                                                                                                                                               + Rhet (K, et ) + Cstat (et ),             (27)
+                                                                                                                                                                       where
+                                                                                                                                                                                                    (ℓ)         2K                  (ℓ)
+Lemma 3 (Consensus contraction). Let W ∈ RM ×M be                                                                                                                                              Rloc (K, et ) = qopt,ℓ Cinit (et ),                        (28)
+doubly stochastic as defined in (5) and J = 11⊤ /M . For
+any x ∈ RM ×d ,                                                                                                                                                                R(ℓ)                       2K                         (ℓ)
+                                                                                                                                                                                con (K, et ) =ccon,ℓ Lℓ ρ̄ℓ (et )D0 (et )
+                ∥W x − J x∥F ≤ ∥W − J ∥2 · ∥x − J x∥F .                                                                                                         (22)                                      + ccon,ℓ Lℓ ηc2 n2ℓ
+                                                                                                                                                                                                              K−1
+Moreover, for the Metropolis rule on a connected graph, ∥W −                                                                                                                                              ×
+                                                                                                                                                                                                              X       2(K−1−s)
+                                                                                                                                                                                                                    ρ̄ℓ               (et )Is(ℓ) (et ),   (29)
+J ∥2 < 1.                                                                                                                                                                                                     s=0
+Proof. See Appendix C.                                                                                                                                                 and
+                                                                                                                                                                                              (ℓ)                         chet,ℓ ηc2 n2ℓ ζ̃ℓ2 (et )
+   Lemma 3 shows that ∥W − J ∥2 is the contraction factor                                                                                                                               Rhet (K, et ) = Lℓ                            2             .     (30)
+                                                                                                                                                                                                                              1 − qopt,ℓ
+for device disagreement. To capture the worst-case contrac-
+tion across all K correction rounds, we define the effective                                                                                                                      (ℓ)
+                                                                                                                                                                       Finally, Cstat (et ) is given by
+aggregation factor as
+                                                                                                                                                                                        (ℓ)                                            (ℓ)
+                                                                                                                                                                                    Cstat (et ) = lim inf                   min      Eevt (et , K).       (31)
+                                                                                         (ℓ)                                                                                                                  K→∞ Π , E (ℓ)
+                                     ρ̄ℓ (et ) = max                                   Wt − J                                  .                                (23)                                               ℓ   t
+                                                             0≤t<K                                                       2
+                                                                                                                                                                       Proof. See Appendix D.
+Specially, a smaller ρ̄ℓ (et ) means faster consensus contraction
+for layer ℓ, when ρ̄ℓ = 0, all devices instantaneously con-                     From Theorem 2, we can see that the bound reveals how
+vergence. Under the µℓ -PL condition, a gradient step with                   different factors govern the correction gap based on local
+                                                                                          (ℓ)                       (ℓ)
+step size ηc contracts the optimality gap by a factor of                     residual Rloc , consensus residual Rcon , heterogeneity residual
+                                                                                (ℓ)                               (ℓ)
+(1 − ηc µℓ ) [104]. After nℓ local steps between successive                  Rhet , and irreducible residual Cstat (et ). The local residual
+                                                                                (ℓ)               2K
+aggregation rounds, the cumulative contraction is defined as                 Rloc shrinks as qopt,ℓ     where more local correction steps
+                                                                                                                            (ℓ)
+                                            nℓ
+                      qopt,ℓ = (1 − ηc µℓ ) .                        (24)    reduce   this term. The consensus   residual Rcon shrinks as ρ̄2K
+                                                                                                                                             ℓ
+                                                                             where stronger aggregation (smaller ρ̄ℓ ) reduces this term. The
+The consensus term also depends on the amount of disagree- heterogeneity residual R(ℓ)                  het does not decay with K, forming
+ment that already exists and the disagreement injected by local a floor determined by the mismatch among devices’ local
+updates. Define the loss-aware initial disagreement as                       objectives. These three residuals are not independent. In par-
+                                                                                                                                             (ℓ)
+             (ℓ)          1       X          (ℓ)        (ℓ)
+                                                              2              ticular, increasing the number of local steps nℓ reduces Rloc
+          D0 (et ) =                      Bi,0 − B̄0            ,    (25) (through q 2K ), but simultaneously increases R          (ℓ)
+                       |Mt+1 |                                2                           opt,ℓ                                    con (through
+                                i∈Mt+1
+                                                                             the ηc2 n2ℓ term in the injected disagreement), because more
+where B̄0 is the device-averaged expansion matrix after local steps allow devices to drift further apart before the next
+            (ℓ)
+
+initialization in layer ℓ. Before the s-th aggregation step, aggregation(ℓ)step. Similarly, stronger aggregation (smaller ρ̄ℓ )
+local correction can create new disagreement. We measure this reduces Rcon but consumes communication budget that could
+injection by                                                                 otherwise be used for more frequent synchronization. Finally,
+                                                                                                             (ℓ)
+                                                                          2
+                                                                             the irreducible residual term Cstat (et ) represents the minimum
+  (ℓ)            1     X
+                                  tr    (ℓ)              (ℓ)          (ℓ)
+Is (et ) =                    ∇Li,t (Bi,t ; Di,t )(Bi,t ; et ) − ḡs        ,event correction gap achievable under the optimal policy
+              |Mt+1 |                                                     2 and topology as the number of correction rounds tends to
+                     i∈Mt+1
+                                                                     (26) infinity. It collects errors that cannot be removed by changing
+          (ℓ)                                  (ℓ)
+where ḡs = |M1t+1 | i∈Mt+1 ∇Ltr
+                        P
+                                       i,t (B i,t  ; Di,t )  is the aver-    local steps or communication edges as finite-sample noise,
+age gradient. These definitions separate three mechanisms that model approximation error, and the mismatch between the
+influence the correction gap. qopt,ℓ measures local optimization best attainable adapter under the given data distribution and
+                             2K
+contraction where larger qopt,ℓ   means the local residual decays the event oracle itself. Theorem 2 applies to any membership
+faster with rounds. ρ̄ℓ measures consensus contraction where event et = (Jt , Ut ). The two specializations recover standard
+                                                            (ℓ)
+smaller ρ̄ℓ means devices agree faster. ζ̃ℓ2 and Is measure guarantees for the pure departure and pure join regimes.
+heterogeneity and drift where larger values mean devices’                       To further simplify the modeling, we configure a separate
+local objectives point in different directions. Then, we prove communication topology and correction schedule for each of
+                                                                                                                                          9
+
+
+
+the L LoRA layers. We partition the L layers into G coarser              Algorithm 1 Priority-Aware Per-Round Correction Policy
+layer groups based on architectural proximity (e.g., early,               1: Input: Event et , active devices Mt+1 , communication
+middle, and late blocks). Each group g shares a single edge set              budget Ct .
+  (g)                               (g)                                                             (g)
+Et , a single aggregation matrix Wt , and a single correction             2: Output: Updated Bi,t for all i ∈ Mt+1 and all g.
+schedule Πℓ .                                                             3: Compute post-event initialization B   e (g) .
+                                                                                                                     0
+                                                                          4: for each layer group g do
+C. Correction Policy Design                                               5:    Compute Sg from observables via Eq. (32) (one forward
+                                                                                + one backward pass).
+   Theorem 2 and Assumption 2 together identify two quanti-               6: end for
+ties that govern the correction difficulty of each layer group.           7: Compute the shared proportion p(g) = Sg /( g ′ Sg ′ + ϵ)
+                                                                                                                              P
+The first is the local Lipschitz constant Lg : under Assump-                 for each g via Eq. (33).
+tion 2, the admissible step size is constrained by η ≤ 1/Lg ,             8: Set ng , γg , and λprox via the allocation rules in Sec. IV-C.
+                                                                                                g
+so a group with larger Lg advances more slowly per local
+                                                           (g)
+step. The second is the initial parameter residual ∥r0 ∥2 from            9: for each layer group g do
+Theorem 1: the PL condition in Assumption 2 relates this to              10:   Sample a connected random graph of density γg and
+the post-projection gradient energy through ∥∇L(B          e (g) )∥2 ≥                                                              (g)
+        (g)
+                                                             0     F           form the Metropolis-weighted mixing matrix Wt .
+2µg · Eevt (et , 0), so a larger gradient signals a group that starts    11: end for
+further from the event oracle. Consequently, a group with both                                                             (g)
+                                                                         12: Run K rounds of DGD correction under (Πg , Wt ).
+high curvature and a large initial gap faces steeper correction
+difficulty across all residual terms Rloc , Rcon , and Rhet in
+Theorem 2.
+                                                                         computable from the two one-pass observables in (32). For
+   Both quantities admit computable proxies from one
+                                                                         local correction we design ng = nmin + (nmax − nmin ) p(g) .
+forward and one backward pass after projection ini-
+                                                                         For heterogeneity control we employ λprox  g     = λmax p(g) .
+tialization. To estimate it, we employ the empirical
+                                      (e )                               Similarly, for consensus aggregation we employ γg = γmin +
+Fisher information matrix Fg t               ∈ Rrg ×rg that ap-
+                                                                         (1 − γmin ) p(g) . When Sg is small, p(g) is near zero and the
+proximates the Hessian via the Gauss–Newton correspon-
+                                                     (e )                parameters revert to their minimal-cost defaults.
+dence [104]. Its largest eigenvalue λmax (Fg t ) preserves
+                                                                            The remaining budget, after accounting for local steps and
+the rank order of Lg . The post-projection gradient energy
+    1
+         P                        e 2                                    proximal damping, is allocated to topology by sampling a
+|Mt+1 |     i∈Mt+1 ∥∇B (g) Li (B0 )∥F reflects the initialization        connected random graph of target density γg . The construction
+gap and is available from one backward pass. Thus, their
+                                                                         requires no per-edge marginal-gain estimation and is compat-
+product provides a rank-order proxy for the correction poten-
+                                                                         ible with the finite-compute, rank-order regime. Algorithm 1
+tial, which is given by
+                                                                         summarizes the per-round correction policy.
+                              1      X
+                                                        e 0 ) 2 , (32)
+  Sg = λmax Fg(et ) ·
+                       
+                                            ∇B (g) Li (B       F
+                           |Mt+1 |
+                                  i∈Mt+1
+                                                                                         V. N UMERICAL VALIDATION
+where a higher Sg signals that group g has both steeper cur-
+vature and larger initial gap. The shared allocation proportion          A. Experimental Setup
+follows as                                                                  We evaluate the proposed framework on a decentralized
+                                    Sg
+                      p(g) = P             ,               (33)          LoRA fine-tuning testbed that includes Qwen-7B [107] for
+                                g ′ Sg + ϵ
+                                       ′
+                                                                         QA tasks. We also evaluate its performance on the ResNet-18
+with ϵ > 0 avoiding division by zero.                                    model with the CIFAR-100 dataset, where each device owns a
+   Given the shared proportion p(g) , the correction schedule            subset of the training data. The base model is frozen, and each
+for layer group g is Πg = (ng , ηg , λprox
+                                      g    , γg ), where ng is the       device trains and exchanges only low-rank adapter matrices as
+number of local correction steps per aggregation operation,              modeled. To induce non-trivial per-block heterogeneity, layers
+ηg is the step size, λprox
+                      g    is the proximal damping coefficient,          are partitioned into three groups g ∈ {early, mid, late} with
+and γg is the aggregation strength. Among these, ng and λprox g          LoRA ranks rg ∈ {4, 8, 16}. The system uses M = 6 devices
+consume only local computation and incur no communication                communicating over a sparse mesh, and the correction horizon
+cost. In contrast, increasing γg and adding communication                is K = 60 rounds after the membership event.
+edges consume the per-round budget Ct .                                     Table II reports the per-block priority diagnosis on the
+   A group with high Sg faces three simultaneous difficulties:           constructed stress test. Late-block Sg is 227% higher than
+its loss surface is steep (requiring more local steps ng ),              early-block Sg . The policy Πg that the proposed method
+its post-projection optimum differs substantially from other             derives from Sg doubles local steps and adds a 10−3 proximal
+devices’ (requiring stronger proximal anchoring λprox   g  ), and        anchor specifically on the high-Sg block. The high-Sg block
+correcting these deviations benefits from faster consensus               dominates the correction residual, so allocating extra local
+(requiring denser mixing γg ). Scaling all three dimensions by           steps and proximal damping there reduces the residual fastest
+the same rank-order proportion p(g) is the simplest alloca-              per unit of compute, while leaving low-Sg blocks at uniform
+tion rule that respects this joint dependence while remaining            settings keeps cost low.
+                                                                                                                                            10
+
+
+
+                             TABLE II                                    also see that the three Fisher- and influence-based correctors
+  P ER - BLOCK PRIORITY SIGNALS AND POLICY Πg ASSIGNED BY O URS          (EWC-leave −3.50%, Influence-Fn-D2D −3.46%, and KD-
+                              ( FULL ).
+                                                                         Unlearn −0.17%) all underperform Uniform, while Naive
+ Block   rg     Sg      Ŝg    Class   ng      ηg        λprox
+                                                          g        γg    Remove drops to −3.78% and never recovers. This collapse
+ Early    4   0.6346   0.497    low     1   5.0×10−4       0      0.40   confirms that anchoring the post-event correction to a pre-event
+ Mid      8   1.1394   0.893   mid      1   5.0×10−4       0      0.40
+ Late    16   2.0552   1.610   high     2   5.0×10−4   1.0×10−3   0.40   reference — whether through a Fisher-weighted proximal, a
+                                                                         Gauss-Newton preconditioner, or a frozen-teacher KL — is a
+                                                                         sharp floor on the dynamic timeline once the basis is projected,
+B. Baseline Comparison                                                   because the reference no longer exists in the parameter space
+                                                                         the corrected B now uses, consistent with Fig. 3.
+  We compare the proposed method against five algorithms:
+                                                                            Fig. 5 shows the per-round retain loss over correction
+  1) FedEraser-D2D [19]: per-device approximation of the                 rounds. From this figure, we can first see that the proposed
+     leaver’s gradient using each device’s own data on the               method achieves a 1% improvement compared to the four
+     leaver’s basis Au .                                                 scheduling-agnostic baselines (Naive Remove, EWC-leave,
+  2) EWC-leave / EWC-Join [108]: Fisher-weighted proxi-                  FedEraser-D2D, Influence-Fn-D2D) on the final retain loss.
+                                                ∗
+     mal anchor to the pre-event consensus Bpre    with post-            This smaller retain damage comes from Πg concentrating
+     hoc Fisher diagonal.                                                correction effort on the high-Sg block and sparing the low-
+  3) Influence-Fn-D2D [109]: block-diagonal empirical                    Sg blocks from over-update. Second, the proposed method
+     Gauss-Newton inverse (natural-gradient rescaling).                  achieves a 4% improvement over KD-Unlearn, which remains
+  4) KD-Unlearn [110]: KL toward base-model logits, the                  the highest-performing curve throughout. The worst-case dam-
+     only teacher available in D2D-LoRA.                                 age of KD-Unlearn stems from its KL target being the task-
+  5) Naive Remove / Fine-tune: uniform DGD on remaining                  agnostic base model, which pulls the adapter toward B=0 and
+     devices without projection (leave) / standard DGD with              erases the retained knowledge accumulated during pretraining.
+     the new device (join).
+   Fig. 3 shows the event gap EF U over correction rounds                C. Ablation Study
+for the proposed method and five baselines under the leave-
+only membership event. From this figure, we can see that the                To conduct the ablation study, we employ six variants of
+proposed method achieves a 6.3% improvement compared to                  the proposed method, denoted by the prefix “Ours,” each
+Naive Remove and a 22% improvement compared to KD-                       removing one or more components of the priority-aware policy
+Unlearn on the final gap. This gain comes from the priority-             Πg =(ng , ηg , λprox
+                                                                                          g   , γg ) (with sync period Hg ):
+                                                                                                                                prox
+aware policy Πg concentrating local-step budget and proxi-                  • Ours (full): full priority-aware policy (ng , λg       , Hg , γg
+mal damping on the high-Sg block, attacking the dominant                       all derived from Sg ).
+                                                                                                                           prox
+residual. We can also see that the KD-Unlearn plateaus at the               • Ours (ls+prox): priority-aware ng and λg          ; Hg =1 and
+no-correction floor and the proposed method achieves a 4%                      γg =0.40 uniform.
+improvement compared to the four-baseline cluster on the final              • Ours (local-steps): priority-aware ng only.
+                                                                                                                      prox
+gap. This failure mode arises because the only D2D-available                • Ours (retain-prox): priority-aware λg        only.
+teacher is the frozen base model with no task knowledge, so                 • Ours (uniform): no priority-aware component (baseline
+KL toward it pulls the adapter back toward B=0 rather than                     ablation).
+removing the leaver’s contribution.                                         • Ours (topology): Sg routed only to γg (Section IV-D
+
+   In Fig. 4, we report the per-round relative improvement                     shows this is the wrong knob).
+RI(k) = 100 × (Luniform (k) − Lmethod (k))/Luniform (k),                    Fig. 6 shows EF U over correction rounds for the six
+where Luniform (k) and Lmethod (k) are the consensus retain              ablation arms. First, Ours (full) achieves a 6.3% improvement
+CE losses of the Uniform topology and resource allocation                compared to Ours (uniform) on the final gap. This gain comes
+anchor and the evaluated method at step k, respectively. In              from stacking three priority-aware components (local-steps,
+particular, a positive RI indicates the method outperforms Uni-          retain-prox, priority synchronization) on the high-Sg block.
+form. Per-block density follows the same Sg -driven allocator,           Second, Ours (full) achieves a 9.2% improvement compared
+with nmax =nmin =1 and λmax =0 so the shared proportion                  to Ours (topology), the only arm that lags Ours (uniform). This
+p(g) enters only the mixing density γg . From this figure,               regression of Ours (topology) comes from routing Sg to edge
+we can first see that the proposed method achieves a 0.53%               density alone, which adds communication without reducing
+improvement in final-round RI compared to Uniform, while                 the local-optimization residual.
+FedEraser-D2D achieves a 0.69% improvement at the cost                      Fig. 7 shows each ablation arm’s trajectory in the (EF U ,
+of 109 KB per-device gradient bookkeeping, so the proposed               normalized cost) plane. First, Ours (full) ends Pareto-
+method matches FedEraser-D2D’s correction quality with zero              dominant, with the lowest gap and the lowest cost. This
+storage overhead. This near-parity comes from the priority-              comes from combining gap-reducing scheduling (local-steps
+aware γg concentrating mixing on the high-Sg block, which                + retain-prox) with cost-reducing priority synchronization,
+absorbs the same per-event residual that FedEraser-D2D’s                 which no single ablation arm achieves alone. Second, Ours
+stored per-device gradients target, but without storing the              (full) achieves a 9.2% improvement compared to Ours (topol-
+cumulative contribution of every device. Second, we can                  ogy) on the final gap and a 27% cost reduction compared to
+                                                                                                                                                                                                                                                                                                                             11
+
+
+
+
+                                                                                                                                                                                                                            Proposed            FedEraser-D2D            KD-Unlearn
+                                                                                                                                                                                                                            Naive Remove        Influence-Fn-D2D         Full Retrain (oracle, EFU = 0)
+                                                                                                                    0.52                                                                                                    EWC-leave
+
+
+                                                                                                                    0.50
+
+
+
+
+                                                                                                 Event gap EFU(k)
+                                                                                                                    0.48
+
+
+                                                                                                                    0.46
+
+
+                                                                                                                    0.44
+
+
+                                                                                                                    0.42
+
+
+                                                                                                                    0.40
+
+
+                                                                                                                                0                                10                     20           30                                    40                           50                     60
+                                                                                                                                                                                             Correction round k
+
+
+    Fig. 3. Event gap EF U vs round k for the proposed method and five baselines (leave-only).
+
+
+                                                        3
+                                                                                         # leave d0                 " join d8                 # leave d1              " join d9
+                                                                                                                                                                                                                                                                                          Proposed        EWC-leave
+                                                        2
+                                                                                                                                                                                                                            2.82                                                          Uniform         FedEraser-D2D
+
+
+
+
+Relative improvement RI vs Uniform (%, higher better)
+                                                                                                                                                                                                                                                                                          Topology-only   Influence-Fn-D2D
+                                                        1                                                                                                                                                                                                                                 Naive Remove    KD-Unlearn
+                                                                                                                                                                                                                            2.80
+                                                                Uniform (baseline)
+
+
+
+
+                                                                                                                                                                                                      Retain loss ℓret(k)
+                                                        0
+
+                                                                                                                                                                                                                            2.78
+                                                 -1
+
+
+                                                                                                                                                                                                                            2.76
+                                                 -2
+
+
+
+                                                 -3                                                                                                                                                                         2.74
+
+                                                 -4                                                                                                                                                                         2.72
+
+                                                 -5
+                                                                       Proposed
+                                                                       FedEraser-D2D
+                                                                                             Influence-Fn-D2D
+                                                                                             KD-Unlearn
+                                                                                                                                                                                                                            2.70
+                                                                       EWC-leave             Naive Remove
+                                                 -6
+                                                            0                          200                                      400                        600                    800         1000
+                                                                                                                                      Training step k                                                                               0             10               20             30             40       50          60
+                                                                                                                                                                                                                                                                    Correction round k
+    Fig. 4. Per-round relative improvement RI (%) vs Uniform over K=1000
+    rounds on the CIFAR-100 + ResNet-18 testbed; vertical dashed lines mark
+    the four membership events at k∈{200, 300, 500, 700}.                                                                                                                                            Fig. 5. Retain loss ℓret vs round k (leave-only event).
+
+
+
+    Ours (topology) at K=60. This double-loss of Ours (topology)                                                                                                                                     hance learning-unlearning performance, we proposed a frozen
+    comes from the same root cause as Fig. 6: extra edges cost                                                                                                                                       random orthogonal basis mechanism that provides a no-history
+    communication, but the priority signal alone cannot reduce the                                                                                                                                   contribution index, enabling projection deletion after leave
+    local-optimization residual.                                                                                                                                                                     events. By separating the knowledge subspace before mem-
+       Fig. 8 shows the per-round RI of each ablation arm relative                                                                                                                                   bership event changes, our proposed method can achieve fast
+    to Ours (uniform). First, priority-aware arms (Ours (local-                                                                                                                                      convergence through subspace initialization. The theoretical
+    steps), Ours (retain-prox), Ours (ls+prox), Ours (full)) cross                                                                                                                                   analysis shows that finite-round correction is governed by
+    zero by round 15 and stay above thereafter. This crossover                                                                                                                                       local optimization, consensus aggregation, and heterogeneity
+    occurs because the high-Sg block requires 15 additional local                                                                                                                                    drift residuals. Then, a priority-aware learning-unlearning cor-
+    steps before the proximal anchor takes hold; once it does, the                                                                                                                                   rection resource allocation method is proposed that enables
+    gap separation is stable. Second, Ours (uniform) achieves a                                                                                                                                      priority optimization according to different layer groups. The
+    3% improvement compared to Ours (topology) throughout the                                                                                                                                        resulting framework provides a principled way to support fast
+    run, with Ours (topology) staying persistently below zero. This                                                                                                                                  learning-unlearning correction in dynamic decentralized LoRA
+    persistent negative RI of Ours (topology) stems from extra                                                                                                                                       systems under per-round communication constraints.
+    edges that impede communication without any corresponding
+    gap reduction, so the per-round RI never recovers.                                                                                                                                                                                                             A PPENDIX
+                                                                                                                       VI. C ONCLUSION                                                               A. Proof of Lemma 1
+                                                                                                                                                                                                                                                                               (g)                  (g)
+       This paper studies a decentralized collaborative fine-tuning                                                                                                                                     Fix layer group g. Since Ai and Aj are obtained by
+    framework with device joins and leaves dynamically. To en-                                                                                                                                       orthogonalizing independent Gaussian matrices, their column
+                                                                                                                                                                                                                                      12
+
+
+
+                                                                                        TABLE III
+                                        F INAL / BEST GAP EF U , RI, NORMALIZED COST, AND STABILITY FOR SIX ABLATION ARMS ( LEAVE - ONLY, K=60).
+
+                                               Method                   Final         Best        RI vs Ours (uniform) (%)                                NormComm       NormTotal           Stab
+                                               Ours (full)              0.39          0.39                 +6.3                                              0.58          0.83           oscillatory
+                                               Ours (ls+prox)           0.41          0.40                 +1.5                                              1.00          1.17           oscillatory
+                                               Ours (local-steps)       0.40          0.39                 +4.7                                              1.00          1.17           oscillatory
+                                               Ours (retain-prox)       0.41          0.41                 +1.7                                              1.00          1.00           oscillatory
+                                               Ours (uniform)           0.42          0.42                   0.0                                             1.00          1.00           monotone
+                                               Ours (topology)          0.43          0.42                 −3.1                                              1.17          1.14           oscillatory
+                                               No-correction (ref)      0.50          0.50                −20.2                                              0.00          0.00               flat
+
+
+
+                                                                     Ours (full)             Ours (retain-prox)                                                                            Ours (full)           Ours (retain-prox)
+                    0.50                                             Ours (ls+prox)          Ours (uniform)                                                                                Ours (ls+prox)        Ours (topology)
+                                                                     Ours (local-steps)      Ours (topology)
+                                                                                                                                                 10                                        Ours (local-steps)
+
+
+
+
+                                                                                                                    RI vs Ours (uniform) (\%)
+                    0.48
+
+
+
+
+ Event gap EFU(k)
+                                                                                                                                                  5
+                    0.46
+
+
+                    0.44                                                                                                                          0
+
+
+                    0.42
+                                                                                                                                                 −5
+                    0.40
+
+                                                                                                                                                −10
+                           0             10           20        30             40            50            60                                         0        10          20         30             40          50            60
+                                                       Correction round k                                                                                                   Correction round k
+
+Fig. 6. Event gap EF U vs round k for six ablation arms (leave-only).                                              Fig. 8. RI vs round k for five ablation arms (baseline Ours (uniform)).
+
+
+                                                                     Ours (full)             Ours (retain-prox)
+                    0.50                                             Ours (ls+prox)          Ours (uniform)
+                                                                                                                   B. Proof of Lemma 2
+                                                                     Ours (local-steps)      Ours (topology)
+                                                                                                                                   By definition,
+                    0.48                                                                                                                                                                         ⊤
+                                                                                                                                                                     (g)        (g)         (g)
+                                                                                                                                                                    Pj     = Aj           Aj           .                        (36)
+
+
+ Event gap EFU
+                    0.46
+                                                                                                                   Therefore,
+                    0.44                                                                                                         ⊤               ⊤            ⊤
+                                                                                                                       (g)    (g)     (g) (g)   (g)     (g)    (g)
+                                                                                                                     Bi,t Ai         Pj =Bi,t Ai       Aj     Aj      . (37)
+                    0.42
+                                                                                                                                                      (g)                                                  (g)
+                                                                                                                   Since Aj has orthonormal columns, ∥(Aj )⊤ ∥2 = 1. The
+                    0.40
+                                                                                                                   submultiplicativity of the Frobenius norm gives
+                                                                                                                                   ⊤                            ⊤
+                           0.0           0.2          0.4       0.6             0.8          1.0            1.2          (g)    (g)      (g)         (g)       (g)     (g)
+                                                                                                                       Bi,t Ai         Pj      ≤ ∥Bi,t ∥F Ai          Aj   .
+                                                      Normalized total cost                                                                                                F                                                  2
+                                                                                                                                                                                                                                (38)
+Fig. 7. Event gap EF U vs normalized cost for six ablation arms (leave-only).                                      Squaring both sides proves the lemma.
+
+                                                                                                                   C. Proof of Lemma 3
+spaces are independently and uniformly distributed on the
+                       (g)                        (g)                                                                Since W is doubly stochastic and J is the projection onto
+Stiefel manifold. Let ai,p be the p-th column of Ai . Then
+                                                                                                                   1, we have W J = J W = J . For any x,
+                                        ⊤            2       rg       ⊤      2
+                                                                                                                                      ∥W x − J x∥F                                                                              (39)
+                                                                
+                                  (g)           (g)                (g)     (g)
+                                                              X
+                                 Ai            Aj           =     Aj      ai,p .                            (34)
+                                                      F       p=1                                 2                                             = ∥W x − J W x∥F
+                                         (g)
+                                                                                                                                                = ∥(W − J )W x∥F
+Conditioned on ai,p , the expected squared projection of a unit
+                                                                                                                                                = ∥(W − J )(x − J x)∥F ≤ ∥W − J ∥2 · ∥x − J x∥F ,
+vector onto an independent rg -dimensional random subspace
+                                                                                                                                                                                               (40)
+of Rdg is rg /dg . Summing over p = 1, . . . , rg gives
+                   "                   #                                                                           where the last line uses W x−J x = (W −J )(x−J x) (since
+                                     2
+                     
+                        (g)
+                            ⊤
+                                 (g)         rg2                                                                   (W − J )J = 0) and the submultiplicativity of the spectral
+                E      Ai      Aj        =       .         (35)
+                                     F      dg                                                                     norm with the Frobenius norm. The second claim (∥W −
+                                                                                                                                                    13
+
+
+
+J ∥2 < 1 for a connected graph under the Metropolis rule) is             average does not exceed the maximum per-device residual).
+                                                                                                        (ℓ)
+standard, and follows from the Perron-Frobenius theorem for              Defining Cinit(ℓ) (et ) ≜ L2 ∥r0 ∥22 , we obtain
+primitive stochastic matrices.
+                                                                                  L 2K               (ℓ)         (ℓ)
+                                                                                     q ∆0 ≤ q 2K Cinit (et ) ≡ Rloc (K, et ).    (49)
+                                                                                  2
+D. Proof of Theorem 2                                                       FromPthe second term of (47). The geometric series evalu-
+                                                                                   K−1
+  Define the per-round centralized optimization error and the            ates to k=0 q 2(K−1−k) = (1 − q 2K )/(1 − q 2 ) ≤ 1/(1 − q 2 ),
+device disagreement as                                                   which does not vanish with K and forms a persistent floor.
+                              (ℓ)                    2                   Setting chet,ℓ ≜ c1 /2,
+                 ∆k = B̄k − B (ℓ),⋆ (et ) 2 ,                     (41)
+                                                                            L c1 ηc2 n2 ζ̃ 2     chet,ℓ ηc2 n2 ζ̃ 2    (ℓ)
+and                                                                           ·              = L                    ≡ Rhet (K, et ).           (50)
+                                                                            2   1 − q2              1 − q2
+          1     X                          (ℓ) 2
+  Dk =            i ∈ Mt + 1 Bi, k (ℓ) − B̄k 2 . (42)                       From the third term, after the simplification in (48) and mul-
+       |Mt + 1|
+                                                                         tiplying by L/2, with D0 substituting D0 (they are identical
+By L-smoothness (Assumption 2), the event loss gap is                    by definition (42)),
+bounded by the parameter distance:                                                                               (ℓ)
+                                                                            R(ℓ)
+                                                                             con (K, et ) ≜ ccon,ℓ L ρ̄
+                                                                                                       2K
+                                                                                                          D0 (et )
+                      (ℓ)           L
+                     Eevt (et , K) ≤ ∆K .                  (43)                                                    K−1
+                                    2                                                          + ccon,ℓ L ηc2 n2
+                                                                                                                   X
+                                                                                                                         ρ̄2(K−1−s) Is(ℓ) (et ).
+   Between two successive aggregation rounds, each device                                                          s=0
+performs n local gradient steps. Under the µ-PL condition                                                                                      (51)
+and L-smoothness (Assumption 2), n consecutive gradient                    Finally, we define irreducible residual as
+steps contract the centralized optimality gap by (1 − ηc µ)n =
+                                                                                       (ℓ)                                (ℓ)
+q [104]. Coupling local contraction, objective mismatch, and                         Cstat (et ) ≜ lim inf       min Eevt (et , K),            (52)
+                                                                                                      K→∞ Π , E (ℓ)
+disagreement via standard DGD analysis [106] yields                                                        ℓ   t
+
+                                                                         which collects errors that no finite-round policy can remove:
+             ∆k+1 ≤ q 2 ∆k + c1 ηc2 n2 ζ̃ 2 + c2 Dk .             (44)
+                                                                         finite-sample noise, model approximation error, and the inher-
+   The aggregation step with mixing matrix W t(ℓ) contracts              ent mismatch between the best attainable adapter and the event
+                                            (ℓ)
+disagreement at rate ρ̄ = max 0 ≤ t < K∥Wt − J ∥2 < 1                    oracle.
+(Lemma 3). The per-round disagreement evolves as                         Summing the four residuals, we obtain
+                              2
+                 Dk+1 ≤ ρ̄        Dk + c3 ηc2 n2 Ik .             (45)    (ℓ)                (ℓ)
+                                                                         Eevt (et , K) ≤ Rloc (K, et )+R(ℓ)
+                                                                                                                                (ℓ)           (ℓ)
+                                                                                                        con (K, et )+Rhet (K, et )+Cstat (et ).
+  Iterating (45) from round 0 to k − 1 gives                                                                                        (53)
+                                                                         This ends the proof.
+                                          k−1
+                                          X
+           Dk ≤ ρ̄2k D0 + c3 ηc2 n2             ρ̄2(k−1−s) Is .   (46)
+                                                                                                     R EFERENCES
+                                          s=0
+                                                                           [1] T. B. Brown, B. Mann, N. Ryder, M. Subbiah, J. Kaplan, P. Dhariwal,
+  Then, substituting (46) into (44) and iterating over K                       A. Neelakantan, P. Shyam, G. Sastry, A. Askell et al., “Language
+rounds,                                                                        models are few-shot learners,” in Advances in Neural Information
+                                                                               Processing Systems, vol. 33, 2020, pp. 1877–1901.
+                                                                           [2] J. Wei, X. Wang, D. Schuurmans, M. Bosma, B. Ichter, F. Xia,
+              ∆K ≤ q 2K ∆0                                                     E. H. Chi, Q. V. Le, and D. Zhou, “Chain-of-thought prompting
+                                         K−1                                   elicits reasoning in large language models,” in Advances in Neural
+                                         X                                     Information Processing Systems, vol. 35, 2022, pp. 24 824–24 837.
+                      + c1 ηc2 n2 ζ̃ 2         q 2(K−1−k)                  [3] Y. Wang, H. Le, A. D. Gotmare, N. D. Q. Bui, J. Li, and S. C. H. Hoi,
+                                         k=0                                   “Codet5+: Open code large language models for code understanding
+                                                                               and generation,” in Proceedings of the 2023 Conference on Empirical
+                             K−1
+                             X                                                 Methods in Natural Language Processing, 2023, pp. 1069–1088.
+                      + c2          q 2(K−1−k) Dk .               (47)     [4] L. Wang, C. Ma, X. Feng, Z. Zhang, H. Yang, J. Zhang, Z. Chen,
+                                                                               J. Tang, X. Chen, and Y. Lin, “A survey on large language model based
+                             k=0
+                                                                               autonomous agents,” Frontiers of Computer Science, vol. 18, no. 6, p.
+                                                                               186345, 2024.
+   Since q 2 < 1 and ρ̄2 < 1, the cross term q 2(K−1−k) ρ̄2k in            [5] Y. Huang, H. Du, X. Zhang, D. Niyato, J. Kang, Z. Xiong, S. Wang,
+the third line of (47) is bounded by max{q 2 , ρ̄2 }K−1 up to a                and T. Huang, “Large Language Models for Networking: Applications,
+                                                                               Enabling Techniques, and Challenges,” IEEE Network, vol. 39, no. 1,
+multiplicative constant that depends only on the ratio q 2 /ρ̄2 .              pp. 235–242, July 2024.
+Absorbing this factor into ccon,ℓ , the third line simplifies to           [6] E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, L. Wang,
+                                                                               and W. Chen, “Lora: Low-rank adaptation of large language models,”
+                                         K−1                                   arXiv, vol. 2106.09685, 2021.
+                                                                           [7] K. B. Kan, H. Mun, G. Cao, and Y. Lee, “Mobile-LLaMA: Instruction
+                                         X
+      ccon,ℓ ρ̄2K D0 + ccon,ℓ ηc2 n2            ρ̄2(K−1−s) Is .   (48)         Fine-Tuning Open-Source LLM for Network Analysis in 5G Net-
+                                          s=0                                  works,” IEEE Network, vol. 38, no. 5, pp. 76–83, July 2024.
+                                                                           [8] J. Hu, D. Wang, Z. Wang, X. Pang, H. Xu, J. Ren, and K. Ren,
+  Multiply (47) by L/2 via (43) and group terms.                               “Federated Large Language Model: Solutions, Challenges and Future
+                                                                               Directions,” IEEE Wireless Communications, vol. 32, no. 4, pp. 82–89,
+Local residual. From the first term of (47), (L/2) q 2K ∆0 . The-              Aug. 2025.
+                 (ℓ)                  (ℓ)                                  [9] N. Yan, Y. Su, Y. Deng, and R. Schober, “Federated Fine-Tuning
+orem 1 gives Eevt (et , 0) ≤ (L/2)∥r0 ∥22 . The initial average
+                               (ℓ)                    (ℓ)                      of LLMs: Framework Comparison and Research Directions,” IEEE
+distance satisfies ∆0 = ∥B̄0 − B (ℓ),⋆ ∥22 ≤ ∥r0 ∥22 (the                      Communications Magazine, vol. 63, no. 10, pp. 52–58, Sep. 2025.
+                                                                                                                                                           14
+
+
+
+[10] Z. Chen, H. H. Yang, Y. Tay, K. F. E. Chong, and T. Q. Quek, “The           [38] C. Zhang, X. Lyu, Z. Liang, C. Ren, Y. T. Hou, and Q. Cui, “Diameter-
+     role of federated learning in a wireless world with foundation models,”          constrained topology orchestration for communication-convergence
+     IEEE Wireless Commun., vol. 31, no. 3, pp. 42–49, 2024.                          tradeoffs in decentralized federated learning,” IEEE Transactions on
+[11] H. Jeong, S. Ma, and A. Houmansadr, “SoK: Challenges and opportu-                Cognitive Communications and Networking, vol. 12, pp. 5393–5407,
+     nities in federated unlearning,” Proc. Privacy Enhancing Technologies,           2026.
+     2024.                                                                       [39] B. Kim and W. Choi, “Communication-Efficient Wireless Federated
+[12] Z. Liu, Y. Jiang, J. Shen, M. Peng, K.-Y. Lam, X. Yuan, and X. Liu,              Fine-Tuning for Large-Scale AI Models,” ArXiv, vol. 2505.00333,
+     “A survey on federated unlearning: Challenges, methods, and future               2017. [Online]. Available: https://arxiv.org/abs/2505.00333
+     directions,” ACM Comput. Surv., vol. 57, no. 1, oct 2024. [Online].         [40] B. Zhang, D. Wang, Y. Zhu, and Z. Han, “Data Divergence-aware
+     Available: https://doi.org/10.1145/3679014                                       Client Selection via Knowledge Graph for Federated LLM Fine-
+[13] X. Yi, C. Hu, B. Cai, H. Huang, Y. Chen, and K. Wang, “Fedalora:                 tuning,” IEEE Transactions on Mobile Computing, 2025.
+     Adaptive local lora aggregation for personalized federated learning in      [41] Z. Chen, H. H. Yang, Z. Li, J. Park, and T. Q. Quek, “Zeroth-order
+     llm,” IEEE Internet of Things Journal, 2025.                                     over-the-air federated large model tuning over edge networks,” IEEE
+[14] Z. Zhang, P. Liu, J. Xu, and R. Hu, “Fed-hello: Efficient federated              Wireless Commun. Lett., vol. 14, no. 9, pp. 3002–3006, 2025.
+     foundation model fine-tuning with heterogeneous lora allocation,” IEEE      [42] X. Wang, X. Li, Z. Zhou, C. Li, and Y. Liu, “Adf-lora: Alternating
+     Transactions on Neural Networks and Learning Systems, vol. 36,                   low-rank aggregation for decentralized federated fine-tuning,” arXiv,
+     no. 10, pp. 17 556–17 569, 2025.                                                 vol. 2511.18291, 2025.
+[15] R. Li, J. Liu, H. Xu, and L. Huang, “Fedquad: Adaptive layer-wise           [43] Z. Hu, L. Zhang, S. Dai, S. Gong, and Q. Shi, “FedQLoRA: Federated
+     lora deployment and activation quantization for federated fine-tuning,”          Quantization-Aware LoRA for Large Language Models,” in Interna-
+     IEEE Transactions on Mobile Computing, pp. 1–15, 2025, early access.             tional Conference on Learning Representations (ICLR), Singapore,
+[16] S. Ghiasvand, M. Alizadeh, and R. Pedarsani, “Decentralized low-rank             Apr. 2025.
+     fine-tuning of large language models,” 2025.                                [44] Y. Hou, J. Geng, B. Li, X. Tao, J. Wang, X. Xu, and B. Luo, “Adaptive
+[17] S. Lee, S. Park, D. B. Lee, D. Wagner, H. Seong, T. Bocklet, J. Lee, and         federated LoRA in heterogeneous wireless networks with independent
+     S. J. Hwang, “Fedsvd: Adaptive orthogonalization for private federated           sampling,” arXiv preprint arXiv:2505.23555, 2025.
+     learning with lora,” 2025.                                                  [45] J. Bian, L. Wang, L. Zhang, and J. Xu, “LoRA-FAIR: Federated LoRA
+[18] N. Yang, H. Ouwen, S. Wang, M. Chen, C. Yin, and T. Q. S.                        fine-tuning with aggregation and initialization refinement,” Proc. ICCV,
+     Quek, “Wireless federated multi-task LLM fine-tuning via sparse-and-             2025.
+     orthogonal LoRA,” arXiv preprint arXiv:2602.20492, 2026.                    [46] H. Zou, Y. Zang, W. Xu, Y. Zhu, and X. Ji, “FlyLoRA: Boosting Task
+[19] G. Liu, X. Ma, Y. Yang, C. Wang, and J. Liu, “FedEraser: Enabling                Decoupling and Parameter Efficiency via Implicit Rank-Wise Mixture-
+     efficient client-level data removal from federated learning models,”             of-Experts,” ArXiv, vol. 2510.08396, Oct. 2025.
+     Proc. IEEE/ACM IWQoS, 2021.                                                 [47] J. Liang, W. Huang, X. Guo, G. Wan, B. Du, and M. Ye, “ThanoRA:
+[20] G. Ye, T. Chen, Q. V. H. Nguyen, and H. Yin, “Heterogeneous                      Task Heterogeneity-Aware Multi-Task Low-Rank Adaptation,” ArXiv,
+     decentralized machine unlearning with seed model distillation,” 2023.            vol. 2505.18640, Sep. 2025. [Online]. Available: https://arxiv.org/abs/
+                                                                                      2505.18640
+[21] S. Liu, Y. Yao, J. Jia, S. Casper, N. Baracaldo, P. Hase, Y. Yao, C. Y.
+     Liu, X. Xu, H. Li, K. R. Varshney, M. Bansal, S. Koyejo, and Y. Liu,        [48] J. Zhang, J. You, A. Panda, and T. Goldstein, “LoRI: Reducing Cross-
+     “Rethinking machine unlearning for large language models,” 2024.                 Task Interference in Multi-Task Low-Rank Adaptation,” in Conference
+                                                                                      on Language Modeling (COLM), Montreal, Canada, Oct. 2025.
+[22] X. Chen et al., “FedU: Federated unlearning via user-side influence
+     approximation forgetting,” IEEE Transactions on Dependable and              [49] J. Feng, Z. Pu, T. Hu, D. Li, X. Ai, and H. Wang, “OMoE:
+     Secure Computing, 2024.                                                          Diversifying Mixture of Low-Rank Adaptation by Orthogonal
+                                                                                      Finetuning,” ArXiv, vol. 2501.10062, Jul. 2025. [Online]. Available:
+[23] C. Wu, S. Zhu, and P. Mitra, “Federated unlearning with knowledge                https://arxiv.org/abs/2501.10062
+     distillation,” arXiv preprint arXiv:2201.09441, 2022.                       [50] G. Hu, Y. Teng, P. Wu, and N. Wang, “FFT-MoE: Efficient Federated
+[24] Z. Zhong, W. Bao, J. Wang, S. Zhang, J. Zhou, L. Lyu, and W. Y. B.               Fine-Tuning for Foundation Models via Large-scale Sparse MoE
+     Lim, “Certified unlearning in decentralized federated learning,” arXiv           under Heterogeneous Edge,” ArXiv, vol. 2508.18663, Aug. 2025.
+     preprint arXiv:2601.06436, 2026.                                                 [Online]. Available: https://arxiv.org/abs/2508.18663
+[25] ——, “Unlearning through knowledge overwriting: Reversible feder-            [51] S. Ghiasvand, M. Alizadeh, and R. Pedarsani, “Decentralized
+     ated unlearning via selective sparse adapter,” 2025.                             low-rank fine-tuning of large language models,” arXiv preprint
+[26] X. Cao, J. Jia, Z. Zhang, and N. Z. Gong, “FedRecover: Recovering                arXiv:2501.15361, 2025.
+     from poisoning attacks in federated learning using historical informa-      [52] S. Inderjeet, V.-G. Eleonore, O. Andikan, and S. Motoyoshi, “Learning
+     tion,” Proc. IEEE S&P, 2023.                                                     to Collaborate: An Orchestrated-Decentralized Framework for Peer-to-
+[27] J. Jang, S. Kang, S. Kim, and H. Yoon, “Federated weighted inter-                Peer LLM Federation,” ArXiv, vol. 2601.17133, Jan. 2026. [Online].
+     client transfer for heterogeneous federated learning,” in Advances in            Available: https://arxiv.org/abs/2601.17133
+     Neural Information Processing Systems (NeurIPS), 2022.                      [53] N. Xiong, Y. Zhou, H. Zeng, Z. Chen, F. Huang, S. Bi,
+[28] Q. Yang, F. Zhou, Z. Wang, P. Zhang, X. Liang, Y. Liang, and J. Huang,           L. Zhang, and Z. Zhao, “Token-Level LLM Collaboration via
+     “FCCL: Federated continual learning via inter-client distillation,” in           FusionRoute,” ArXiv, vol. 2601.05106, Jan. 2026. [Online]. Available:
+     International Conference on Machine Learning (ICML), 2023.                       https://arxiv.org/pdf/2601.05106
+[29] Y. Chen, Y. Gu, X. Qin, J. Wang, W. Lu, H. Yu, and Q. Yang, “Fed-           [54] J. Gong, O. Simeone, and J. Kang, “Bayesian variational feder-
+     erated learning with cold-start: A client-level initialization approach,”        ated learning and unlearning in decentralized networks,” Proc. IEEE
+     in AAAI Conference on Artificial Intelligence, 2022.                             SPAWC, 2021.
+[30] T. Wei, C.-M. Lai, Y. Chen, and L. Huang, “Towards flexible federated       [55] M. Lamri et al., “Fully decentralized certified unlearning,” arXiv
+     learning: Client joining and leaving,” in IEEE Transactions on Neural            preprint arXiv:2512.08443, 2025.
+     Networks and Learning Systems, 2023.                                        [56] Y. Lin, H. Du, Z. Gao, J. Yao, B. Jiang, D. Niyato, R. Li, and P. Zhang,
+[31] K. Ozkara, A. Venkitaraman, and D. Gündüz, “Distributed learning               “Decentralized unlearning for trustworthy ai-generated content ser-
+     with dynamic client participation,” IEEE Journal on Selected Areas in            vices,” IEEE Network, pp. 1–1, 2024.
+     Communications, 2023.                                                       [57] Y. Zhong et al., “Hierarchical federated unlearning for large language
+[32] C. Huang, Q. Liu, B. Y. Lin, T. Pang, C. Du, and M. Lin, “LoRAHub:               models,” arXiv preprint arXiv:2510.17895, 2025.
+     Efficient cross-task generalization via dynamic LoRA composition,”          [58] C. R. Kelsch, L. S. B. Pereira, N. Mola, L. H. Arribas, and J. C.
+     arXiv preprint arXiv:2307.10970, 2023.                                           S. M. Avedillo, “FADE: Selective forgetting via sparse LoRA and self-
+[33] Z. Zhou, C. Gong, Y. Li, S. Zhai, S. Han, and Y. Wu, “Merging                    distillation,” arXiv preprint arXiv:2602.07058, 2026.
+     LoRA into foundation models via orthogonal subspace methods,” arXiv         [59] C. Gao, L. Wang, K. Ding, C. Weng, X. Wang, and Q. Zhu, “O3: On
+     preprint arXiv:2404.10425, 2024.                                                 large language model continual unlearning,” Proc. ICLR, 2025.
+[34] E. T. M. Beltran et al., “Decentralized federated learning: Funda-          [60] T. T. Huynh, T. B. Nguyen, P. L. Nguyen, T. T. Nguyen, M. Weidlich,
+     mentals, state of the art, frameworks, trends, and challenges,” IEEE             Q. V. H. Nguyen, and K. Aberer, “Fast-fedul: A training-free federated
+     Communications Surveys & Tutorials, 2023.                                        unlearning with provable skew resilience,” 2024.
+[35] X. Lian, C. Zhang, H. Zhang, C.-J. Hsieh, W. Zhang, and J. Liu,             [61] P. W. Koh and P. Liang, “Understanding black-box predictions via
+     “Can decentralized algorithms outperform centralized algorithms? A               influence functions,” in Proc. ICML, 2017.
+     case study for decentralized parallel stochastic gradient descent,” Proc.   [62] B. McMahan, E. Moore, D. Ramage, S. Hampson, and B. Agüera
+     NeurIPS, 2017.                                                                   y Arcas, “Communication-efficient learning of deep networks from
+[36] T. Vogels, H. Hendrikx, and M. Jaggi, “Beyond spectral gap: The role             decentralized data,” Proc. AISTATS, 2017.
+     of the topology in decentralized learning,” Proc. NeurIPS, 2022.            [63] L. Anusha, S. Shubhanshu, J. Tara, and K. Farinaz, “Fully decentralized
+[37] A. Hashemi, A. Acharya, R. Das, H. Vikalo, S. Sanghavi, and                      federated learning,” Montreal, Canada, Dec. 2018.
+     I. Dhillon, “On the benefits of multiple gossip steps in communication-     [64] A. Nedić, A. Olshevsky, and M. G. Rabbat, “Network topology and
+     constrained decentralized federated learning,” IEEE Transactions on              communication-computation tradeoffs in decentralized optimization,”
+     Parallel and Distributed Systems, vol. 33, no. 11, pp. 2727–2739, 2022.          Proceedings of the IEEE, vol. 106, no. 5, pp. 953–976, May 2018.
+                                                                                                                                                            15
+
+
+
+[65] X. Cao, T. Başar, S. Diggavi, Y. C. Eldar, K. B. Letaief, H. V. Poor, and    [89] T. Chen, X. Zhang, M. You, G. Zheng, and S. Lambotharan, “A gnn-
+     J. Zhang, “Communication-efficient distributed learning: An overview,”             based supervised learning framework for resource allocation in wireless
+     IEEE J. Sel. Areas Commun., vol. 41, no. 4, pp. 851–873, 2023.                     iot networks,” IEEE Internet Things J., vol. 9, no. 3, pp. 1712–1724,
+[66] W. Liu, L. Chen, and W. Zhang, “Decentralized federated learning:                  2022.
+     Balancing communication and computing costs,” IEEE Transactions               [90] N. Naderializadeh, “Wireless link scheduling via graph representation
+     on Signal and Information Processing over Networks, vol. 8, pp. 131–               learning: A comparative study of different supervision levels,” Avail-
+     143, 2022.                                                                         able Online: https://arxiv.org/abs/2110.01722, Oct. 2020.
+[67] Y.-T. Chow, W. Shi, T. Wu, and W. Yin, “Expander graph and                    [91] X. Zhang, H. Zhao, J. Wei, C. Yan, J. Xiong, and X. Liu, “Cooperative
+     communication-efficient decentralized optimization,” in Proc. Asilomar             trajectory design of multiple uav base stations with heterogeneous
+     Conference on Signals, Systems and Computers, Pacific Grove, CA,                   graph neural networks,” IEEE Trans. Wireless Commun., vol. 22, no. 3,
+     USA, Nov. 2016.                                                                    pp. 1495–1509, 2023.
+[68] X. Wang, A. Lalitha, T. Javidi, and F. Koushanfar, “Peer-to-peer              [92] M. Eisen and A. Ribeiro, “Optimal wireless resource allocation with
+     variational federated learning over arbitrary graphs,” IEEE Journal on             random edge graph neural networks,” IEEE Transactions on Signal
+     Selected Areas in Information Theory, vol. 3, no. 2, pp. 172–182, 2022.            Processing, vol. 68, pp. 2977–2991, Apr. 2020.
+[69] A. Taya, T. Nishio, M. Morikura, and K. Yamamoto, “Decentralized              [93] Y. Shen, Y. Shi, J. Zhang, and K. B. Letaief, “Graph neural networks
+     and model-free federated learning: Consensus-based distillation in                 for scalable radio resource management: Architecture design and
+     function space,” IEEE Trans. Signal Inf. Process. Networks, vol. 8,                theoretical analysis,” IEEE J. Sel. Areas Commun., vol. 39, no. 1, pp.
+     pp. 799–814, Sept. 2022.                                                           101–115, Nov. 2021.
+[70] Y. Chen et al., “Bandwidth-aware network topology optimization for            [94] F. Malandrino, C. F. Chiasserini, N. Molner, and D. L. O. Antonio,
+     decentralized learning,” arXiv preprint arXiv:2512.07536, 2025.                    “Network support for high-performance distributed machine learning,”
+[71] X. Li et al., “Towards heterogeneity-aware and energy-efficient topol-             IEEE/ACM Transactions on Networking, vol. 31, no. 1, pp. 264–278,
+     ogy optimization for decentralized federated learning,” arXiv preprint             July. 2023.
+     arXiv:2508.08278, 2025.                                                       [95] D. Ye, R. Yu, M. Pan, and Z. Han, “Federated learning in vehicular edge
+[72] H. W. Q. Chen, Z. Wang and X. Lin, “Feddual: Pair-wise gossip helps                computing: A selective model aggregation approach,” IEEE Access,
+     federated learning in large decentralized networks,” IEEE Trans. Inf.              Jan. 2020.
+     Forensics Secur., vol. 18, pp. 335–350, Nov. 2022.                            [96] M. S. H. Abad, E. Ozfatura, D. GUndUz, and O. Ercetin, “Hierar-
+                                                                                        chical federated learning across heterogeneous cellular networks,” in
+[73] T. Wang, Y. Liu, X. Zheng, H. N. Dai, W. Jia, and M. Xie, “Edge-based
+                                                                                        Proc. IEEE International Conference on Acoustics, Speech and Signal
+     communication optimization for distributed federated learning,” IEEE
+                                                                                        Processing (ICASSP), Barcelona, Spain, Apr. 2020.
+     Transactions on Network Science and Engineering, vol. 9, no. 4, pp.
+                                                                                   [97] S. Chen, D. Yu, Y. Zou, J. Yu, and X. Cheng, “Decentralized wireless
+     2015–2024, June. 2022.
+                                                                                        federated learning with differential privacy,” IEEE Transactions on
+[74] L. Wang, Y. Xu, H. Xu, M. Chen, and L. Huang, “Accelerating                        Industrial Informatics, vol. 18, no. 9, pp. 6273–6282, Jan. 2022.
+     decentralized federated learning in heterogeneous edge computing,”            [98] S. Kalra, J. Wen, J. C. Cresswell, M. Volkovs, and H. R. Tizhoosh,
+     IEEE Transactions on Mobile Computing, pp. 1–1, May. 2022.                         “Decentralized federated learning through proxy model sharing,” Nat.
+[75] Z. Chen, W. Liao, P. Tian, Q. Wang, and W. Yu, “A fairness-aware peer-             Commun., vol. 14, p. 2899, Mar. 2023.
+     to-peer decentralized learning framework with heterogeneous devices,”         [99] T. Hoang, S. Rana, S. Gupta, and S. Venkatesh, “Learn to unlearn
+     Future Internet, vol. 8, pp. 23 920–23 935, Apr. 2022.                             for deep neural networks: Minimizing unlearning interference with
+[76] R. Xu and Y. Chen, “mudfl: A secure microchained decentralized                     gradient projection,” in Proc. IEEE/CVF Winter Conf. Applications of
+     federated learning fabric atop iot networks,” IEEE Transactions on                 Computer Vision (WACV), 2024, pp. 4819–4828.
+     Network and Service Management, vol. 19, no. 3, pp. 2677–2688, 2022.         [100] Z. Pan, Z. Wang, C. Li, K. Zheng, B. Wang, X. Tang, and J. Zhao,
+[77] J. S. Ng, W. Y. B. Lim, Z. Xiong, X. Cao, J. Jin, D. Niyato, C. Le-                “Federated unlearning with gradient descent and conflict mitigation,”
+     ung, and C. Miao, “Reputation-aware hedonic coalition formation for                in Proc. AAAI Conf. Artificial Intelligence, vol. 39, no. 19, 2025, pp.
+     efficient serverless hierarchical federated learning,” IEEE Transactions           19 804–19 812.
+     on Parallel and Distributed Systems, vol. 33, no. 11, pp. 2675–2686,         [101] X. Wang, T. Chen, Q. Ge, H. Xia, R. Bao, R. Zheng, Q. Zhang, T. Gui,
+     Dec. 2022.                                                                         and X. Huang, “Orthogonal subspace learning for language model
+[78] S. Savazzi, M. Nicoli, M. Bennis, S. Kianoush, and L. Barbieri,                    continual learning,” in Findings of the Association for Computational
+     “Opportunities of federated learning in connected, cooperative, and au-            Linguistics: EMNLP 2023, 2023, pp. 10 658–10 671.
+     tomated industrial systems,” IEEE Communications Magazine, vol. 59,          [102] Z. Deng, L. Luo, and H. Chen, “Enable the right to be forgotten with
+     no. 2, pp. 16–21, 2021.                                                            federated client unlearning in medical imaging,” in Medical Image
+[79] S. Guo, T. Zhang, H. Yu, X. Xie, L. Ma, T. Xiang, and Y. Liu,                      Computing and Computer Assisted Intervention – MICCAI 2024, ser.
+     “Byzantine-resilient decentralized stochastic gradient descent,” IEEE              Lecture Notes in Computer Science, vol. 15010, 2024, pp. 240–250.
+     Trans. Circuits Syst. Video Technol., vol. 32, no. 6, pp. 4096–4106,         [103] Y. Li, M. Chu, X. Yang, D. Xiao, Z. Xu, W. Shao, Q. Song, and H. Li,
+     June 2022.                                                                         “FedCARE: Federated unlearning with conflict-aware projection and
+[80] S. Wang, S. Hosseinalipour, V. B. Aggarwal, C. G. Brinton, D. J. Love,             relearning-resistant recovery,” 2026.
+     W. Su, and M. Chiang, “Towards cooperative federated learning over           [104] H. Karimi, J. Nutini, and M. Schmidt, “Linear convergence of gradient
+     heterogeneous edge/fog networks,” IEEE Communications Magazine,                    and proximal-gradient methods under the Polyak-Łojasiewicz condi-
+     vol. 61, no. 12, pp. 54–60, May 2023.                                              tion,” 2016.
+[81] M. Chen, Z. Yang, W. Saad, C. Yin, H. V. Poor, and S. Cui,                   [105] I. Kuruzov, M. Alkousa, F. Stonyakin, and A. Gasnikov, “Gradient-
+     “A Joint Learning and Communications Framework for Federated                       type methods for decentralized optimization problems with Polyak-
+     Learning Over Wireless Networks,” IEEE Transactions on Wireless                    Łojasiewicz condition over time-varying networks,” 2022.
+     Communications, vol. 20, no. 1, pp. 269–283, Oct. 2021.                      [106] K. Yuan, Q. Ling, and W. Yin, “On the convergence of decentralized
+[82] M. Chen, H. V. Poor, W. Saad, and S. Cui, “Wireless communications                 gradient descent,” SIAM Journal on Optimization, vol. 26, no. 3, pp.
+     for collaborative federated learning,” IEEE Communications Magazine,               1835–1854, 2016.
+     vol. 58, no. 12, pp. 48–54, Dec. 2020.                                       [107] A. Yang, A. Li, B. Yang, B. Zhang, and B. Hui, “Qwen3 technical
+[83] M. Chen, D. Gündüz, K. Huang, W. Saad, M. Bennis, A. V. Feljan, and              report,” 2025.
+     H. V. Poor, “Distributed learning in wireless networks: Recent progress      [108] J. Kirkpatrick, R. Pascanu, N. Rabinowitz, J. Veness, G. Desjardins,
+     and future challenges,” IEEE J. Sel. Areas Commun., vol. 39, no. 12,               A. A. Rusu, K. Milan, J. Quan, T. Ramalho, A. Grabska-Barwinska
+     pp. 3579–3605, Dec. 2021.                                                          et al., “Overcoming catastrophic forgetting in neural networks,” in
+[84] S. Liu, G. Yu, D. Wen, X. Chen, M. Bennis, and H. Chen, “Communi-                  Proceedings of the National Academy of Sciences, vol. 114, no. 13,
+     cation and energy efficient decentralized learning over d2d networks,”             2017, pp. 3521–3526.
+     IEEE Transactions on Wireless Communications, vol. 22, no. 12, pp.           [109] P. W. Koh and P. Liang, “Understanding black-box predictions via
+     9549–9563, 2023.                                                                   influence functions,” in International Conference on Machine Learning,
+[85] N. Yang, S. Wang, Y. Liu, C. G. Brinton, C. Yin, and M. Chen, “Graph               2017, pp. 1885–1894.
+     neural networks for the optimization of collaborative federated learning     [110] C. R. Kelsch, L. S. B. Pereira, N. Mola, L. H. Arribas, and J. C. S. M.
+     energy efficiency,” IEEE Transactions on Wireless Communications,                  Avedillo, “SPARE: Self-distillation for PARameter-Efficient removal,”
+     2024.                                                                              in Advances in Neural Information Processing Systems, 2025.
+[86] N. Yang, S. Wang, Z. Yang, M. Chen, C. Yin, and K. Huang, “A
+     secure and private distributed Bayesian federated learning design,”
+     IEEE Transactions on Wireless Communications, 2024.
+[87] Y. Shen, J. Zhang, S. H. Song, and K. B. Letaief, “Graph neural
+     networks for wireless communications: From theory to practice,” IEEE
+     Trans. Wireless Commun., vol. 22, no. 5, pp. 3554–3569, 2023.
+[88] M. Lee, G. Yu, and G. Y. Li, “Graph embedding-based wireless link
+     scheduling with few training samples,” IEEE Trans. Wireless Commun.,
+     vol. 20, no. 4, pp. 2282–2294, Dec. 2021.
+

@@ -1,0 +1,98 @@
+[build-system]
+requires = ["setuptools>=70.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "solus-llm"
+version = "0.1.0"
+description = "Solus: a family of open LLMs trained at Aurelius Research — Solus-7B (6.9B dense) and Solus-MoE-8B (8.0B mixture-of-experts)"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+keywords = [
+    "llm", "transformer", "large-language-model",
+    "solus", "aurelius", "dense-model", "moe", "mixture-of-experts",
+    "nlp", "pretraining", "inference",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+authors = [
+    {name = "Aurelius Research", email = "research@aurelius.ai"},
+]
+maintainers = [
+    {name = "Aurelius Research", email = "research@aurelius.ai"},
+]
+dependencies = [
+    "torch>=2.2.0",
+    "accelerate>=0.32.0",
+    "bitsandbytes>=0.45.0",
+    "transformers>=4.45.0",
+    "numpy>=1.26.0",
+    "sentencepiece>=0.2.1",
+]
+
+[project.optional-dependencies]
+dense = ["solus-llm @ file://${PROJECT_ROOT}"]
+moe   = [
+    "solus-llm @ file://${PROJECT_ROOT}",
+    "flash-attn>=2.2.0; platform_machine!='arm64'",
+]
+dev = ["pytest>=8.2.0", "pytest-cov>=6.0.0", "black>=24.8.0", "ruff>=0.6.0"]
+eval = ["evaluate>=0.4.3", "scikit-learn>=1.5.0", "tqdm>=4.65.0"]
+serving = [
+    "vllm>=0.4.0", "fastapi>=0.115.0", "uvicorn>=0.30.0",
+    "huggingface-hub>=0.24.0",
+]
+alignment = ["trl>=0.9.6", "peft>=0.12.0"]
+
+[project.urls]
+Homepage   = "https://github.com/NousResearch/Hermes"
+Repository = "https://github.com/NousResearch/Hermes"
+Issues     = "https://github.com/NousResearch/Hermes/issues"
+
+[project.scripts]
+solus-train = "scripts.pretrain.train_solus:main"
+solus-serve = "scripts.serving.serve_solus:main"
+solus-eval  = "scripts.eval.eval_solus:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["modeling", "modeling.moe"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.yml", "*.json", "*.md"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+exclude = ["__pycache__", ".venv", "checkpoints", "data", "logs"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/__pycache__/*", "*/tests/*", "*/scripts/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 80

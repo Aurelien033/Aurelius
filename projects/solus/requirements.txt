@@ -1,0 +1,48 @@
+# Solus-7B — requirements.txt
+#
+# Install with:
+#   pip install -r requirements.txt
+#
+# For CUDA 12.1 (NVIDIA A100/H100), prefer the CUDA index:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+#   pip install -r requirements.txt
+
+# ── Core ──────────────────────────────────────────────────────────
+torch>=2.2.0
+torchvision>=0.18.0; platform_system != "Windows"  # vision utils (eval only)
+
+# ── Training ──────────────────────────────────────────────────────
+accelerate>=0.32.0
+bitsandbytes>=0.45.0           # 8-bit AdamW (saves VRAM)
+transformers>=4.45.0            # tokenizer + model ops
+
+# ── Data ──────────────────────────────────────────────────────────
+numpy>=1.26.0
+datasets>=2.20.0
+sentencepiece>=0.2.1           # Llama 3 BPE tokenizer support
+
+# ── Alignment ─────────────────────────────────────────────────────
+trl>=0.9.6                     # SimPO / DPO training loop
+peft>=0.12.0                    # LoRA / QLoRA adapter support (optional)
+
+# ── Eval ──────────────────────────────────────────────────────────
+evaluate>=0.4.3                # lm-eval harness entry point
+scikit-learn>=1.5.0            # metrics
+tqdm>=4.65.0
+
+# ── Logging ───────────────────────────────────────────────────────
+wandb>=0.18.0                   # Weights & Biases experiment tracking
+# tensorboard>=2.18.0           # optional; use `wandb` primarily
+
+# ── Serving ───────────────────────────────────────────────────────
+vllm>=0.4.0                    # high-throughput inference (requires CUDA)
+fastapi>=0.115.0               # API server
+uvicorn>=0.30.0                # ASGI server
+pydantic>=2.7.0               # schema validation (FastAPI dep)
+
+# ── Development ───────────────────────────────────────────────────
+pytest>=8.2.0
+pytest-asyncio>=0.23.0
+black>=24.8.0
+ruff>=0.6.0                    # fast Python linter
+pyyaml>=6.0.1
