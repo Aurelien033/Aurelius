@@ -468,10 +468,17 @@ make ci             # lint + typecheck + security + all tests
 
 ---
 
-## Current Research Status — 2026-08-04
+## Current Research Status — 2026-09-06
 
+**Aurelius-9B release campaign is the active flagship.** Target: a 9B-class hybrid linear-attention student (Qwen3.5-9B GDN 3:1 base) with OPD-warm → GRPO/RLVR post-training, verifier-gated evaluation, and mechanistic transparency. Status: research + engineering active; **no tuned checkpoint published yet** — this repo does not contain unverified benchmark claims. Eval harness + Colab validation notebook are in the lab; code will be vendored into this repo once receipts are verified.
+
+Recent lab milestones (canonical record: Obsidian vault, not this repo):
+- **2026-09-06 — 9B code audit**: 10 bugs found, fixed, and re-verified across the 9B hybrid codebase (sequential-loop "parallel" scan → exact chunked scan; RoPE+KV-cache position corruption; dead beta write gate; OPD one-batch loop; stub eval harness → real harness with HF-baseline mode). 5/5 integration tests, 8/8 scan-correctness cases.
+- **2026-09-06 — Research cycle E1–E10 (falsification series)**: decisive A/B exposed an architecture-gating bug — the default α range [-0.5, 0.5] caps GDN memory at ~2–3 tokens by construction; fixed in model defaults (100% vs 2.3% recall on delay-17).
+- **2026-09-06 — RSI frontier sweep**: 244 scored sources, 21 deep-read, verified calculation battery, toy experiments (E1/E1b collapse laws 100-seed verified), whitepaper draft.
+
+Prior status — 2026-08-04 (kept for provenance):
 Frontier research package vendored in [`research/2026-08-frontier/`](research/2026-08-frontier/README.md):
-
 - **SISA** — Self-Indexed Sparse Attention (training-free KV indexer via the model's own early attention; paper-ready, measured: beats uniform 9/9, oracle-Q 8/9; binding circuit heads {3,11}; window law W≈1.1-1.3×horizon). Paper PDF + battery + circuit probes included.
 - **AEX-KV** — Adaptive Bit-Exact KV compression codec (lossless, decode==encode as uint16, 21 reversible modes). Integration probe PASSED on real Qwen3-1.7B KV: 1.468× capacity, bit-exact on all 56 tensors. Storage tier of the three-tier memory (HOT/WARM/COLD).
 - **MoK** — Mixture of Kittens (attention-routed recurrent processors; distance law CLEARED: state memory survives 512-token gaps at fixed d=128; F1 fast-cell comparison in flight).
