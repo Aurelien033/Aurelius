@@ -7,15 +7,11 @@ work end-to-end.
 
 from __future__ import annotations
 
-
-import torch
-
-
 # ---------------------------------------------------------------------------
 # 1. "dsa_attention" present in MODEL_COMPONENT_REGISTRY
 # ---------------------------------------------------------------------------
-
 import pytest
+import torch
 
 pytestmark = pytest.mark.integration
 

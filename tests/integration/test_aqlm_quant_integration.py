@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from src.model import MODEL_COMPONENT_REGISTRY
 from src.model.aqlm_quant import AQLMConfig, AQLMLinear
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

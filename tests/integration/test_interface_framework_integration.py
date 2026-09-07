@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 import src.model as model_pkg
 from src.model import (
     AureliusInterfaceFramework,
@@ -12,9 +14,6 @@ from src.model import (
     TaskThread,
     TaskThreadSpec,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

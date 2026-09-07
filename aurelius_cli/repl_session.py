@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import collections
 from dataclasses import dataclass
-from src._compat import StrEnum
 from pathlib import Path
+
+from src._compat import StrEnum
 
 
 class ReplMode(StrEnum):

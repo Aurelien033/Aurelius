@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import sys
 
-import torch
-
-
 import pytest
+import torch
 
 pytestmark = pytest.mark.integration
 

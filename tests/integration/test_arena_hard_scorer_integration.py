@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src import eval as eval_pkg
 from src.eval.arena_hard_scorer import (
     ArenaComparison,
     ArenaHardScorer,
     ArenaProblem,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

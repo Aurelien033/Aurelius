@@ -7,11 +7,9 @@ VLLMAdapter instance.
 
 from __future__ import annotations
 
-
 import pytest
 
 from src.backends.registry import BACKEND_REGISTRY, ENGINE_ADAPTER_REGISTRY
-
 
 # ---------------------------------------------------------------------------
 # Registry-level fixtures: snapshot + restore both registries around each test

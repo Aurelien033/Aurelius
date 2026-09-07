@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 import src.multimodal as multimodal_pkg
 from src.multimodal import ModalityContract, load_modality_contract
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

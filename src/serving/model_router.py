@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import threading
 from dataclasses import dataclass
+
 from src._compat import StrEnum
 
 

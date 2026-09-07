@@ -33,8 +33,9 @@ import logging
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from src._compat import StrEnum, auto
 from typing import Any
+
+from src._compat import StrEnum, auto
 
 __all__ = [
     "SkillGraph",

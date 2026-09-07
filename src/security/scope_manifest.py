@@ -9,6 +9,7 @@ import ipaddress
 import os
 import re
 from dataclasses import dataclass, field
+
 from src._compat import StrEnum
 
 try:

@@ -1,7 +1,9 @@
 """Warmup LR scheduler: linear warmup, cosine decay, get_current_lr."""
 
 from __future__ import annotations
+
 import math
+
 from src._compat import StrEnum
 
 

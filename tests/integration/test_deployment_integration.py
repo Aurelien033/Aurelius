@@ -8,9 +8,13 @@ Includes integration tests for GitHub Actions CI YAML generator (additive).
 
 from __future__ import annotations
 
-
 import json
 from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Registry smoke tests
+# ---------------------------------------------------------------------------
+import pytest
 
 from src.deployment import ARTIFACT_BUILDER_REGISTRY, DEPLOY_TARGET_REGISTRY
 from src.deployment.container_builder import (
@@ -20,14 +24,6 @@ from src.deployment.container_builder import (
 )
 from src.deployment.helm_chart import HelmChart, HelmChartGenerator, HelmChartValues
 from src.deployment.otel_instrumentation import Tracer
-
-
-# ---------------------------------------------------------------------------
-# Registry smoke tests
-# ---------------------------------------------------------------------------
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

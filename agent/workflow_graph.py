@@ -11,8 +11,9 @@ import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from src._compat import StrEnum
 from typing import Any
+
+from src._compat import StrEnum
 
 # ---------------------------------------------------------------------------
 # Enumerations & data classes

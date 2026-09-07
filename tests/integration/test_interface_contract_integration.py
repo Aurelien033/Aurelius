@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 import src.model as model_pkg
 from src.model import (
     InterfaceContractBundle,
@@ -11,9 +13,6 @@ from src.model import (
     load_interface_contract_bundle,
     validate_interface_contract,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

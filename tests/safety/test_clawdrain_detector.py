@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from src.safety.clawdrain_detector import (
     AmplificationVector,
     ClawdrainDetector,

@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
+# ---------------------------------------------------------------------------
+# Shared tiny config used across integration tests
+# ---------------------------------------------------------------------------
+import pytest
 import torch
 
 from src.model import MODEL_COMPONENT_REGISTRY
 from src.model.mla_256 import MLA256Attention, MLA256Config
-
-
-# ---------------------------------------------------------------------------
-# Shared tiny config used across integration tests
-# ---------------------------------------------------------------------------
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

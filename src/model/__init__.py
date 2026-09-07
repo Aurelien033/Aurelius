@@ -183,35 +183,35 @@ from src.backends import (  # noqa: E402
     select_backend_for_manifest,
 )
 
+from .jamba import (
+    JambaAttentionBlock,
+    JambaMambaBlock,
+    JambaModel,
+)
+from .lightning_attention import (
+    LightningAttentionBlock,
+    LightningAttentionLayer,
+    LightningLinearAttn,
+)
+
 # ---------------------------------------------------------------------------
 # Modern architectures (Mamba, Lightning Attention, MLA, Jamba)
 # ---------------------------------------------------------------------------
-
 from .mamba import (
-    SelectiveSSM,
     MambaBlock,
     MambaLayer,
+    SelectiveSSM,
 )
 from .mamba2 import (
-    SSDLayer,
     Mamba2Block,
-)
-from .lightning_attention import (
-    LightningLinearAttn,
-    LightningAttentionLayer,
-    LightningAttentionBlock,
+    SSDLayer,
 )
 from .mla import (
-    MultiHeadLatentAttention,
-    MLAConfig,
     DownProjectKV,
-    UpProjectKV,
     MLABlock,
-)
-from .jamba import (
-    JambaModel,
-    JambaMambaBlock,
-    JambaAttentionBlock,
+    MLAConfig,
+    MultiHeadLatentAttention,
+    UpProjectKV,
 )
 
 __all__ = [

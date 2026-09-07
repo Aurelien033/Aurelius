@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 import src.training as training_pkg
 from src.training.token_dropout import TokenDropout
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

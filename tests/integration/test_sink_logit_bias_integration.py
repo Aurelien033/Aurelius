@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 import src.inference as inf
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

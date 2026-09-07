@@ -4,7 +4,6 @@ budget accounting, limit enforcement, and registry wiring.
 
 from __future__ import annotations
 
-
 import pytest
 
 from src.inference import DECODER_REGISTRY
@@ -14,7 +13,6 @@ from src.inference.multimodal_thinking_chain import (
     StepType,
     VisionStepLimitError,
 )
-
 
 # ---------------------------------------------------------------------------
 # Integration test: full chain exercise

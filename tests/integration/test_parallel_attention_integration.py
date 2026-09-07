@@ -10,14 +10,11 @@ Checks:
 
 from __future__ import annotations
 
-
 import hashlib
 import pathlib
 
-import torch
-
-
 import pytest
+import torch
 
 pytestmark = pytest.mark.integration
 

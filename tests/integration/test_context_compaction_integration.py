@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src import longcontext
 from src.longcontext import LONGCONTEXT_STRATEGY_REGISTRY, ContextCompactor
 from src.longcontext.context_compaction import Turn
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

@@ -6,11 +6,12 @@ Only rich, stdlib, and project-local imports are used.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from src._compat import StrEnum
 
 from rich.console import Console
 from rich.rule import Rule
 from rich.text import Text
+
+from src._compat import StrEnum
 
 
 class MenuItemKind(StrEnum):

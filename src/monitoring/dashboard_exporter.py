@@ -6,6 +6,7 @@ import csv
 import io
 import json
 from dataclasses import dataclass
+
 from src._compat import StrEnum
 
 

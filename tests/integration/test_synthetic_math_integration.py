@@ -6,15 +6,13 @@ difficulty_stats totals, and registry wiring.
 
 from __future__ import annotations
 
+import pytest
 
 from src.data.synthetic_math import (
     DATA_REGISTRY,
     SyntheticMathConfig,
     SyntheticMathGenerator,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

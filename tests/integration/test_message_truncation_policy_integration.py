@@ -6,12 +6,10 @@ and operates correctly on a real ChatML-produced message list.
 
 from __future__ import annotations
 
+import pytest
 
 import src.chat as chat
 from src.chat.chatml_template import ChatMLTemplate, Message
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

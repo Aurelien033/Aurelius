@@ -8,12 +8,10 @@ realistic adversarial blob containing an email, SSN, and valid credit card.
 
 from __future__ import annotations
 
+import pytest
 
 from src.safety import SAFETY_FILTER_REGISTRY
 from src.safety.pii_detector import PIIDetector
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

@@ -6,12 +6,10 @@ Exercises that the :class:`ShellCommandPlanner` is exposed via
 
 from __future__ import annotations
 
+import pytest
 
 import agent as agent_surface
 from agent import ShellCommand, ShellCommandPlanner, ShellPlan
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

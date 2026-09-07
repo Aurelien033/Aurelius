@@ -6,19 +6,14 @@ using a config dict (matching typical runtime usage pattern).
 
 from __future__ import annotations
 
-
+# ---------------------------------------------------------------------------
+# Shared tiny config used across integration tests
+# ---------------------------------------------------------------------------
+import pytest
 import torch
 
 from src.model import MODEL_COMPONENT_REGISTRY
 from src.model.vision_projector import VisionProjector, VisionProjectorConfig
-
-
-# ---------------------------------------------------------------------------
-# Shared tiny config used across integration tests
-# ---------------------------------------------------------------------------
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

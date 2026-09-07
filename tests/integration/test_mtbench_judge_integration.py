@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.eval as eval_pkg
 from src.eval.mtbench_judge import (
     MTBenchJudge,
@@ -9,9 +11,6 @@ from src.eval.mtbench_judge import (
     PairwiseResult,
     SingleAnswerScore,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

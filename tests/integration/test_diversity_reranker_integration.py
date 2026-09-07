@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from src.retrieval import (
@@ -10,9 +11,6 @@ from src.retrieval import (
     JaccardDiversityReranker,
     MMRReranker,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

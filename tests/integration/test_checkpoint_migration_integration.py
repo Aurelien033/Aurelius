@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from src.model import MIGRATION_REGISTRY, AureliusConfig, CheckpointMigrator
-
-
 import pytest
+
+from src.model import MIGRATION_REGISTRY, AureliusConfig, CheckpointMigrator
 
 pytestmark = pytest.mark.integration
 

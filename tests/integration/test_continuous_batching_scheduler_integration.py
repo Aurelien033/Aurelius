@@ -7,7 +7,6 @@ batching, and completion all compose end-to-end.
 
 from __future__ import annotations
 
-
 import pytest
 
 from src.inference import (
@@ -16,7 +15,6 @@ from src.inference import (
     ContinuousBatchingScheduler,
     InferenceRequest,
 )
-
 
 pytestmark = pytest.mark.integration
 

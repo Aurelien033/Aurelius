@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.data as data_pkg
 from src.data import (
     BPEConfig,
     BPETokenizer,
     BPETrainer,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

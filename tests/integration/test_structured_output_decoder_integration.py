@@ -9,7 +9,10 @@ Verifies that:
 
 from __future__ import annotations
 
-
+# ---------------------------------------------------------------------------
+# Config-driven construction
+# ---------------------------------------------------------------------------
+import pytest
 import torch
 
 import src.serving as serving
@@ -19,14 +22,6 @@ from src.serving.structured_output_decoder import (
     GrammarConstrainedDecoder,
     StructuredOutputDecoder,
 )
-
-
-# ---------------------------------------------------------------------------
-# Config-driven construction
-# ---------------------------------------------------------------------------
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

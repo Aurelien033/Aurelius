@@ -9,14 +9,11 @@ Verifies:
 
 from __future__ import annotations
 
-
+import pytest
 import torch
 
 from src.training import TRAINING_REGISTRY
 from src.training.still3_trainer import STILL3Config, STILL3Trainer
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

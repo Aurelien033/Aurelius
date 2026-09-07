@@ -1,6 +1,7 @@
 """Attention backend detection and selection utilities."""
 
 from __future__ import annotations
+
 import contextlib
 import time
 from dataclasses import dataclass

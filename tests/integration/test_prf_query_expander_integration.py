@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.retrieval as ret
 from src.model.config import AureliusConfig
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

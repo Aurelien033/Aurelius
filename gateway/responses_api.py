@@ -11,8 +11,9 @@ import time
 import uuid
 from collections.abc import Generator
 from dataclasses import dataclass, field
-from src._compat import StrEnum
 from typing import ClassVar, Literal
+
+from src._compat import StrEnum
 
 __all__ = [
     "ResponsesAPIModel",

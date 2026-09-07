@@ -13,8 +13,9 @@ import collections
 import hashlib
 import json
 from dataclasses import dataclass
-from src._compat import StrEnum
 from typing import Any
+
+from src._compat import StrEnum
 
 # ---------------------------------------------------------------------------
 # Enumerations & data classes

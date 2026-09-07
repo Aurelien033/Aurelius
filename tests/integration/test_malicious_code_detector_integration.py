@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
+# Runtime-assembled trigger tokens so the test source does not contain raw
+# dangerous identifiers.
+import pytest
+
 from src.safety import (
     HARM_CLASSIFIER_REGISTRY,
     SAFETY_FILTER_REGISTRY,
     CodeThreatReport,
     MaliciousCodeDetector,
 )
-
-# Runtime-assembled trigger tokens so the test source does not contain raw
-# dangerous identifiers.
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

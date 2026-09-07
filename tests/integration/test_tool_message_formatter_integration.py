@@ -7,13 +7,11 @@ the ``ChatMLTemplate`` in ``CHAT_TEMPLATE_REGISTRY`` without raising.
 
 from __future__ import annotations
 
+import pytest
 
 from src.chat import CHAT_TEMPLATE_REGISTRY, MESSAGE_FORMAT_REGISTRY
 from src.chat.chatml_template import ChatMLTemplate, Message
 from src.chat.tool_message_formatter import ToolMessageFormatter, ToolResult
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

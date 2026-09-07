@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 import src.inference as inf
 from src.model.config import AureliusConfig
 from src.runtime.feature_flags import FEATURE_FLAG_REGISTRY, FeatureFlag
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

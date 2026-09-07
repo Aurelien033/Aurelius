@@ -1,6 +1,7 @@
 """Dynamic sparse attention: content-based top-k key-value selection via a learned indexer."""
 
 from __future__ import annotations
+
 import math
 from dataclasses import dataclass
 

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 import src.training as training
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

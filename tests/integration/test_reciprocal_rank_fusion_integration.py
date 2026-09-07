@@ -13,6 +13,7 @@ Covers three things:
 
 from __future__ import annotations
 
+import pytest
 
 from src.retrieval import (
     FUSION_REGISTRY,
@@ -25,9 +26,6 @@ from src.retrieval import (
     fuse,
     reciprocal_rank_fusion,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

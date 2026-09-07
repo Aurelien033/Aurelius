@@ -14,7 +14,6 @@ from src.model.variant_adapter import (
     register_adapter,
 )
 
-
 pytestmark = pytest.mark.integration
 
 

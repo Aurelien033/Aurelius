@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from itertools import count
 
-from src.data.rejection_sampling_data import PreferencePair, RejectionSampler
-
-
 import pytest
+
+from src.data.rejection_sampling_data import PreferencePair, RejectionSampler
 
 pytestmark = pytest.mark.integration
 

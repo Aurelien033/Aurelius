@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import fields
 
+import pytest
+
 from src.model import (
     DEFAULT_BACKBONE_BUILDERS,
     AureliusConfig,
@@ -19,9 +21,6 @@ from src.model import (
     parse_semver,
     register_backbone_builder,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

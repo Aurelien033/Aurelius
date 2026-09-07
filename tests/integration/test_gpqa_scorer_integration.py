@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src import eval as eval_pkg
 from src.eval.gpqa_scorer import GPQAProblem, GPQAScorer
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

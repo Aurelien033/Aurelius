@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.alignment as alignment_surface
 from src.alignment import ALIGNMENT_REGISTRY, AdversarialCodeBattle
 from src.alignment.adversarial_code_battle import (
@@ -9,9 +11,6 @@ from src.alignment.adversarial_code_battle import (
     heuristic_red_fn,
 )
 from src.model.config import AureliusConfig
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

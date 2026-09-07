@@ -1,6 +1,7 @@
 """Multi-turn context compression: truncation strategies, token budget enforcement."""
 
 from dataclasses import dataclass
+
 from src._compat import StrEnum
 
 

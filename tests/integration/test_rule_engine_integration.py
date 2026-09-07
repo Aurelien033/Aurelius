@@ -8,6 +8,7 @@ Checks that:
 
 from __future__ import annotations
 
+import pytest
 
 from src.model.config import AureliusConfig
 from src.safety import (
@@ -15,9 +16,6 @@ from src.safety import (
     SAFETY_FILTER_REGISTRY,
     RuleEngine,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

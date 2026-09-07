@@ -22,6 +22,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+
 from src._compat import StrEnum
 
 

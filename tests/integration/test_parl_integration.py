@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import torch
-
 # ---------------------------------------------------------------------------
 # Test 1 — "parl" key is in ALIGNMENT_REGISTRY
 # ---------------------------------------------------------------------------
-
-
 import pytest
+import torch
 
 pytestmark = pytest.mark.integration
 

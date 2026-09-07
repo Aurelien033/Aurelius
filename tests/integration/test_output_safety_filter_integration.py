@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.safety import (
     HARM_CLASSIFIER_REGISTRY,
     SAFETY_FILTER_REGISTRY,
@@ -13,9 +15,6 @@ from src.safety import (
     PIIDetector,
     PromptInjectionScanner,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

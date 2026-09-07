@@ -9,7 +9,10 @@ Verifies end-to-end behaviour:
 
 from __future__ import annotations
 
-
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+import pytest
 import torch
 import torch.nn.functional as F
 
@@ -17,14 +20,6 @@ from src.inference.eagle3_decoding import (
     Eagle3Config,
     Eagle3Decoder,
 )
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

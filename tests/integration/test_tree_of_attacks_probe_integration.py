@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.eval import (
     BENCHMARK_REGISTRY,
     METRIC_REGISTRY,
@@ -14,9 +16,6 @@ from src.eval.tree_of_attacks_probe import (
     stub_judge_fn,
     stub_target_fn,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

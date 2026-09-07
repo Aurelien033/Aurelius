@@ -39,7 +39,8 @@ jobs:
         run: ruff format src/ tests/ agent/ aurelius_cli/ gateway/ acp_adapter/ cron/ plugins/ tools/
 
       - name: Ruff fix
-        run: ruff check --fix src/ tests/ agent/ aurelius_cli/ gateway/ acp_adapter/ cron/ plugins/ tools/
+        # --ignore=I001 matches ci.yml's lint gate so the two jobs agree.
+        run: ruff check --fix --ignore=I001 src/ tests/ agent/ aurelius_cli/ gateway/ acp_adapter/ cron/ plugins/ tools/
 
       - name: Check for changes
         id: diff

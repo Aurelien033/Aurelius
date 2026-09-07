@@ -5,10 +5,9 @@ from __future__ import annotations
 import sys
 import textwrap
 
-from src import eval as eval_pkg
-
-
 import pytest
+
+from src import eval as eval_pkg
 
 pytestmark = pytest.mark.integration
 

@@ -11,7 +11,10 @@ Verifies:
 
 from __future__ import annotations
 
-
+# ---------------------------------------------------------------------------
+# Shared tiny config
+# ---------------------------------------------------------------------------
+import pytest
 import torch
 
 import src.alignment as alignment_pkg
@@ -19,14 +22,6 @@ from src.model.config import AureliusConfig
 from src.runtime.feature_flags import FEATURE_FLAG_REGISTRY, FeatureFlag
 from src.training.process_reward_model import ProcessRewardModel
 from src.training.trainer import build_model_for_training
-
-
-# ---------------------------------------------------------------------------
-# Shared tiny config
-# ---------------------------------------------------------------------------
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

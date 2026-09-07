@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.eval import (
     BENCHMARK_REGISTRY,
     DEFAULT_SHADE_SCENARIOS,
@@ -15,9 +17,6 @@ from src.eval import (
     stub_monitor_fn,
 )
 from src.model.config import AureliusConfig
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

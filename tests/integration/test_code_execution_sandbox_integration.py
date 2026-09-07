@@ -7,12 +7,10 @@ agent-surface registry entries remain intact.
 
 from __future__ import annotations
 
-
 import pytest
 
 import agent as agent_pkg
 from agent import CodeExecutionSandbox, ExecutionResult
-
 
 pytestmark = pytest.mark.integration
 

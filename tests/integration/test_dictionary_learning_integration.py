@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 import src.interpretability as interp
 from src.interpretability import DictionaryLearner, DictionaryResult
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

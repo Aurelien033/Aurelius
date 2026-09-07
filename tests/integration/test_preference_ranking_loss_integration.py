@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 import src.alignment as alignment_pkg
@@ -12,9 +13,6 @@ from src.alignment import (
     margin_ranking_loss,
     ordinal_ranking_loss,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

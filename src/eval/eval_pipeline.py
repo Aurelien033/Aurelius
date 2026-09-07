@@ -3,6 +3,7 @@
 import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
+
 from src._compat import StrEnum
 
 

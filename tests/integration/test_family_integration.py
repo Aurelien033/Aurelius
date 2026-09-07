@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.model as model_pkg
 from src.model import AureliusConfig
 from src.model.family import (
@@ -11,9 +13,6 @@ from src.model.family import (
     ModelFamily,
     ModelVariant,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

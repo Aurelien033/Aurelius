@@ -8,11 +8,9 @@ to end.
 
 from __future__ import annotations
 
+import pytest
 
 from agent import AGENT_LOOP_REGISTRY, BeamPlanner, PlanNode
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

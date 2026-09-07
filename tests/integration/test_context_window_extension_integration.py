@@ -11,21 +11,16 @@ Verifies:
 
 from __future__ import annotations
 
-
 from pathlib import Path
-
-import torch
-
-import src.longcontext as lc
-from src.model.config import AureliusConfig
-
 
 # ---------------------------------------------------------------------------
 # Registry surface tests
 # ---------------------------------------------------------------------------
-
-
 import pytest
+import torch
+
+import src.longcontext as lc
+from src.model.config import AureliusConfig
 
 pytestmark = pytest.mark.integration
 

@@ -5,10 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agent import SkillCatalog, SkillCatalogEntry
-
-
 import pytest
+
+from agent import SkillCatalog, SkillCatalogEntry
 
 pytestmark = pytest.mark.integration
 

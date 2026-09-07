@@ -7,15 +7,13 @@ against a temporary directory produces a parsed :class:`TestResult`.
 
 from __future__ import annotations
 
-
 import sys
 import textwrap
 
+import pytest
+
 import agent as agent_pkg
 from agent import CodeTestRunner, TestResult
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

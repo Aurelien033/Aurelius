@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+# ---------------------------------------------------------------------------
+# Tiny mock model for logit generation
+# ---------------------------------------------------------------------------
+import pytest
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,13 +16,6 @@ from src.alignment.online_rft import (
     OnlineRFTTrainer,
     RFTSample,
 )
-
-# ---------------------------------------------------------------------------
-# Tiny mock model for logit generation
-# ---------------------------------------------------------------------------
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

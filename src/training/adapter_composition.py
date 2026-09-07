@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from src._compat import StrEnum
 
 import torch
 
+from src._compat import StrEnum
 from src.training.lora_adapter_manager import LoRAAdapterManager, LoRALayer
 
 

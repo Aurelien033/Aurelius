@@ -1,6 +1,7 @@
 """Format Aurelius model outputs for display."""
 
 from __future__ import annotations
+
 import re
 import textwrap
 

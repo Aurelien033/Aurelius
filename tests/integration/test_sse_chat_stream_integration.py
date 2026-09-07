@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.model.config import AureliusConfig
 from src.serving import STREAM_HANDLER_REGISTRY, SSEChatStream, parse_sse_event
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

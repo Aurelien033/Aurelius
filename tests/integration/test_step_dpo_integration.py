@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import math
 
+import pytest
 import torch
 import torch.nn as nn
 
 import src.alignment as alignment
 from src.alignment import StepDPOTrainer, StepPreferenceExample, step_dpo_loss
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
+
 from src._compat import StrEnum
 
 

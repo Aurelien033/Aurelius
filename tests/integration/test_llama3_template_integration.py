@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.chat import CHAT_TEMPLATE_REGISTRY, Message
 from src.chat.chatml_template import ChatMLTemplate
 from src.chat.llama3_template import Llama3Template
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

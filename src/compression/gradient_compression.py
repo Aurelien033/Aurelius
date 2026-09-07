@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from src._compat import StrEnum
 
 import torch
+
+from src._compat import StrEnum
 
 
 class GradCompressMethod(StrEnum):

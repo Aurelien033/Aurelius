@@ -14,19 +14,14 @@ Checks:
 
 from __future__ import annotations
 
-
+# ---------------------------------------------------------------------------
+# Shared fixtures / constants
+# ---------------------------------------------------------------------------
+import pytest
 import torch
 
 from src.inference import DECODER_REGISTRY
 from src.inference.hydra_speculative import HydraConfig, HydraSpeculative
-
-
-# ---------------------------------------------------------------------------
-# Shared fixtures / constants
-# ---------------------------------------------------------------------------
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

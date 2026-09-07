@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.retrieval as retrieval
 from src.retrieval import BM25Retriever, CodeAwareTokenizer
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

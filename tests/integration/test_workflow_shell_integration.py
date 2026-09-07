@@ -5,11 +5,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from agent import AureliusInterfaceRuntime, SessionManager, SkillCatalog, WorkflowShell
 from src.model import AureliusInterfaceFramework
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

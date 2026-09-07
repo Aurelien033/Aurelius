@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from src.model import (
@@ -16,9 +17,6 @@ from src.model import (
     ties_merge,
 )
 from src.runtime.feature_flags import FEATURE_FLAG_REGISTRY, FeatureFlag
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

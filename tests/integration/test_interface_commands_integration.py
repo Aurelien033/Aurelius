@@ -5,11 +5,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 import src.cli.main as cli_main
 from agent.interface_runtime import AureliusInterfaceRuntime
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

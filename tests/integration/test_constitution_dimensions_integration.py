@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.alignment import ALIGNMENT_REGISTRY
 from src.alignment.constitution_dimensions import ConstitutionScorer
 from src.model.config import AureliusConfig
 from src.runtime.feature_flags import FEATURE_FLAG_REGISTRY, FeatureFlag
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

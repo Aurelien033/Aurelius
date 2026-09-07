@@ -9,7 +9,6 @@ Verifies:
 
 from __future__ import annotations
 
-
 import pytest
 
 from src.eval import BENCHMARK_REGISTRY
@@ -19,7 +18,6 @@ from src.eval.tool_bench import (
     ToolBenchSample,
     ToolCall,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers

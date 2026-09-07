@@ -1,8 +1,10 @@
 """A/B model comparison: statistical significance testing, effect size, win/loss matrix."""
 
 from __future__ import annotations
+
 import math
 from dataclasses import dataclass
+
 from src._compat import StrEnum
 
 

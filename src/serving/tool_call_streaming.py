@@ -1,7 +1,9 @@
 """Streaming tool-call accumulation: partial JSON, delta events, finalization."""
 
 from __future__ import annotations
+
 import json
+
 from src._compat import StrEnum
 
 

@@ -13,10 +13,10 @@ Verifies:
 
 from __future__ import annotations
 
-
 import subprocess
 import sys
 
+import pytest
 import torch
 
 from src.retrieval import (
@@ -28,9 +28,6 @@ from src.retrieval.cross_encoder_reranker import (
     CrossEncoderConfig,
     CrossEncoderReranker,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

@@ -16,7 +16,7 @@ import uuid
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 

@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 import src.chat as chat_pkg
 from src.chat import ConversationMemory, Fact, InMemoryStore, JSONFileStore
 from src.retrieval.bm25_retriever import BM25Retriever
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from src.safety import (
     HARM_CLASSIFIER_REGISTRY,
     SAFETY_FILTER_REGISTRY,
@@ -10,9 +12,6 @@ from src.safety import (
     PolicyRule,
 )
 from src.safety.policy_engine import REFUSAL_MESSAGE
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

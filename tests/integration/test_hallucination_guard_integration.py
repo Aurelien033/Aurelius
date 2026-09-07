@@ -3,6 +3,7 @@ constructable from AureliusConfig behind a feature flag that defaults OFF."""
 
 from __future__ import annotations
 
+import pytest
 
 from src.model.config import AureliusConfig
 from src.runtime.feature_flags import FEATURE_FLAG_REGISTRY, FeatureFlag
@@ -14,9 +15,6 @@ from src.safety import (
     HallucinationGuard,
     HallucinationValidationResult,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

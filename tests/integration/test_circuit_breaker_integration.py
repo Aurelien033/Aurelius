@@ -15,7 +15,6 @@ from src.serving import (
     CircuitState,
 )
 
-
 pytestmark = pytest.mark.integration
 
 

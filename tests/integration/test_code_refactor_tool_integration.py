@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import pathlib
 
+import pytest
+
 import agent as agent_pkg
 from agent import CodeRefactorTool, RefactorResult
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

@@ -6,10 +6,9 @@ import argparse
 import io
 import json
 
-from src.cli import family_commands as fc
-
-
 import pytest
+
+from src.cli import family_commands as fc
 
 pytestmark = pytest.mark.integration
 

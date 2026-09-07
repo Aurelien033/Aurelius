@@ -12,9 +12,7 @@ Run with:
 
 import pytest
 
-
 from src.eval.math_eval import MathEval
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -8,7 +8,6 @@ number of tasks.
 
 from __future__ import annotations
 
-
 import pytest
 import torch
 
@@ -17,7 +16,6 @@ from src.alignment.absolute_zero import (
     AbsoluteZeroConfig,
     AbsoluteZeroTrainer,
 )
-
 
 # ---------------------------------------------------------------------------
 # Mock helpers

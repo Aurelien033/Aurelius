@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import pytest
 
 from agent import (
     RecoveringDispatcher,
@@ -12,9 +13,6 @@ from agent import (
     ToolRegistryDispatcher,
     ToolSpec,
 )
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 

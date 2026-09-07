@@ -8,6 +8,7 @@ unified priority signal suitable for offline evaluation.
 from __future__ import annotations
 
 from dataclasses import dataclass
+
 from src._compat import StrEnum
 
 

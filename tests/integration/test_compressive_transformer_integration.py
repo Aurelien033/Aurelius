@@ -5,13 +5,11 @@ from __future__ import annotations
 import subprocess
 import sys
 
+import pytest
 import torch
 
 import src.longcontext as lc
 from src.longcontext.compressive_transformer import CompressiveMemory
-
-
-import pytest
 
 pytestmark = pytest.mark.integration
 
