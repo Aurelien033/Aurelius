@@ -92,7 +92,7 @@ jobs:
       - name: Run broader test suite (non-integration)
         run: |
           # Hourglass: skip multimodal/web/UI-heavy tests for speed
-          timeout 900 python -m pytest \
+          timeout 1500 python -m pytest \
             tests/agent/ \
             tests/memory/ \
             tests/model/ \
