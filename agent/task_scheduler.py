@@ -3,22 +3,15 @@
 from __future__ import annotations
 
 import json
-<<<<<<< Updated upstream
-=======
 import logging
 import os
->>>>>>> Stashed changes
 import subprocess
 import sys
 import threading
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-<<<<<<< Updated upstream
-from datetime import datetime, timedelta
-=======
 from datetime import UTC, datetime, timedelta, tzinfo
->>>>>>> Stashed changes
 from pathlib import Path
 
 _LOGGER = logging.getLogger(__name__)
@@ -271,17 +264,8 @@ class TaskScheduler:
                     func=None,  # will set below
                     args=(),
                     kwargs={},
-<<<<<<< Updated upstream
-                    next_run=(
-                        datetime.fromisoformat(rec["next_run"]) if rec.get("next_run") else None
-                    ),
-                    last_run=(
-                        datetime.fromisoformat(rec["last_run"]) if rec.get("last_run") else None
-                    ),
-=======
                     next_run=_parse_store_datetime(rec.get("next_run")),
                     last_run=_parse_store_datetime(rec.get("last_run")),
->>>>>>> Stashed changes
                     run_count=rec.get("run_count", 0),
                     is_recurring=rec.get("is_recurring", False),
                     is_paused=rec.get("is_paused", False),
@@ -294,12 +278,8 @@ class TaskScheduler:
                 # Add directly without triggering another save
                 with self._jobs_lock:
                     self._jobs[job.id] = job
-<<<<<<< Updated upstream
-            except Exception:  # noqa: S112
-=======
             except Exception as exc:
                 _LOGGER.warning("Skipping invalid persisted job record: %s", exc)
->>>>>>> Stashed changes
                 continue
 
     def _save_store(self) -> None:
@@ -519,12 +499,6 @@ class TaskScheduler:
                         # One-shot: mark cancelled after first run
                         job.is_cancelled = True
 
-<<<<<<< Updated upstream
-            with self._jobs_lock:
-                # Remove cancelled jobs
-                self._jobs = {jid: j for jid, j in self._jobs.items() if not j.is_cancelled}
-=======
->>>>>>> Stashed changes
             with self._jobs_lock:
                 # Remove cancelled jobs
                 self._jobs = {jid: j for jid, j in self._jobs.items() if not j.is_cancelled}
@@ -571,11 +545,7 @@ class TaskScheduler:
         """Sleep until the next job is due, the stop event fires, or a wake signal arrives."""
         with self._jobs_lock:
             next_times = [
-<<<<<<< Updated upstream
-                job.next_run
-=======
                 _ensure_utc(job.next_run)
->>>>>>> Stashed changes
                 for job in self._jobs.values()
                 if job.next_run and not job.is_cancelled and not job.is_paused
             ]

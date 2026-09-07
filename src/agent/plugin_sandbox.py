@@ -252,19 +252,14 @@ class PluginSandbox:
         return violations
 
     def _check_callable_globals(self, callable_fn: Callable[..., Any]) -> str | None:
-<<<<<<< Updated upstream
-        """Return a violation string if *callable_fn* actually references a denied import."""
-        globs = getattr(callable_fn, "__globals__", {})
-        code = getattr(callable_fn, "__code__", None)
-        used_names: set[str] = set(code.co_names) if code is not None else set()
-=======
         """Return a violation string if *callable_fn*'s globals contain a denied import."""
         if isinstance(callable_fn, functools.partial):
             callable_fn = callable_fn.func
         globs = getattr(callable_fn, "__globals__", None)
         if globs is None:
             return f"cannot inspect globals of {type(callable_fn).__name__!r}: unsafe"
->>>>>>> Stashed changes
+        code = getattr(callable_fn, "__code__", None)
+        used_names: set[str] = set(code.co_names) if code is not None else set()
         for name in self.config.denied_imports:
             # Only flag if the name exists in globals AND the callable's bytecode actually uses it
             if name in globs and name in used_names:

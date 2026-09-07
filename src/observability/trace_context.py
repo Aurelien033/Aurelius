@@ -87,8 +87,4 @@ class TraceContext:
 
 
 def _gen_id() -> str:
-<<<<<<< Updated upstream
-    return uuid.uuid4().hex[:16]
-=======
     return secrets.token_hex(16)
->>>>>>> Stashed changes
