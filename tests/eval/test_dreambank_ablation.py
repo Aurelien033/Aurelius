@@ -29,9 +29,13 @@ def _tiny_model() -> AMCTransformer:
 
 def _tiny_filled_bank() -> HLMPreferenceBank:
     bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=4, bank_dim=64))
-    bank.upsert(HLMPreferenceWrite(
-        key=torch.ones(64), value=torch.ones(64) * 3, strength=1.0,
-    ))
+    bank.upsert(
+        HLMPreferenceWrite(
+            key=torch.ones(64),
+            value=torch.ones(64) * 3,
+            strength=1.0,
+        )
+    )
     return bank
 
 

@@ -58,7 +58,6 @@ serve = [
     "openai>=1.50.0",
     "httpx>=0.28.1",
     "psutil>=6.0.0",
-    "xgrammar>=0.1.0",
 ]
 db = [
     "alembic>=1.14.0",
@@ -77,8 +76,15 @@ dev = [
         "fastapi>=0.115.0",
         "uvicorn>=0.46.0",
         "openai>=1.50.0",
-        "psutil>=6.0.0",
-        "xgrammar>=0.1.0",]
+        "psutil>=6.0.0",]
+
+xgrammar = [
+    # Optional structured-output decoding. Moved out of dev/serve because
+    # xgrammar caps transformers<5, which drags in CVE-affected transformers
+    # 4.57.x (PYSEC-2025-217, PYSEC-2026-2288/2289/2290) into CI installs.
+    # src/serving/xgrammar_decoder.py falls back transparently without it.
+    "xgrammar>=0.1.0",
+]
 
 [project.scripts]
 aurelius = "aurelius_cli.main:main"
@@ -183,3 +189,9 @@ markers = [
     "slow: marks tests as slow (deselect with '-m not slow')",
     "integration: marks integration tests",
 ]
+
+[tool.bandit]
+# B110: try-except-pass is intentional in many optional-import guards.
+# B301: torch.load with weights_only=True is safe; pickle warning is a false positive.
+skips = ["B110", "B301"]
+exclude_dirs = ["tests", "archive", "docs"]

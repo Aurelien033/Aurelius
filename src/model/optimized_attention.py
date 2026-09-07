@@ -2,7 +2,7 @@
 
 Combines:
 1. SageAttention-2 for quantized attention computation
-2. KIVI 2-bit KV cache compression  
+2. KIVI 2-bit KV cache compression
 3. Liger kernel fused FFN
 
 This module provides concrete CUDA optimization vectors validated in the benchmark harness.
@@ -10,8 +10,6 @@ This module provides concrete CUDA optimization vectors validated in the benchma
 
 from __future__ import annotations
 
-import math
-from typing import Any
 
 import torch
 import torch.nn as nn
@@ -22,12 +20,12 @@ from .config import AureliusConfig
 
 class OptimizedGQA(nn.Module):
     """Grouped-Query Attention with INT8 quantization and KV compression.
-    
+
     CUDA Optimization vectors:
     - Uses SageAttention-2 when available (INT8 Q/K, FP16/FP32 accumulation)
     - 2-bit KIVI quantization for KV cache when enabled
     - Fused QKV projection kernel via Liger when available
-    
+
     Expected performance gains on A100:
     - 1.5-1.8x attention speedup (vs SDPA FP16)
     - 8x KV cache compression (KIVI 2-bit)
@@ -56,9 +54,9 @@ class OptimizedGQA(nn.Module):
         if self.kivi_bits > 0:
             try:
                 from src.inference.kivi_quant import KIVIQuantizer
+
                 self.kivi = KIVIQuantizer(
-                    bits=self.kivi_bits, 
-                    residual_length=self.kivi_residual_length
+                    bits=self.kivi_bits, residual_length=self.kivi_residual_length
                 )
             except ImportError:
                 pass
@@ -68,7 +66,8 @@ class OptimizedGQA(nn.Module):
         self._sa2_available = False
         if self.use_sage:
             try:
-                import sageattention  # type: ignore
+                import sageattention  # noqa: F401  # availability probe
+
                 self._sa2_available = True
             except ImportError:
                 pass
@@ -81,7 +80,7 @@ class OptimizedGQA(nn.Module):
         past_kv: tuple[torch.Tensor, torch.Tensor] | dict | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor | dict]:
         """Forward pass with optional INT8 quantization.
-        
+
         Returns:
             (output, kv_state) - kv_state may be quantized dict if KIVI enabled.
         """
@@ -104,7 +103,7 @@ class OptimizedGQA(nn.Module):
                 past_k = past_k.transpose(1, 2)  # (B, n_kv_heads, S, D) -> (B, S, n_kv_heads, D)
                 past_v = past_v.transpose(1, 2)
                 past_kv = (past_k, past_v)
-            
+
             past_k, past_v = past_kv
             k = torch.cat([past_k, k_new], dim=1)
             v = torch.cat([past_v, v_new], dim=1)
@@ -132,11 +131,14 @@ class OptimizedGQA(nn.Module):
 
         # Attention computation
         if self._sa2_available and self.use_sage:
-            import sageattention  # type: ignore
+            import sageattention  # noqa: F401  # availability probe
+
             out = sageattention.sageattn(q, k, v, tensor_layout="HND", is_causal=is_causal)
         else:
             out = F.scaled_dot_product_attention(
-                q, k, v,
+                q,
+                k,
+                v,
                 attn_mask=mask,
                 dropout_p=0.0 if not self.training else self.config.dropout,
                 is_causal=is_causal,
@@ -166,7 +168,7 @@ class OptimizedGQA(nn.Module):
 
 class OptimizedSwiGLU(nn.Module):
     """Fused SwiGLU FFN with optional Liger kernel integration.
-    
+
     Uses Liger kernels when available for:
     - Fused gate + up projection (single GEMM)
     - Fused SiLU * gate computation
@@ -178,14 +180,15 @@ class OptimizedSwiGLU(nn.Module):
         self.gate = nn.Linear(config.d_model, config.d_ff, bias=False)
         self.up = nn.Linear(config.d_model, config.d_ff, bias=False)
         self.down = nn.Linear(config.d_ff, config.d_model, bias=False)
-        
+
         self._liger_available = False
         try:
-            from liger_kernel.linear import liger_linear  # type: ignore
+            from liger_kernel.linear import liger_linear  # noqa: F401  # availability probe
+
             self._liger_available = True
         except ImportError:
             pass
-        
+
         # Combined weight for fused projection
         self.gate_up_weight = nn.Parameter(torch.empty(2 * config.d_ff, config.d_model))
 
@@ -194,6 +197,7 @@ class OptimizedSwiGLU(nn.Module):
             # Use Liger fused kernels
             try:
                 from liger_kernel.transformers.functional import swiglu
+
                 gate_up = torch.nn.functional.linear(x, self.gate_up_weight)
                 out = swiglu(gate_up, alpha=1.0, beta=1.0, threshold=0.0)
                 return torch.nn.functional.linear(out, self.down.weight)

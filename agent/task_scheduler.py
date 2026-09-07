@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import subprocess
 import sys
 import threading
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 from pathlib import Path
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _make_runner(cmd_list: list[str]) -> Callable[[], None]:
@@ -71,9 +75,7 @@ def _parse_cron_field(value: str, lo: int, hi: int) -> list[int]:
     return sorted(set(result))
 
 
-def _next_cron_time(
-    expr: str | list[str], after: datetime, tz: datetime.tzinfo | None = None
-) -> datetime:
+def _next_cron_time(expr: str | list[str], after: datetime, tz: tzinfo | None = None) -> datetime:
     """Return the next datetime matching *expr* strictly after *after*.
 
     Args:
@@ -124,6 +126,19 @@ def _parse_delay(value: str | int | float) -> float:
     return float(value)
 
 
+def _ensure_utc(dt: datetime) -> datetime:
+    """Normalize aware and legacy naive datetimes to UTC for safe comparisons."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
+def _parse_store_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    return _ensure_utc(datetime.fromisoformat(value))
+
+
 # ---------------------------------------------------------------------------
 # Job model
 # ---------------------------------------------------------------------------
@@ -145,6 +160,8 @@ class Job:
     is_paused: bool = False
     is_cancelled: bool = False
     shell_cmd: list[str] | None = None
+    max_retries: int = 0
+    _retry_count: int = field(default=0, repr=False, compare=False)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def _cancel(self) -> None:
@@ -247,12 +264,8 @@ class TaskScheduler:
                     func=None,  # will set below
                     args=(),
                     kwargs={},
-                    next_run=(
-                        datetime.fromisoformat(rec["next_run"]) if rec.get("next_run") else None
-                    ),
-                    last_run=(
-                        datetime.fromisoformat(rec["last_run"]) if rec.get("last_run") else None
-                    ),
+                    next_run=_parse_store_datetime(rec.get("next_run")),
+                    last_run=_parse_store_datetime(rec.get("last_run")),
                     run_count=rec.get("run_count", 0),
                     is_recurring=rec.get("is_recurring", False),
                     is_paused=rec.get("is_paused", False),
@@ -265,17 +278,20 @@ class TaskScheduler:
                 # Add directly without triggering another save
                 with self._jobs_lock:
                     self._jobs[job.id] = job
-            except Exception:  # noqa: S112
+            except Exception as exc:
+                _LOGGER.warning("Skipping invalid persisted job record: %s", exc)
                 continue
 
     def _save_store(self) -> None:
-        """Write all persisted jobs to the store file."""
+        """Write all persisted jobs to the store file (atomic rename)."""
         records = [self._record_for_job(job) for job in self._jobs.values() if job.shell_cmd]
+        tmp_path = self._store_path.with_suffix(".tmp")
         try:
-            with open(self._store_path, "w") as f:
+            with open(tmp_path, "w") as f:
                 json.dump(records, f, indent=2, default=str)
+            os.replace(tmp_path, self._store_path)
         except OSError:
-            pass  # best-effort
+            tmp_path.unlink(missing_ok=True)
 
     def clear(self) -> None:
         """Cancel all jobs and clear the persisted store."""
@@ -304,7 +320,7 @@ class TaskScheduler:
             args=args,
             kwargs=kwargs,
             is_recurring=True,
-            next_run=_next_cron_time(parts, datetime.now()),
+            next_run=_next_cron_time(parts, datetime.now(UTC)),
         )
         job.shell_cmd = shell_cmd
         job_id = self._add_job(job)
@@ -330,7 +346,7 @@ class TaskScheduler:
             args=args,
             kwargs=kwargs,
             is_recurring=False,
-            next_run=datetime.now() + timedelta(seconds=secs),
+            next_run=datetime.now(UTC) + timedelta(seconds=secs),
         )
         job.shell_cmd = shell_cmd
         job_id = self._add_job(job)
@@ -357,7 +373,7 @@ class TaskScheduler:
             args=args,
             kwargs=kwargs,
             is_recurring=True,
-            next_run=datetime.now() + timedelta(seconds=secs),
+            next_run=datetime.now(UTC) + timedelta(seconds=secs),
         )
         job.shell_cmd = shell_cmd
         job_id = self._add_job(job)
@@ -450,7 +466,7 @@ class TaskScheduler:
         while not self._stop_event.is_set():
             self._idle_event.set()
             # Collect jobs to run now
-            now = datetime.now()
+            now = datetime.now(UTC)
             to_run: list[Job] = []
 
             with self._jobs_lock:
@@ -458,13 +474,15 @@ class TaskScheduler:
                     with job._lock:
                         if job.is_cancelled or job.is_paused:
                             continue
+                        if job.next_run:
+                            job.next_run = _ensure_utc(job.next_run)
                         if job.next_run and job.next_run <= now:
                             to_run.append(job)
 
             for job in to_run:
                 # Mark last_run before execution
                 with job._lock:
-                    job.last_run = datetime.now()
+                    job.last_run = datetime.now(UTC)
                     job.run_count += 1
                 self._execute_job(job)
                 # Decide reschedule
@@ -473,7 +491,7 @@ class TaskScheduler:
                         continue
                     if job.is_recurring:
                         if job.cron_expr:
-                            job.next_run = _next_cron_time(job.cron_expr.split(), datetime.now())
+                            job.next_run = _next_cron_time(job.cron_expr.split(), datetime.now(UTC))
                         elif job.interval_secs:
                             # maintain fixed interval schedule
                             job.next_run += timedelta(seconds=job.interval_secs)
@@ -484,13 +502,9 @@ class TaskScheduler:
             with self._jobs_lock:
                 # Remove cancelled jobs
                 self._jobs = {jid: j for jid, j in self._jobs.items() if not j.is_cancelled}
-            with self._jobs_lock:
-                # Remove cancelled jobs
-                self._jobs = {jid: j for jid, j in self._jobs.items() if not j.is_cancelled}
 
             # Persist store after one-shot jobs are cleaned up
             self._save_store()
-            print("[loop] after save_store")
 
             # Sleep until next job or stop signal
             self._sleep_until_next()
@@ -511,16 +525,27 @@ class TaskScheduler:
         try:
             func(*args, **kwargs)
         except Exception:
-            # Swallow exceptions to keep the scheduler alive
             import traceback
 
             traceback.print_exc()
+            with self._jobs_lock:
+                job = self._jobs.get(job_id)
+                if job is not None and job._retry_count < job.max_retries:
+                    job._retry_count += 1
+                    delay = 2**job._retry_count  # exponential backoff (1s, 2s, 4s…)
+                    job.next_run = datetime.now(UTC) + timedelta(seconds=delay)
+                    self._wake_event.set()
+        else:
+            with self._jobs_lock:
+                job = self._jobs.get(job_id)
+                if job is not None:
+                    job._retry_count = 0
 
     def _sleep_until_next(self) -> None:
         """Sleep until the next job is due, the stop event fires, or a wake signal arrives."""
         with self._jobs_lock:
             next_times = [
-                job.next_run
+                _ensure_utc(job.next_run)
                 for job in self._jobs.values()
                 if job.next_run and not job.is_cancelled and not job.is_paused
             ]
@@ -529,7 +554,7 @@ class TaskScheduler:
             remaining = 1.0
         else:
             next_dt = min(next_times)
-            remaining = (next_dt - datetime.now()).total_seconds()
+            remaining = (next_dt - datetime.now(UTC)).total_seconds()
             if remaining <= 0:
                 remaining = 0.01
         # Clear any stale wake signal before waiting

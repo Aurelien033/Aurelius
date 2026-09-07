@@ -57,7 +57,13 @@ def validate_output(jsonl_path: Path, sidecar_dir: Path) -> tuple[int, list[str]
     traces = load_traces(jsonl_path)
     for index, payload in enumerate(traces):
         try:
-            from src.eval.ring1_trace_logger import Ring1Trace, TraceStep, MCTSStats, MemoryReadEvent, MemoryWriteEvent
+            from src.eval.ring1_trace_logger import (
+                MCTSStats,
+                MemoryReadEvent,
+                MemoryWriteEvent,
+                Ring1Trace,
+                TraceStep,
+            )
 
             steps = []
             for step_data in payload["steps"]:
@@ -66,8 +72,12 @@ def validate_output(jsonl_path: Path, sidecar_dir: Path) -> tuple[int, list[str]
                         step_id=step_data["step_id"],
                         observation=step_data["observation"],
                         mcts=MCTSStats(**step_data["mcts"]),
-                        memory_reads=[MemoryReadEvent(**read) for read in step_data["memory_reads"]],
-                        memory_writes=[MemoryWriteEvent(**write) for write in step_data["memory_writes"]],
+                        memory_reads=[
+                            MemoryReadEvent(**read) for read in step_data["memory_reads"]
+                        ],
+                        memory_writes=[
+                            MemoryWriteEvent(**write) for write in step_data["memory_writes"]
+                        ],
                         action=step_data["action"],
                         reflection=step_data["reflection"],
                         memory_delta_summary=step_data.get("memory_delta_summary", ""),

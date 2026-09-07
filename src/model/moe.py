@@ -468,6 +468,7 @@ class SoftMoELayer:
         # softmax over logits (mock implementation — no torch dependency)
         def _mock_softmax(matrix):
             import math
+
             result = []
             for row in matrix:
                 max_val = max(row)

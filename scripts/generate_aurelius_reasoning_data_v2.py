@@ -104,46 +104,216 @@ def record(sample: Sample, idx: int, version: str) -> dict[str, Any]:
 
 
 MECHANISTIC_TOPICS = [
-    ("residual stream", "residual_state_management", 3, "model residual writes as controlled state updates"),
-    ("attention routing", "evidence_routing", 4, "separate attention correlation from causal evidence routing"),
-    ("MLP feature composition", "feature_composition", 4, "test whether composed features survive counterfactuals"),
-    ("causal mediation", "causal_testing", 5, "measure indirect effects through candidate components"),
-    ("latent plan state", "plan_persistence", 5, "track plan variables across tool-call boundaries"),
-    ("uncertainty routing", "uncertainty_calibration", 3, "route ambiguous cases to verification before final answer"),
+    (
+        "residual stream",
+        "residual_state_management",
+        3,
+        "model residual writes as controlled state updates",
+    ),
+    (
+        "attention routing",
+        "evidence_routing",
+        4,
+        "separate attention correlation from causal evidence routing",
+    ),
+    (
+        "MLP feature composition",
+        "feature_composition",
+        4,
+        "test whether composed features survive counterfactuals",
+    ),
+    (
+        "causal mediation",
+        "causal_testing",
+        5,
+        "measure indirect effects through candidate components",
+    ),
+    (
+        "latent plan state",
+        "plan_persistence",
+        5,
+        "track plan variables across tool-call boundaries",
+    ),
+    (
+        "uncertainty routing",
+        "uncertainty_calibration",
+        3,
+        "route ambiguous cases to verification before final answer",
+    ),
     ("tool grounding", "grounded_tool_use", 4, "tie final claims to tool observations"),
-    ("safety gate stability", "safety_circuit", 5, "stress-test refusal under paraphrase and role-play"),
-    ("retrieval query construction", "retrieval_planning", 4, "separate query formation from evidence selection"),
-    ("self-evaluation", "metacognitive_monitoring", 3, "require explicit checks before final answer"),
-    ("activation patching", "causal_activation_intervention", 5, "replace candidate activations and measure behavioral change"),
-    ("sparse autoencoder features", "feature_atlas", 5, "map interpretable features to tasks and interventions"),
-    ("layer probes", "probing_representations", 4, "train probes that predict latent uncertainty and plan depth"),
+    (
+        "safety gate stability",
+        "safety_circuit",
+        5,
+        "stress-test refusal under paraphrase and role-play",
+    ),
+    (
+        "retrieval query construction",
+        "retrieval_planning",
+        4,
+        "separate query formation from evidence selection",
+    ),
+    (
+        "self-evaluation",
+        "metacognitive_monitoring",
+        3,
+        "require explicit checks before final answer",
+    ),
+    (
+        "activation patching",
+        "causal_activation_intervention",
+        5,
+        "replace candidate activations and measure behavioral change",
+    ),
+    (
+        "sparse autoencoder features",
+        "feature_atlas",
+        5,
+        "map interpretable features to tasks and interventions",
+    ),
+    (
+        "layer probes",
+        "probing_representations",
+        4,
+        "train probes that predict latent uncertainty and plan depth",
+    ),
     ("answer-critical tokens", "causal_tracing", 5, "trace which tokens change the final answer"),
-    ("norm dynamics", "activation_norm_control", 4, "monitor residual norm growth and feature cancellation"),
-    ("attention sinks", "attention_sink_control", 3, "detect low-information tokens that dominate attention"),
+    (
+        "norm dynamics",
+        "activation_norm_control",
+        4,
+        "monitor residual norm growth and feature cancellation",
+    ),
+    (
+        "attention sinks",
+        "attention_sink_control",
+        3,
+        "detect low-information tokens that dominate attention",
+    ),
     ("carry state", "arithmetic_circuit", 4, "probe intermediate arithmetic state across tokens"),
-    ("counterfactual robustness", "shortcut_detection", 5, "break superficial cues while preserving causal structure"),
-    ("memory gate", "memory_gate_control", 5, "test whether old facts remain available after distractors"),
-    ("plan revision", "adaptive_planning", 4, "update the plan only when evidence changes the goal"),
-    ("evidence hierarchy", "source_ranking", 4, "prefer primary and recent sources over secondary summaries"),
-    ("multi-hop retrieval", "multi_hop_reasoning", 5, "require retrieval chains to support every conclusion"),
-    ("answer decomposition", "decomposition_strategy", 3, "break complex tasks into verifiable subproblems"),
-    ("tool error recovery", "tool_error_recovery", 4, "detect failed tools and choose a recovery path"),
-    ("latent variable induction", "latent_variable_modeling", 5, "infer hidden variables that explain observations"),
-    ("world-model consistency", "consistency_checking", 5, "check predictions against prior facts and constraints"),
-    ("preference circuit", "preference_reasoning", 4, "compare chosen and rejected answers by explicit criteria"),
-    ("refusal boundary", "safety_boundary", 4, "refuse harmful actions while preserving safe alternatives"),
+    (
+        "counterfactual robustness",
+        "shortcut_detection",
+        5,
+        "break superficial cues while preserving causal structure",
+    ),
+    (
+        "memory gate",
+        "memory_gate_control",
+        5,
+        "test whether old facts remain available after distractors",
+    ),
+    (
+        "plan revision",
+        "adaptive_planning",
+        4,
+        "update the plan only when evidence changes the goal",
+    ),
+    (
+        "evidence hierarchy",
+        "source_ranking",
+        4,
+        "prefer primary and recent sources over secondary summaries",
+    ),
+    (
+        "multi-hop retrieval",
+        "multi_hop_reasoning",
+        5,
+        "require retrieval chains to support every conclusion",
+    ),
+    (
+        "answer decomposition",
+        "decomposition_strategy",
+        3,
+        "break complex tasks into verifiable subproblems",
+    ),
+    (
+        "tool error recovery",
+        "tool_error_recovery",
+        4,
+        "detect failed tools and choose a recovery path",
+    ),
+    (
+        "latent variable induction",
+        "latent_variable_modeling",
+        5,
+        "infer hidden variables that explain observations",
+    ),
+    (
+        "world-model consistency",
+        "consistency_checking",
+        5,
+        "check predictions against prior facts and constraints",
+    ),
+    (
+        "preference circuit",
+        "preference_reasoning",
+        4,
+        "compare chosen and rejected answers by explicit criteria",
+    ),
+    (
+        "refusal boundary",
+        "safety_boundary",
+        4,
+        "refuse harmful actions while preserving safe alternatives",
+    ),
     ("data manifest", "data_provenance", 4, "track hashes, source, and transformation history"),
-    ("eval gate", "evaluation_gate", 4, "gate model changes on held-out behavioral and mechanistic metrics"),
-    ("reward model", "reward_modeling", 5, "score preferences without rewarding superficial verbosity"),
+    (
+        "eval gate",
+        "evaluation_gate",
+        4,
+        "gate model changes on held-out behavioral and mechanistic metrics",
+    ),
+    (
+        "reward model",
+        "reward_modeling",
+        5,
+        "score preferences without rewarding superficial verbosity",
+    ),
     ("KL drift", "rl_drift_monitoring", 5, "track distribution shift during post-training"),
-    ("feature entropy", "representation_health", 5, "monitor collapse through feature diversity and entropy"),
-    ("refusal regression", "safety_regression", 5, "test refusal quality across paraphrases and role-play"),
-    ("checkpoint hygiene", "checkpoint_management", 3, "save optimizer state, config hash, and data manifest hash"),
+    (
+        "feature entropy",
+        "representation_health",
+        5,
+        "monitor collapse through feature diversity and entropy",
+    ),
+    (
+        "refusal regression",
+        "safety_regression",
+        5,
+        "test refusal quality across paraphrases and role-play",
+    ),
+    (
+        "checkpoint hygiene",
+        "checkpoint_management",
+        3,
+        "save optimizer state, config hash, and data manifest hash",
+    ),
     ("ablation table", "ablation_design", 4, "compare mechanisms against larger dense baselines"),
-    ("compute accounting", "compute_tracking", 3, "record GPU hours, cost, throughput, and tokens/sec"),
-    ("publication artifact", "reproducibility_packaging", 4, "package code, config, data hashes, and eval scripts"),
-    ("latent reasoning", "latent_reasoning_summary", 4, "train compact summaries instead of unrestricted CoT"),
-    ("verification habit", "verification_before_answer", 3, "make verification a default behavior before final output"),
+    (
+        "compute accounting",
+        "compute_tracking",
+        3,
+        "record GPU hours, cost, throughput, and tokens/sec",
+    ),
+    (
+        "publication artifact",
+        "reproducibility_packaging",
+        4,
+        "package code, config, data hashes, and eval scripts",
+    ),
+    (
+        "latent reasoning",
+        "latent_reasoning_summary",
+        4,
+        "train compact summaries instead of unrestricted CoT",
+    ),
+    (
+        "verification habit",
+        "verification_before_answer",
+        3,
+        "make verification a default behavior before final output",
+    ),
 ]
 
 MATH_FORMULAS = [
@@ -433,7 +603,9 @@ def build_v2_expansion(samples: list[Sample], scale: int) -> None:
         k = 2 + idx % 7
         if family == "linear":
             answer = a * n + b
-            prompt = f"Compute {a} * {n} + {b}. Variant math-v2-{idx:03d}; show a compact verification."
+            prompt = (
+                f"Compute {a} * {n} + {b}. Variant math-v2-{idx:03d}; show a compact verification."
+            )
         elif family == "quadratic":
             answer = n * n + a * n + b
             prompt = f"Compute {n}^2 + {a}*{n} + {b}. Variant math-v2-{idx:03d}; verify by decomposition."
@@ -441,15 +613,19 @@ def build_v2_expansion(samples: list[Sample], scale: int) -> None:
             answer = (a * n) % m
             prompt = f"Compute ({a} * {n}) mod {m}. Variant math-v2-{idx:03d}; verify with quotient form."
         elif family == "geometric":
-            answer = a * (r ** k)
-            prompt = f"Compute {a} * {r}^{k}. Variant math-v2-{idx:03d}; verify by repeated doubling."
+            answer = a * (r**k)
+            prompt = (
+                f"Compute {a} * {r}^{k}. Variant math-v2-{idx:03d}; verify by repeated doubling."
+            )
         elif family == "floor":
             answer = (a * n) // b
-            prompt = f"Compute floor(({a} * {n}) / {b}). Variant math-v2-{idx:03d}; verify by bounds."
+            prompt = (
+                f"Compute floor(({a} * {n}) / {b}). Variant math-v2-{idx:03d}; verify by bounds."
+            )
         elif family == "prime":
             candidate = n + idx
             while True:
-                if candidate > 1 and all(candidate % d for d in range(2, int(candidate ** 0.5) + 1)):
+                if candidate > 1 and all(candidate % d for d in range(2, int(candidate**0.5) + 1)):
                     break
                 candidate += 1
             answer = candidate
@@ -458,7 +634,9 @@ def build_v2_expansion(samples: list[Sample], scale: int) -> None:
             import math
 
             answer = math.gcd(a, b)
-            prompt = f"Compute gcd({a}, {b}). Variant math-v2-{idx:03d}; verify with Euclidean steps."
+            prompt = (
+                f"Compute gcd({a}, {b}). Variant math-v2-{idx:03d}; verify with Euclidean steps."
+            )
         elif family == "lcm":
             import math
 
@@ -794,7 +972,9 @@ def validate(records: list[dict[str, Any]], version: str) -> None:
         assert r["response"].strip(), "empty response"
         assert r["system_prompt"].strip(), "empty system_prompt"
         assert r["metadata"]["version"] == version, "version mismatch"
-        assert r["response"].startswith("Reasoning summary:"), "response must start with reasoning summary"
+        assert r["response"].startswith("Reasoning summary:"), (
+            "response must start with reasoning summary"
+        )
         assert "Verification:" in r["response"], "response must include verification"
         assert isinstance(r["metadata"].get("tags"), list), "tags must be list"
 
@@ -912,9 +1092,18 @@ The responses intentionally use concise reasoning summaries, not unrestricted ch
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate expanded Aurelius reasoning dataset v2")
-    parser.add_argument("--scale", type=int, default=6, help="Expansion multiplier for v2 template families.")
-    parser.add_argument("--version", default="aurelius-reasoning-sft-v2", help="Dataset version string.")
-    parser.add_argument("--output", type=Path, default=ROOT / "data" / "aurelius_reasoning_sft_v2", help="Output directory.")
+    parser.add_argument(
+        "--scale", type=int, default=6, help="Expansion multiplier for v2 template families."
+    )
+    parser.add_argument(
+        "--version", default="aurelius-reasoning-sft-v2", help="Dataset version string."
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=ROOT / "data" / "aurelius_reasoning_sft_v2",
+        help="Output directory.",
+    )
     parser.add_argument("--seed", type=int, default=SEED, help="Random seed.")
     args = parser.parse_args()
 
@@ -993,7 +1182,9 @@ def main() -> None:
             "metadata includes domain, skill, difficulty, tags, and version",
         ],
     }
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (out / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     print(json.dumps(manifest, indent=2, ensure_ascii=False))
 
 

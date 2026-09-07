@@ -12,11 +12,10 @@ Reference: "Adaptive SFT Data Selection by Model Uncertainty" (Aurelius, 2026)
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 import torch
-from torch.utils.data import Dataset, WeightedRandomSampler, DataLoader
+from torch.utils.data import WeightedRandomSampler
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +104,7 @@ class AdaptiveSFTDataSelector:
 
         temp = self.get_temperature()
         exponent = 1.0 / max(temp, 1e-8)
-        raw = ppl ** exponent
+        raw = ppl**exponent
         raw = raw.clamp(min=self.config.min_weight)
 
         self._weights = raw / raw.sum() * self.n_examples

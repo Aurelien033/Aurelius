@@ -145,8 +145,7 @@ class AMCSecurityAudit:
 
         full_text = json.dumps([event.metadata for event in events])
         leaked = any(
-            secret in full_text
-            for secret in ("sk-secret-key", "bearer-token-123", "hunter2")
+            secret in full_text for secret in ("sk-secret-key", "bearer-token-123", "hunter2")
         )
         if leaked:
             self._record("secret_leakage", "FAIL", "plaintext secret found in event metadata")

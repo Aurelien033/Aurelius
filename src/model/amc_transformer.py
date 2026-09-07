@@ -293,7 +293,9 @@ class AMCTransformer(nn.Module):
 
         # Resolve bank read layers (e.g., -1 -> n_layers)
         bank_read_layers = self.config.hlm_bank_read_layers or (-1,)
-        resolved_layers = {layer if layer >= 0 else self.config.n_layers for layer in bank_read_layers}
+        resolved_layers = {
+            layer if layer >= 0 else self.config.n_layers for layer in bank_read_layers
+        }
         apply_at_end = self.config.n_layers in resolved_layers
 
         for layer_idx, layer in enumerate(self.layers):

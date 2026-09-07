@@ -4,10 +4,14 @@ Covers: selection by verifier threshold, solve-rate/precision tracking, the
 compounding verdict, and the CRITICAL guard that catches the winners-only
 regression trap (solve_rate falling across cycles).
 """
+
 from __future__ import annotations
 
 from src.training.verifier_recursion import (
-    CycleResult, Task, VerifierRecursionLoop, recursion_verdict,
+    CycleResult,
+    Task,
+    VerifierRecursionLoop,
+    recursion_verdict,
 )
 
 
@@ -22,17 +26,21 @@ def test_selection_by_threshold_and_solve_rate():
     # generate k candidates; exactly one per task is "correct" (verify==1.0)
     def gen(prompt, k):
         return ["CORRECT"] + ["wrong"] * (k - 1)
+
     def verify(prompt, comp):
         return 1.0 if comp == "CORRECT" else 0.2
+
     trained = {}
+
     def train(selected):
         trained["n"] = len(selected)
         return {"mean_reward": 1.0}
+
     loop = _make_loop(gen, verify, train, k=8)
     res = loop.run_cycle(TASKS, cycle=0)
     assert res.n_tasks == 10
     assert res.n_candidates == 80
-    assert res.n_selected == 10                 # 1 correct kept per task
+    assert res.n_selected == 10  # 1 correct kept per task
     assert res.solve_rate == 1.0
     assert res.train_mean_reward == 1.0
     assert trained["n"] == 10
@@ -44,38 +52,51 @@ def test_precision_tracking_with_labels():
     # verifier APPROVES "plausible" (score 1.0) but only "CORRECT" is truly right
     def gen(prompt, k):
         return ["plausible"] * k
+
     def verify(prompt, comp):
-        return 1.0                              # over-approves everything
+        return 1.0  # over-approves everything
+
     def label(task, comp):
-        return comp == "CORRECT"                # nothing generated is actually correct
+        return comp == "CORRECT"  # nothing generated is actually correct
+
     loop = _make_loop(gen, verify, lambda s: {"mean_reward": 0.5}, k=4, label_fn=label)
     res = loop.run_cycle(TASKS)
-    assert res.n_selected == 10                 # 1 per task kept
-    assert res.verifier_precision == 0.0        # verifier is high-recall, zero-precision
+    assert res.n_selected == 10  # 1 per task kept
+    assert res.verifier_precision == 0.0  # verifier is high-recall, zero-precision
     # this is exactly the low-precision over-approval the learned probe targets
 
 
 def test_no_selection_when_nothing_passes():
-    loop = _make_loop(lambda p, k: ["x"] * k, lambda p, c: 0.1,
-                      lambda s: {"mean_reward": 0.0}, k=4)
+    loop = _make_loop(lambda p, k: ["x"] * k, lambda p, c: 0.1, lambda s: {"mean_reward": 0.0}, k=4)
     res = loop.run_cycle(TASKS)
     assert res.n_selected == 0 and res.solve_rate == 0.0
-    assert res.train_mean_reward is None        # no train call when nothing selected
+    assert res.train_mean_reward is None  # no train call when nothing selected
 
 
 def test_run_multiple_cycles():
-    loop = _make_loop(lambda p, k: ["CORRECT"] + ["w"] * (k - 1),
-                      lambda p, c: 1.0 if c == "CORRECT" else 0.0,
-                      lambda s: {"mean_reward": 1.0}, k=4)
+    loop = _make_loop(
+        lambda p, k: ["CORRECT"] + ["w"] * (k - 1),
+        lambda p, c: 1.0 if c == "CORRECT" else 0.0,
+        lambda s: {"mean_reward": 1.0},
+        k=4,
+    )
     cycles = loop.run(TASKS, n_cycles=3)
     assert len(cycles) == 3 and all(c.solve_rate == 1.0 for c in cycles)
 
 
 # --- verdict logic (the roadmap gate + winners-only guard) ---
 def _cyc(cycle, solve, prec=None):
-    return CycleResult(cycle=cycle, n_tasks=10, n_candidates=40, n_selected=10,
-                       selected_frac=0.25, solve_rate=solve, verifier_precision=prec,
-                       train_mean_reward=1.0, cost_generations=40)
+    return CycleResult(
+        cycle=cycle,
+        n_tasks=10,
+        n_candidates=40,
+        n_selected=10,
+        selected_frac=0.25,
+        solve_rate=solve,
+        verifier_precision=prec,
+        train_mean_reward=1.0,
+        cost_generations=40,
+    )
 
 
 def test_verdict_compounds():
@@ -107,16 +128,20 @@ def test_verdict_insufficient():
 # --- code-domain wiring (execution verifier -> high-precision selection) ---
 def test_make_code_reward_is_three_arg():
     from src.training.verifier_recursion import make_code_reward
+
     # run_tests stub: passes iff completion contains 'return 42'
     def run_tests(completion, tests):
         return (1, 1) if "return 42" in completion else (0, 1)
+
     reward = make_code_reward(run_tests)
     # RLVRTrainer calls it with THREE positional args (prompt, completion, ground_truth)
     assert reward("p", "def f(): return 42", "gt") == 1.0
     assert reward("p", "nope", "gt") == 0.0
     # with a tests_for mapping (ground_truth -> tests)
-    reward2 = make_code_reward(lambda c, t: (len(t), len(t)) if "return 42" in c else (0, len(t)),
-                               tests_for=lambda gt: ["assert f()==42", "assert True"])
+    reward2 = make_code_reward(
+        lambda c, t: (len(t), len(t)) if "return 42" in c else (0, len(t)),
+        tests_for=lambda gt: ["assert f()==42", "assert True"],
+    )
     assert reward2("p", "def f(): return 42", "task1") == 1.0
     # total==0 -> 0.0 (no crash)
     assert make_code_reward(lambda c, t: (0, 0))("p", "x", "gt") == 0.0
@@ -127,13 +152,17 @@ def test_code_loop_selection_is_high_precision():
     # so the selected set is 100% correct (unlike the math probe null).
     def gen(prompt, k):
         return ["def f(): return 42"] + ["wrong"] * (k - 1)
+
     def exec_verify(prompt, code):
         return 1.0 if code == "def f(): return 42" else 0.0
+
     def label(task, code):
         return code == "def f(): return 42"
-    loop = VerifierRecursionLoop(gen, exec_verify, lambda s: {"mean_reward": 1.0},
-                                 k=6, select_threshold=1.0, label_fn=label)
+
+    loop = VerifierRecursionLoop(
+        gen, exec_verify, lambda s: {"mean_reward": 1.0}, k=6, select_threshold=1.0, label_fn=label
+    )
     res = loop.run_cycle(TASKS)
     assert res.solve_rate == 1.0
-    assert res.verifier_precision == 1.0     # execution verifier -> perfect precision
+    assert res.verifier_precision == 1.0  # execution verifier -> perfect precision
     # contrast the math run: probe precision was low; code selection is clean.

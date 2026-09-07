@@ -47,10 +47,7 @@ class TestBulkheadConcurrencyRace:
             except BulkheadFullError:
                 pass
 
-        threads = [
-            threading.Thread(target=work, args=(0.002,))
-            for _ in range(30)
-        ]
+        threads = [threading.Thread(target=work, args=(0.002,)) for _ in range(30)]
         for th in threads:
             th.start()
         for th in threads:
@@ -86,6 +83,5 @@ class TestBulkheadConcurrencyRace:
             th.join(timeout=30.0)
 
         assert not violations, (
-            f"Saw {len(violations)} active_count violations: "
-            f"max={max(violations)} (limit={max_n})"
+            f"Saw {len(violations)} active_count violations: max={max(violations)} (limit={max_n})"
         )

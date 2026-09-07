@@ -32,6 +32,25 @@ repos:
 
   - repo: local
     hooks:
+      - id: pytest-fast
+        name: pytest (fast unit tests)
+        language: system
+        entry: python -m pytest tests/ -x -q --tb=short --ignore=tests/ui
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+      - id: bandit-security
+        name: bandit (security scan)
+        language: system
+        entry: .venv/bin/bandit -q -ll -r src agent gateway aurelius_cli
+        pass_filenames: false
+        stages: [pre-push]
+      - id: pip-audit
+        name: pip-audit (dependency scan)
+        language: system
+        entry: .venv/bin/python -m pip_audit --skip-editable --progress-spinner off
+        pass_filenames: false
+        stages: [pre-push]
       - id: check-torch-load
         name: check torch.load weights_only
         entry: python hooks/check_torch_load.py

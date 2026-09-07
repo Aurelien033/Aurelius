@@ -29,7 +29,8 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -118,10 +119,7 @@ class LabelledTrajectory:
 
     def is_valid(self, min_steps: int = 2) -> bool:
         """Trajectory is valid iff all steps are labelled and ≥ min_steps."""
-        return (
-            len(self.steps) >= min_steps
-            and all(s.label is not None for s in self.steps)
-        )
+        return len(self.steps) >= min_steps and all(s.label is not None for s in self.steps)
 
 
 # ---------------------------------------------------------------------------
@@ -192,9 +190,7 @@ def filter_steps(
             logger.debug("filter_steps: dropping ambiguous step at idx=%d", step.step_idx)
             continue
         if drop_no_progress and step.state_hash == prev_hash:
-            logger.debug(
-                "filter_steps: dropping no-progress step at idx=%d", step.step_idx
-            )
+            logger.debug("filter_steps: dropping no-progress step at idx=%d", step.step_idx)
             continue
         filtered.append(step)
         prev_hash = step.state_hash
@@ -309,9 +305,7 @@ class PRMDataWriter:
         shard_size: int = 500,
         config: PRMTrainingDataConfig | None = None,
     ) -> None:
-        self.output_dir = Path(
-            output_dir or (config.output_dir if config else ".prm_data")
-        )
+        self.output_dir = Path(output_dir or (config.output_dir if config else ".prm_data"))
         self.shard_size = shard_size if config is None else config.shard_size
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._buffer: list[dict] = []
@@ -354,9 +348,7 @@ class PRMDataWriter:
         with path.open("w") as fh:
             for record in self._buffer:
                 fh.write(json.dumps(record) + "\n")
-        logger.info(
-            "PRMDataWriter: flushed %d records → %s", len(self._buffer), path
-        )
+        logger.info("PRMDataWriter: flushed %d records → %s", len(self._buffer), path)
         self._buffer = []
         self._shard_idx += 1
 
@@ -369,7 +361,7 @@ class PRMDataWriter:
         """Total trajectories written across all shards."""
         return self._total
 
-    def __enter__(self) -> "PRMDataWriter":
+    def __enter__(self) -> PRMDataWriter:
         return self
 
     def __exit__(self, *exc: Any) -> None:

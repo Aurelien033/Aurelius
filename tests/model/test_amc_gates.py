@@ -30,8 +30,7 @@ def test_gate_telemetry() -> None:
     x = torch.randn(4, 64)
     tel = ctrl.telemetry(x)
     assert all(
-        k in tel
-        for k in ["decay_mean", "erase_mean", "write_mean", "erase_write_correlation"]
+        k in tel for k in ["decay_mean", "erase_mean", "write_mean", "erase_write_correlation"]
     )
 
 

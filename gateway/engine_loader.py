@@ -21,6 +21,13 @@ from .chat_session import load_model_for_chat
 from .vllm_engine import VLLMEngine
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def make_mock_generate_fn() -> Callable[[ChatRequest], str]:
     def _generate(request: ChatRequest) -> str:
         last_user_message = ""
@@ -93,7 +100,7 @@ def build_engine(
 
             tokenizer = AutoTokenizer.from_pretrained(
                 model_path,
-                trust_remote_code=True,
+                trust_remote_code=_env_flag("AURELIUS_TRUST_REMOTE_CODE"),
                 revision=hf_revision,
             )
             prompt_tokens = []

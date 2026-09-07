@@ -132,12 +132,15 @@ def verify_r1_ga(
     steps: list[GateStepResult] = []
     now = datetime.now(UTC).isoformat()
 
-    corpus_ok = len(amc_traces) >= min_traces_per_condition and len(baseline_traces) >= min_traces_per_condition
+    corpus_ok = (
+        len(amc_traces) >= min_traces_per_condition
+        and len(baseline_traces) >= min_traces_per_condition
+    )
     steps.append(
         GateStepResult(
             step="trace_corpus",
             passed=corpus_ok,
-            evidence=f"AMC={len(amc_traces)} baseline={len(baseline_traces)} (min={min_traces_per_condition})",
+            evidence=f"AMC={len(amc_traces)} baseline={len(baseline_traces)} (min={min_traces_per_condition})",  # noqa: E501
             details={"amc_count": len(amc_traces), "baseline_count": len(baseline_traces)},
         )
     )
@@ -147,7 +150,7 @@ def verify_r1_ga(
         GateStepResult(
             step="memory_write_evidence",
             passed=memory_audit["passed"],
-            evidence=f"{memory_audit['passed_traces']}/{memory_audit['sample_size']} sampled traces show promote+reuse",
+            evidence=f"{memory_audit['passed_traces']}/{memory_audit['sample_size']} sampled traces show promote+reuse",  # noqa: E501
             details=memory_audit,
         )
     )
@@ -160,8 +163,12 @@ def verify_r1_ga(
         GateStepResult(
             step="task_success_lift",
             passed=lift_ok,
-            evidence=f"holdout delta={delta_pp:.2f}pp (min={min_success_delta_pp}pp); amc={amc_rate:.3f} base={base_rate:.3f}",
-            details={"amc_success_rate": amc_rate, "baseline_success_rate": base_rate, "delta_pp": delta_pp},
+            evidence=f"holdout delta={delta_pp:.2f}pp (min={min_success_delta_pp}pp); amc={amc_rate:.3f} base={base_rate:.3f}",  # noqa: E501
+            details={
+                "amc_success_rate": amc_rate,
+                "baseline_success_rate": base_rate,
+                "delta_pp": delta_pp,
+            },
         )
     )
 
@@ -185,7 +192,9 @@ def verify_r1_ga(
                 "command": command,
                 "config_hash": compute_config_hash(config),
                 "git_sha": get_git_sha(),
-                "checkpoint_sha256": compute_checkpoint_sha256(config.get("model", {}).get("checkpoint_path")),
+                "checkpoint_sha256": compute_checkpoint_sha256(
+                    config.get("model", {}).get("checkpoint_path")
+                ),
                 "seeds": config.get("seeds", {}),
             },
         )
@@ -261,7 +270,9 @@ def verify_r1_gb(
             },
         )
     )
-    provenance_ok = all(pref.get("metadata_hash") or pref.get("provenance") for pref in dreambank_preferences)
+    provenance_ok = all(
+        pref.get("metadata_hash") or pref.get("provenance") for pref in dreambank_preferences
+    )
     steps.append(
         GateStepResult(
             step="provenance",
@@ -301,9 +312,10 @@ def verify_r1_gc(
         )
     )
 
-    replay_ok = abs(replay_amc_rate - headline_amc_rate) <= tolerance and abs(
-        replay_lift_pp - headline_lift_pp
-    ) <= tolerance * 100
+    replay_ok = (
+        abs(replay_amc_rate - headline_amc_rate) <= tolerance
+        and abs(replay_lift_pp - headline_lift_pp) <= tolerance * 100
+    )
     steps.append(
         GateStepResult(
             step="one_command_replay",
@@ -322,14 +334,17 @@ def verify_r1_gc(
     post_hash_path = pack_dir / "dreambank_run" / "post_cycle_model_hash.txt"
     hash_ok = pre_hash_path.exists() and post_hash_path.exists()
     if hash_ok:
-        hash_ok = pre_hash_path.read_text(encoding="utf-8").strip() == post_hash_path.read_text(
-            encoding="utf-8"
-        ).strip()
+        hash_ok = (
+            pre_hash_path.read_text(encoding="utf-8").strip()
+            == post_hash_path.read_text(encoding="utf-8").strip()
+        )
     steps.append(
         GateStepResult(
             step="zero_gradient_in_pack",
             passed=hash_ok,
-            evidence="pre/post hashes present and match" if hash_ok else "hash proof missing or mismatched",
+            evidence="pre/post hashes present and match"
+            if hash_ok
+            else "hash proof missing or mismatched",
         )
     )
 
@@ -409,7 +424,9 @@ def verify_all_gates(
         "command": command,
         "config_hash": compute_config_hash(config),
         "git_sha": get_git_sha(),
-        "checkpoint_sha256": compute_checkpoint_sha256(config.get("model", {}).get("checkpoint_path")),
+        "checkpoint_sha256": compute_checkpoint_sha256(
+            config.get("model", {}).get("checkpoint_path")
+        ),
         "amc_traces": str(amc_traces_path),
         "baseline_traces": str(baseline_traces_path),
     }
@@ -425,10 +442,14 @@ def verify_all_gates(
 
 def write_gate_report(report: Ring1GateReport, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(report.to_dict(), indent=2, ensure_ascii=True), encoding="utf-8")
+    output_path.write_text(
+        json.dumps(report.to_dict(), indent=2, ensure_ascii=True), encoding="utf-8"
+    )
 
 
 def _success_rate(traces: list[dict[str, Any]]) -> float:
     if not traces:
         return 0.0
-    return sum(1.0 if trace.get("final_outcome") == "success" else 0.0 for trace in traces) / len(traces)
+    return sum(1.0 if trace.get("final_outcome") == "success" else 0.0 for trace in traces) / len(
+        traces
+    )

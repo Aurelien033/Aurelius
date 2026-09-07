@@ -7,7 +7,6 @@ import os
 import pytest
 
 from src.serving.agentic_runtime import _make_default_tool_registry
-from src.inference.agentic_loop import ToolRegistry
 
 
 @pytest.fixture(autouse=True)

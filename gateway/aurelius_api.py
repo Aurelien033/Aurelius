@@ -5,9 +5,12 @@ Serves the Agent Cockpit frontend with real-time communication.
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
+import re
 import time
+import urllib.parse
 import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
@@ -25,10 +28,61 @@ from gateway.engine_loader import build_engine, make_mock_generate_fn
 from gateway.metrics_middleware import METRICS
 from gateway.rate_limit import get_rate_limiter
 
+_HF_MODEL_ID_RE = re.compile(r"^[\w.-]+/[\w.-]+$")
+
+
+def validate_config() -> None:
+    """Fail fast if required startup configuration is invalid."""
+    errors: list[str] = []
+
+    port_str = os.environ.get("AURELIUS_PORT", "8080")
+    try:
+        port = int(port_str)
+        if not (1 <= port <= 65535):
+            errors.append(f"AURELIUS_PORT must be in 1..65535, got: {port_str}")
+    except ValueError:
+        errors.append(f"AURELIUS_PORT is not an integer: {port_str}")
+
+    host = os.environ.get("AURELIUS_HOST", "127.0.0.1")  # loopback default (CWE-605)
+    if not host or not host.strip():
+        errors.append("AURELIUS_HOST must be a non-empty bind address")
+
+    db_url = os.environ.get("DATABASE_URL")
+    if db_url:
+        parsed = urllib.parse.urlparse(db_url)
+        if not parsed.scheme or not parsed.netloc:
+            errors.append(f"DATABASE_URL is not a valid URL: {db_url}")
+
+    cors_raw = os.environ.get("CORS_ORIGINS") or os.environ.get("CORS_ORIGIN", "")
+    for origin in (o.strip() for o in cors_raw.split(",") if o.strip()):
+        parsed = urllib.parse.urlparse(origin)
+        if not parsed.scheme:
+            errors.append(f"CORS_ORIGINS contains an invalid origin (missing scheme): {origin}")
+
+    model_path = os.environ.get("AURELIUS_MODEL_PATH", "checkpoints/aurelius_1.3b")
+    model_exists = Path(model_path).expanduser().exists()
+    if not model_exists and not _HF_MODEL_ID_RE.match(model_path):
+        errors.append(
+            f"AURELIUS_MODEL_PATH {model_path!r} does not exist locally "
+            "and does not look like a HuggingFace model ID (owner/name)"
+        )
+
+    tp_str = os.environ.get("TENSOR_PARALLEL_SIZE", "1")
+    try:
+        if int(tp_str) < 1:
+            errors.append(f"TENSOR_PARALLEL_SIZE must be >= 1, got: {tp_str}")
+    except ValueError:
+        errors.append(f"TENSOR_PARALLEL_SIZE is not an integer: {tp_str}")
+
+    if errors:
+        msg = "Configuration validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
+        raise RuntimeError(msg)
+
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Run API startup tasks using FastAPI's lifespan hook."""
+    validate_config()
     await _load_engine()
     await _init_rate_limiter()
     yield
@@ -161,22 +215,49 @@ MAX_REQUEST_SIZE = int(os.environ.get("AURELIUS_MAX_REQUEST_SIZE", "1048576"))
 MAX_STREAM_SIZE = int(os.environ.get("AURELIUS_MAX_STREAM_SIZE", "10485760"))
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _body_limit_for_path(path: str) -> int:
+    return MAX_STREAM_SIZE if path in ("/v1/chat/completions", "/generate") else MAX_REQUEST_SIZE
+
+
 @app.middleware("http")
 async def limit_request_size(request, call_next):
+    if request.method not in ("POST", "PUT", "PATCH"):
+        return await call_next(request)
+
+    body_limit = _body_limit_for_path(request.url.path)
     content_length = request.headers.get("content-length")
     if content_length:
         try:
             size = int(content_length)
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid Content-Length header")
-        body_limit = (
-            MAX_STREAM_SIZE
-            if request.url.path in ("/v1/chat/completions", "/generate")
-            else MAX_REQUEST_SIZE
-        )
+            return PlainTextResponse("Invalid Content-Length header", status_code=400)
         if size > body_limit:
-            raise HTTPException(status_code=413, detail=f"Request too large (>{body_limit} bytes)")
-    return await call_next(request)
+            return PlainTextResponse(f"Request too large (>{body_limit} bytes)", status_code=413)
+
+    received = 0
+    chunks: list[bytes] = []
+    async for chunk in request.stream():
+        received += len(chunk)
+        if received > body_limit:
+            return PlainTextResponse(f"Request too large (>{body_limit} bytes)", status_code=413)
+        chunks.append(chunk)
+
+    body = b"".join(chunks)
+
+    async def receive() -> dict[str, Any]:
+        nonlocal body
+        chunk = body
+        body = b""
+        return {"type": "http.request", "body": chunk, "more_body": False}
+
+    return await call_next(Request(request.scope, receive))
 
 
 ALLOWED_HOSTS = {
@@ -191,7 +272,7 @@ async def restrict_host(request, call_next):
     host = request.headers.get("host", "")
     hostname = host.split(":")[0] if host else ""
     if hostname and hostname not in ALLOWED_HOSTS:
-        raise HTTPException(status_code=400, detail=f"Host '{hostname}' not allowed")
+        return PlainTextResponse(f"Host '{hostname}' not allowed", status_code=400)
     return await call_next(request)
 
 
@@ -202,7 +283,7 @@ async def rate_limit(request, call_next):
         # Fail-closed: deny requests when rate limiter not initialized
         return PlainTextResponse("Rate limiter not initialized", status_code=503)
     if not _rate_limiter(client_ip):
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+        return PlainTextResponse("Rate limit exceeded", status_code=429)
     return await call_next(request)
 
 
@@ -211,7 +292,22 @@ async def require_json_content_type(request, call_next):
     if request.method in ("POST", "PUT", "PATCH"):
         ct = request.headers.get("content-type", "")
         if not ct.startswith("application/json"):
-            raise HTTPException(400, detail="Content-Type must be application/json")
+            return PlainTextResponse("Content-Type must be application/json", status_code=400)
+    return await call_next(request)
+
+
+_API_KEY = os.environ.get("AURELIUS_API_KEY", "")
+
+
+@app.middleware("http")
+async def require_api_key(request, call_next):
+    if request.url.path in ("/health", "/health/ready", "/metrics", "/"):
+        return await call_next(request)
+    if not _API_KEY:
+        return PlainTextResponse("API key not configured", status_code=503)
+    provided = request.headers.get("X-API-Key", "")
+    if not hmac.compare_digest(provided.encode(), _API_KEY.encode()):
+        return PlainTextResponse("Invalid or missing API key", status_code=401)
     return await call_next(request)
 
 
@@ -382,7 +478,13 @@ connected_clients: dict[str, WebSocket] = {}
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket):
+async def websocket_endpoint(ws: WebSocket, api_key: str = ""):
+    if not _API_KEY:
+        await ws.close(code=1008, reason="API key not configured")
+        return
+    if not hmac.compare_digest(api_key.encode(), _API_KEY.encode()):
+        await ws.close(code=1008, reason="Invalid or missing API key")
+        return
     await ws.accept()
     client_id = uuid.uuid4().hex[:8]
     connected_clients[client_id] = ws
@@ -403,6 +505,8 @@ async def websocket_endpoint(ws: WebSocket):
 
 _engine: Callable[[EngineChatRequest], str] | None = None
 _model_id: str = "aurelius-1.3b"
+_engine_obj: object | None = None
+_tokenizer: Any | None = None
 _rate_limiter: Callable[[str], bool] | None = None
 
 
@@ -473,19 +577,24 @@ async def _load_engine() -> None:
         try:
             from transformers import AutoTokenizer
 
-            tokenizer_revision = _resolve_tokenizer_revision(model_path)
+            hf_revision = os.environ.get("AURELIUS_HF_REVISION")
+            model_is_local = Path(model_path).expanduser().exists()
+            if not model_is_local and not hf_revision:
+                raise ValueError(
+                    "Hugging Face model downloads require AURELIUS_HF_REVISION to pin a revision"
+                )
             _tokenizer = AutoTokenizer.from_pretrained(
                 model_path,
-                trust_remote_code=True,
-                revision=tokenizer_revision,
+                trust_remote_code=_env_flag("AURELIUS_TRUST_REMOTE_CODE"),
+                revision=hf_revision,
             )
             print("[startup] Tokenizer loaded for batch endpoint")
         except Exception as e:
             print(f"[startup] Warning: tokenizer load failed — batch endpoint disabled: {e}")
             _tokenizer = None
         print(f"[startup] Engine loaded: {_model_id} ({backend})")
-    except Exception:
-        print("[startup] Engine load failed: {exc}")
+    except Exception as exc:
+        print(f"[startup] Engine load failed: {exc}")
         _engine = None
         _engine_obj = None
         _tokenizer = None

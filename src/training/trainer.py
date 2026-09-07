@@ -233,6 +233,7 @@ class TrainConfig:
     model_moe_top_k: int = 2
     model_moe_every_n_layers: int = 2
     model_moe_capacity_factor: float = 1.25
+    router_param_prefixes: tuple[str, ...] = ("model.layers.",)
 
     # Optimizer
     lr: float = 3e-4
@@ -432,6 +433,21 @@ def _cosine_with_warmup(
     progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
     cosine_decay = 0.5 * (1.0 + math.cos(math.pi * progress))
     return min_lr_ratio + (1.0 - min_lr_ratio) * cosine_decay
+
+
+def is_router_param(name: str, config: TrainConfig) -> bool:
+    """Return True only when *name* belongs to an MoE router parameter.
+
+    Requires model_moe_enabled; uses exact module-path prefix matching so that
+    attention projections named proj.weight are never misclassified.
+    """
+    if not config.model_moe_enabled:
+        return False
+    return any(
+        f"{prefix}{i}.ffn.router." in name
+        for prefix in config.router_param_prefixes
+        for i in range(config.model_n_layers)
+    )
 
 
 def build_scheduler(optimizer: AdamW, cfg: TrainConfig) -> LambdaLR:
@@ -655,9 +671,13 @@ class AureliusTrainer:
                 use_reentrant=False,
             )
             n_wrapped = apply_activation_checkpointing(self.model, TransformerBlock, ckpt_cfg)
-            logger.info("Gradient checkpointing enabled: wrapped %d TransformerBlock layers", n_wrapped)
+            logger.info(
+                "Gradient checkpointing enabled: wrapped %d TransformerBlock layers", n_wrapped
+            )
         elif ac_mode not in ("none", "off", "", None):
-            logger.warning("Unknown activation_checkpoint mode: %s (expected 'full' or 'none')", ac_mode)
+            logger.warning(
+                "Unknown activation_checkpoint mode: %s (expected 'full' or 'none')", ac_mode
+            )
 
         # FP8 training via torchao
         if getattr(self.cfg, "fp8", False):

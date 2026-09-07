@@ -12,8 +12,8 @@ warnings.warn(
     stacklevel=2,
 )
 
-from src.agent.session_manager import *  # noqa: F403
-from src.agent.session_manager import (  # noqa: F401
+from src.agent.session_manager import *  # noqa: E402, F403
+from src.agent.session_manager import (  # noqa: E402, F401
     ApprovalRequest,
     BackgroundJob,
     Checkpoint,

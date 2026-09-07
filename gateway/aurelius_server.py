@@ -39,13 +39,17 @@ Realtime:
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
 import json
 import logging
 import mimetypes
+import os
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from agent.command_dispatcher import CommandDispatcher
 from agent.nl_command_parser import NLCommandParseError, NLCommandParser
@@ -65,7 +69,7 @@ class _LogRingBuffer(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         self.records.append(
             {
-                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(record.created)),
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(record.created)),
                 "level": record.levelname,
                 "logger": record.name,
                 "message": self.format(record),
@@ -87,6 +91,12 @@ _MAX_CONTENT_LENGTH = 1_048_576
 #: Path to built frontend assets — resolved relative to this file.
 #: Goes up 2 levels: gateway/ → Aurelius root (parent.parent)
 _FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
+_ALLOWED_LICENSE_TIERS = {"trial", "pro", "enterprise"}
+
+
+def _csv_env(name: str) -> list[str]:
+    return [item.strip() for item in os.environ.get(name, "").split(",") if item.strip()]
 
 
 class _JSONMixin:
@@ -130,17 +140,24 @@ class AureliusHandler(BaseHTTPRequestHandler, _JSONMixin):
 
     def _serve_static(self, relative_path: str) -> None:
         """Serve a file from the built frontend dist directory."""
-        # Security: prevent directory traversal
-        safe_path = relative_path.lstrip("/")
-        if ".." in safe_path:
+        frontend_root = _FRONTEND_DIST.resolve()
+        parsed_path = unquote(urlparse(relative_path).path)
+        safe_path = parsed_path.lstrip("/").replace("\\", "/")
+        try:
+            file_path = (frontend_root / safe_path).resolve()
+        except OSError:
             self.send_response(403)
             self.end_headers()
             return
 
-        file_path = _FRONTEND_DIST / safe_path
+        if file_path != frontend_root and frontend_root not in file_path.parents:
+            self.send_response(403)
+            self.end_headers()
+            return
+
         if not file_path.exists() or file_path.is_dir():
             # Fallback to index.html for SPA routing
-            index_path = _FRONTEND_DIST / "index.html"
+            index_path = frontend_root / "index.html"
             if index_path.exists():
                 file_path = index_path
             else:
@@ -163,10 +180,20 @@ class AureliusHandler(BaseHTTPRequestHandler, _JSONMixin):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         # Cache assets with hash in filename (Vite pattern)
-        if "assets/" in safe_path:
+        if safe_path.startswith("assets/"):
             self.send_header("Cache-Control", "public, max-age=31536000, immutable")
         self.end_headers()
         self.wfile.write(data)
+
+    def _send_sse_cors_headers(self) -> None:
+        """Mirror the configured CORS policy for event streams."""
+        config = getattr(self.server, "runtime_config", {})
+        allowed = set(config.get("cors_origins", []))
+        origin = self.headers.get("Origin", "")
+        if "*" in allowed:
+            self.send_header("Access-Control-Allow-Origin", "*")
+        elif origin and origin in allowed:
+            self.send_header("Access-Control-Allow-Origin", origin)
 
     def _check_auth(self) -> bool:
         server = self.server
@@ -176,12 +203,15 @@ class AureliusHandler(BaseHTTPRequestHandler, _JSONMixin):
             return True
         api_key = self.headers.get("X-API-Key", "")
         expected = getattr(server, "runtime_config", {}).get("api_key", "")
-        if expected and api_key == expected:
+        if expected and hmac.compare_digest(api_key.encode(), expected.encode()):
             return True
         session = self.headers.get("X-Session-Token", "")
         valid_sessions = getattr(server, "_valid_sessions", set())
-        if session in valid_sessions:
-            return True
+        if session:
+            session_bytes = session.encode()
+            for valid_session in valid_sessions:
+                if hmac.compare_digest(session_bytes, str(valid_session).encode()):
+                    return True
         return False
 
     def _require_auth(self) -> bool:
@@ -200,10 +230,18 @@ class AureliusHandler(BaseHTTPRequestHandler, _JSONMixin):
         return True
 
     def do_GET(self):
-        # API routes
+        # Public endpoints — no auth required
         if self.path == "/api/health":
             self._handle_health()
             return
+        if self.path == "/api/license/validate":
+            self._handle_license_validate()
+            return
+
+        # All other API routes require authentication
+        if self.path.startswith("/api/") and not self._require_auth():
+            return
+
         if self.path == "/api/status":
             self._handle_status()
             return
@@ -247,20 +285,10 @@ class AureliusHandler(BaseHTTPRequestHandler, _JSONMixin):
             self._handle_config_get()
             return
         if self.path == "/api/events":
-            if not self._require_auth():
-                return
             self._handle_sse()
             return
         if self.path == "/api/logs":
-            if not self._require_auth():
-                return
             self._handle_logs()
-            return
-        if self.path == "/api/license/validate":
-            self._handle_license_validate()
-            return
-
-        if self.path.startswith("/api/") and not self._require_auth():
             return
 
         # Static files
@@ -270,10 +298,10 @@ class AureliusHandler(BaseHTTPRequestHandler, _JSONMixin):
         self._serve_static(path)
 
     def do_POST(self):
+        if self.path.startswith("/api/") and not self._require_auth():
+            return
         if self.path == "/api/license/activate":
             self._handle_license_activate()
-            return
-        if self.path.startswith("/api/") and not self._require_auth():
             return
         if self.path == "/api/command":
             self._handle_command()
@@ -1025,16 +1053,22 @@ class AureliusHandler(BaseHTTPRequestHandler, _JSONMixin):
         if not key:
             self._send_json(400, {"error": "license_key required"})
             return
-        # Simple validation: keys start with AURELIUS- and are 32+ chars
-        if key.startswith("AURELIUS-") and len(key) >= 32:
-            self.server._license_key = key
-            self.server._license_activated = True
-            self.server._license_tier = payload.get("tier", "pro")
-            self.server.runtime_config["require_auth"] = True
-            self.server.runtime_config["api_key"] = key[-16:]
-            self._send_json(200, {"success": True, "tier": self.server._license_tier})
-        else:
+        expected_key = getattr(self.server, "_expected_license_key", "")
+        if not expected_key:
+            self._send_json(503, {"error": "License activation is not configured"})
+            return
+        if not hmac.compare_digest(str(key).encode(), expected_key.encode()):
             self._send_json(403, {"error": "Invalid license key"})
+            return
+
+        tier = getattr(self.server, "_configured_license_tier", "pro")
+        if tier not in _ALLOWED_LICENSE_TIERS:
+            tier = "pro"
+        self.server._license_key = hashlib.sha256(str(key).encode()).hexdigest()
+        self.server._license_activated = True
+        self.server._license_tier = tier
+        self.server.runtime_config["require_auth"] = True
+        self._send_json(200, {"success": True, "tier": self.server._license_tier})
 
     def _handle_modes(self) -> None:
         from agent.agent_mode_registry import AGENT_MODE_REGISTRY
@@ -1055,7 +1089,8 @@ class AureliusHandler(BaseHTTPRequestHandler, _JSONMixin):
 
     def _handle_config_get(self) -> None:
         config = getattr(self.server, "runtime_config", {})
-        self._send_json(200, {"config": dict(config)})
+        safe_config = {k: v for k, v in config.items() if k != "api_key"}
+        self._send_json(200, {"config": safe_config})
 
     def _handle_config_post(self) -> None:
         try:
@@ -1083,7 +1118,7 @@ class AureliusHandler(BaseHTTPRequestHandler, _JSONMixin):
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "keep-alive")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._send_sse_cors_headers()
         self.end_headers()
 
         hermes = getattr(self.server, "hermes", None)
@@ -1164,11 +1199,14 @@ class AureliusServer(HTTPServer):
             "agent_mode": "supervised",
             "log_level": "info",
             "api_endpoint": "http://localhost:8080",
-            "require_auth": False,
+            "require_auth": True,
             "audit_logging": True,
             "auto_lock": False,
-            "api_key": "",
+            "api_key": os.environ.get("AURELIUS_API_KEY", ""),
+            "cors_origins": _csv_env("CORS_ORIGINS") or _csv_env("AURELIUS_CORS_ORIGINS"),
         }
+        self._expected_license_key: str = os.environ.get("AURELIUS_LICENSE_KEY", "")
+        self._configured_license_tier: str = os.environ.get("AURELIUS_LICENSE_TIER", "pro")
         self._license_key: str = ""
         self._license_activated: bool = False
         self._license_tier: str = "trial"

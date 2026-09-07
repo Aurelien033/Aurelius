@@ -109,7 +109,14 @@ def write_repro_pack(
     metrics_out = pack_root / "metrics"
     dreambank_out = pack_root / "dreambank_run"
     verification_dir = pack_root / "verification"
-    for directory in (config_dir, seeds_dir, traces_dir, metrics_out, dreambank_out, verification_dir):
+    for directory in (
+        config_dir,
+        seeds_dir,
+        traces_dir,
+        metrics_out,
+        dreambank_out,
+        verification_dir,
+    ):
         directory.mkdir(parents=True, exist_ok=True)
 
     (config_dir / "experiment_config.yaml").write_text(

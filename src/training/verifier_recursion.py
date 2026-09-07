@@ -27,15 +27,16 @@ the verifier-selected set is genuinely correct (precision high) AND the metric
 rises across cycles without collapsing selection. `run` emits TruthSurface-style
 ledger rows (cost + n + gate) for every cycle.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Callable
+from dataclasses import dataclass
+from collections.abc import Callable
 
 Generate = Callable[[str, int], list[str]]
-VerifyFn = Callable[[str, str], float]          # == MultiDomainVerifier.reward_fn_wrap output
-TrainFn = Callable[[list[dict]], dict]          # selected -> {"mean_reward":..., ...}
-LabelFn = Callable[[str, str], bool]            # optional held-out ground truth
+VerifyFn = Callable[[str, str], float]  # == MultiDomainVerifier.reward_fn_wrap output
+TrainFn = Callable[[list[dict]], dict]  # selected -> {"mean_reward":..., ...}
+LabelFn = Callable[[str, str], bool]  # optional held-out ground truth
 
 
 @dataclass
@@ -51,11 +52,11 @@ class CycleResult:
     n_tasks: int
     n_candidates: int
     n_selected: int
-    selected_frac: float          # fraction of candidates passing the verifier threshold
-    solve_rate: float             # fraction of TASKS with >=1 selected candidate (proxy for M)
-    verifier_precision: float | None   # of selected, fraction actually correct (V) — needs label_fn
+    selected_frac: float  # fraction of candidates passing the verifier threshold
+    solve_rate: float  # fraction of TASKS with >=1 selected candidate (proxy for M)
+    verifier_precision: float | None  # of selected, fraction actually correct (V) — needs label_fn
     train_mean_reward: float | None
-    cost_generations: int         # candidates generated = the run cost
+    cost_generations: int  # candidates generated = the run cost
 
     def ledger_row(self) -> dict:
         """TruthSurface-style row: metric + cost + n + gate inputs."""
@@ -64,7 +65,8 @@ class CycleResult:
             "cycle": self.cycle,
             "n": self.n_tasks,
             "solve_rate": round(self.solve_rate, 4),
-            "verifier_precision": None if self.verifier_precision is None
+            "verifier_precision": None
+            if self.verifier_precision is None
             else round(self.verifier_precision, 4),
             "selected_frac": round(self.selected_frac, 4),
             "train_mean_reward": self.train_mean_reward,
@@ -82,9 +84,9 @@ class VerifierRecursionLoop:
         train_fn: TrainFn,
         *,
         k: int = 8,
-        select_threshold: float = 0.999,   # "correct" = verifier ~1.0 (execution pass)
+        select_threshold: float = 0.999,  # "correct" = verifier ~1.0 (execution pass)
         label_fn: LabelFn | None = None,
-        max_selected_per_task: int = 1,     # keep best-scored; avoid over-weighting easy tasks
+        max_selected_per_task: int = 1,  # keep best-scored; avoid over-weighting easy tasks
     ) -> None:
         if k < 1:
             raise ValueError("k must be >= 1")
@@ -112,8 +114,15 @@ class VerifierRecursionLoop:
             if keep:
                 n_tasks_solved += 1
             for c, s in keep:
-                selected.append({"task_id": t.task_id, "prompt": t.prompt,
-                                 "response": c, "answer": t.answer, "verify_score": s})
+                selected.append(
+                    {
+                        "task_id": t.task_id,
+                        "prompt": t.prompt,
+                        "response": c,
+                        "answer": t.answer,
+                        "verify_score": s,
+                    }
+                )
                 if self.label_fn is not None and self.label_fn(t, c):
                     correct_selected += 1
 
@@ -128,11 +137,14 @@ class VerifierRecursionLoop:
             train_reward = float(res.get("mean_reward")) if res and "mean_reward" in res else None
 
         return CycleResult(
-            cycle=cycle, n_tasks=len(tasks), n_candidates=n_candidates,
+            cycle=cycle,
+            n_tasks=len(tasks),
+            n_candidates=n_candidates,
             n_selected=n_sel,
             selected_frac=(n_sel / n_candidates) if n_candidates else 0.0,
             solve_rate=(n_tasks_solved / len(tasks)) if tasks else 0.0,
-            verifier_precision=precision, train_mean_reward=train_reward,
+            verifier_precision=precision,
+            train_mean_reward=train_reward,
             cost_generations=n_candidates,
         )
 
@@ -170,8 +182,15 @@ def recursion_verdict(cycles: list[CycleResult], min_gain: float = 0.03) -> dict
 
 
 # ---- real-wiring factory (guarded imports; not needed for tests) ----
-def wire_real_loop(model_generate, domain: str, curriculum_trainer, *, test_runner=None,
-                   k: int = 8, **verify_kwargs) -> VerifierRecursionLoop:
+def wire_real_loop(
+    model_generate,
+    domain: str,
+    curriculum_trainer,
+    *,
+    test_runner=None,
+    k: int = 8,
+    **verify_kwargs,
+) -> VerifierRecursionLoop:
     """Assemble a loop from the confirmed-real repo pieces.
 
     model_generate(prompt, k) -> list[str]         : your model sampler
@@ -180,9 +199,11 @@ def wire_real_loop(model_generate, domain: str, curriculum_trainer, *, test_runn
     test_runner               : code executor for the code domain
     """
     from src.training.multi_domain_verifier import MultiDomainVerifier
+
     mdv = MultiDomainVerifier()
-    verify = mdv.reward_fn_wrap(domain, **({"test_runner": test_runner} if test_runner else {}),
-                                **verify_kwargs)
+    verify = mdv.reward_fn_wrap(
+        domain, **({"test_runner": test_runner} if test_runner else {}), **verify_kwargs
+    )
 
     def train_fn(selected: list[dict]) -> dict:
         # one grouped RLVR step over the selected-correct set (real train_step
@@ -214,10 +235,12 @@ def make_code_reward(run_tests, tests_for=None):
     run_tests(completion, tests) -> (passed, total)  [inject; testable with a stub]
     tests_for(ground_truth) -> tests                 [optional map; else ground_truth IS the tests]
     """
+
     def _reward(prompt: str, completion: str, ground_truth) -> float:
         tests = tests_for(ground_truth) if tests_for else ground_truth
         passed, total = run_tests(completion, tests)
         return (passed / total) if total else 0.0
+
     return _reward
 
 
@@ -236,6 +259,7 @@ def wire_code_loop(model_generate, test_runner, curriculum_trainer, *, k: int = 
     two interfaces differ (see make_code_reward).
     """
     from src.training.multi_domain_verifier import MultiDomainVerifier
+
     mdv = MultiDomainVerifier()
     verify = mdv.reward_fn_wrap("code", test_runner=test_runner)
 
@@ -243,8 +267,11 @@ def wire_code_loop(model_generate, test_runner, curriculum_trainer, *, k: int = 
         rewards = []
         for ex in selected:
             r = curriculum_trainer.train_step(
-                task_ids=[ex["task_id"]], prompt_ids=ex.get("prompt_ids"),
-                prompt_text=ex["prompt"], answer=ex.get("answer", ""))
+                task_ids=[ex["task_id"]],
+                prompt_ids=ex.get("prompt_ids"),
+                prompt_text=ex["prompt"],
+                answer=ex.get("answer", ""),
+            )
             rewards.append(float(r.get("mean_reward", 0.0)))
         return {"mean_reward": sum(rewards) / len(rewards) if rewards else 0.0}
 

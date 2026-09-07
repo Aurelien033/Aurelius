@@ -39,9 +39,11 @@ def run_ablation(
     out_base = model(input_ids)
 
     if bank is None:
-        bank_empty = HLMPreferenceBank(HLMPreferenceBankConfig(
-            bank_dim=model.config.hlm_bank_dim or model.config.kv_lrank,
-        ))
+        bank_empty = HLMPreferenceBank(
+            HLMPreferenceBankConfig(
+                bank_dim=model.config.hlm_bank_dim or model.config.kv_lrank,
+            )
+        )
         bank = bank_empty
 
     out_bank = model(input_ids, preference_bank=bank)

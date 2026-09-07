@@ -96,8 +96,7 @@ def test_epsilon_is_finite_for_valid_params() -> None:
 
 def test_sigma_for_target() -> None:
     """Compute σ needed for ε≤1.0 at δ=1e-5, C=1.0, M=8."""
-    sigma = compute_sigma_for_target(clip_norm=1.0, target_epsilon=1.0,
-                                      delta=1e-5, num_devices=8)
+    sigma = compute_sigma_for_target(clip_norm=1.0, target_epsilon=1.0, delta=1e-5, num_devices=8)
     # Verify: this σ should give ε ≈ 1.0
     eps = compute_epsilon(1.0, sigma, 1e-5, 8)
     assert abs(eps - 1.0) < 1e-6
@@ -108,19 +107,16 @@ def test_sigma_for_target() -> None:
 
 def test_bank_tensor_element_count() -> None:
     """2 * bank_size * bank_dim + bank_size"""
-    assert bank_tensor_element_count(8, 8) == 2*8*8 + 8  # 136
+    assert bank_tensor_element_count(8, 8) == 2 * 8 * 8 + 8  # 136
     assert bank_tensor_element_count(1, 1) == 3
-    assert bank_tensor_element_count(14, 64) == 2*14*64 + 14  # 1806
+    assert bank_tensor_element_count(14, 64) == 2 * 14 * 64 + 14  # 1806
 
 
 # ── Parameterized table ────────────────────────────────────────────────────
 
 
 def test_dp_parameterized_table_structure() -> None:
-    table = dp_parameterized_table(
-        clip_norm=1.0, num_devices=8,
-        deltas=(1e-5,), sigmas=(1.0, 2.0)
-    )
+    table = dp_parameterized_table(clip_norm=1.0, num_devices=8, deltas=(1e-5,), sigmas=(1.0, 2.0))
     assert len(table) == 2
     assert table[0]["sigma"] == 1.0
     assert table[1]["sigma"] == 2.0
@@ -136,6 +132,4 @@ def test_dp_parameterized_table_monotone_in_sigma() -> None:
             values = [row[key] for row in table]
             # Should be strictly decreasing
             for i in range(len(values) - 1):
-                assert values[i] > values[i + 1], (
-                    f"{key}: {values[i]} should be > {values[i+1]}"
-                )
+                assert values[i] > values[i + 1], f"{key}: {values[i]} should be > {values[i + 1]}"

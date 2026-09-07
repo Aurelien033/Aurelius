@@ -39,7 +39,9 @@ def test_audit_memory_write_evidence_passes_for_integrated_agent() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         path = _write_traces(Ring1Agent(_config()), 5, 0, Path(tmpdir))
         # traces = json.loads(Path(path).read_text(encoding="utf-8").splitlines()[0])
-        audit = audit_memory_write_evidence([json.loads(line) for line in Path(path).read_text().splitlines()])
+        audit = audit_memory_write_evidence(
+            [json.loads(line) for line in Path(path).read_text().splitlines()]
+        )
         assert audit["sample_size"] >= 1
         assert audit["passed_traces"] >= 1
 
@@ -102,9 +104,17 @@ def test_verify_all_gates_produces_report() -> None:
         config["gates"]["min_ga_success_delta_pp"] = 0.0
         config["gates"]["min_gb_lift_pp"] = 0.0
 
-        amc_traces = [json.loads(line) for line in amc_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        amc_traces = [
+            json.loads(line)
+            for line in amc_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
         holdout = amc_traces[:3]
-        holdout_base = [json.loads(line) for line in base_path.read_text(encoding="utf-8").splitlines() if line.strip()][:3]
+        holdout_base = [
+            json.loads(line)
+            for line in base_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ][:3]
 
         report = verify_all_gates(
             config=config,

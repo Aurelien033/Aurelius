@@ -11,10 +11,8 @@ Reference: "Multi-Loss Auxiliary SFT for Structured Outputs" (Aurelius, 2026)
 
 from __future__ import annotations
 
-import json
 import logging
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
@@ -59,9 +57,7 @@ class UncertaintyWeightedLoss(nn.Module):
         init_log_sigma: float = 0.0,
     ) -> None:
         super().__init__()
-        self.log_sigmas = nn.Parameter(
-            torch.full((n_losses,), init_log_sigma)
-        )
+        self.log_sigmas = nn.Parameter(torch.full((n_losses,), init_log_sigma))
 
     def forward(
         self,
@@ -138,17 +134,15 @@ class JSONValidityLoss(nn.Module):
         """
         # Common structural token patterns
         STRUCTURAL_TOKENS = [
-            91,   # [
-            93,   # ]
+            91,  # [
+            93,  # ]
             123,  # {
             125,  # }
-            34,   # "
-            58,   # :
-            44,   # ,
+            34,  # "
+            58,  # :
+            44,  # ,
         ]
-        return torch.tensor(
-            STRUCTURAL_TOKENS, device=device, dtype=torch.long
-        )
+        return torch.tensor(STRUCTURAL_TOKENS, device=device, dtype=torch.long)
 
 
 class SchemaComplianceLoss(nn.Module):
@@ -188,12 +182,10 @@ class SchemaComplianceLoss(nn.Module):
         loss = torch.tensor(0.0, device=logits.device)
 
         # Simple heuristic: check if key strings appear in the context
-        output_text_approx = input_ids  # Use input as proxy for generated text
+        _output_text_approx = input_ids  # Use input as proxy for generated text
         n_keys_found = 0
         for key in required_keys:
-            key_ids = torch.tensor(
-                [ord(c) for c in key], device=logits.device
-            )
+            _key_ids = torch.tensor([ord(c) for c in key], device=logits.device)
             # Approximate check (simplified)
             n_keys_found += 1
 
@@ -273,11 +265,15 @@ class MultiLossSFT:
 
         # Create auxiliary loss modules
         self.json_validity = JSONValidityLoss(temperature=config.temperature if config else 1.0)
-        self.schema_compliance = SchemaComplianceLoss(temperature=config.temperature if config else 1.0)
+        self.schema_compliance = SchemaComplianceLoss(
+            temperature=config.temperature if config else 1.0
+        )
         self.anchor_recall = AnchorRecallLoss()
 
         # Uncertainty weighting
-        self.weighting = UncertaintyWeightedLoss(n_losses=4) if config and config.learn_weights else None
+        self.weighting = (
+            UncertaintyWeightedLoss(n_losses=4) if config and config.learn_weights else None
+        )
 
         self._weight_map = {
             "json_validity": self.config.json_validity_weight,
@@ -318,17 +314,23 @@ class MultiLossSFT:
 
         if self._weight_map.get("json_validity", 0) > 0:
             json_loss = self.json_validity(logits, input_ids)
-            components["json_validity_loss"] = json_loss.item() if hasattr(json_loss, "item") else float(json_loss)
+            components["json_validity_loss"] = (
+                json_loss.item() if hasattr(json_loss, "item") else float(json_loss)
+            )
             aux_losses_list.append(json_loss * self._weight_map["json_validity"])
 
         if self._weight_map.get("schema_compliance", 0) > 0 and required_schema_keys:
             schema_loss = self.schema_compliance(logits, input_ids, required_schema_keys)
-            components["schema_compliance_loss"] = schema_loss.item() if hasattr(schema_loss, "item") else float(schema_loss)
+            components["schema_compliance_loss"] = (
+                schema_loss.item() if hasattr(schema_loss, "item") else float(schema_loss)
+            )
             aux_losses_list.append(schema_loss * self._weight_map["schema_compliance"])
 
         if self._weight_map.get("anchor_recall", 0) > 0 and anchor_spans:
             anchor_loss = self.anchor_recall(logits, input_ids, anchor_spans)
-            components["anchor_recall_loss"] = anchor_loss.item() if hasattr(anchor_loss, "item") else float(anchor_loss)
+            components["anchor_recall_loss"] = (
+                anchor_loss.item() if hasattr(anchor_loss, "item") else float(anchor_loss)
+            )
             aux_losses_list.append(anchor_loss * self._weight_map["anchor_recall"])
 
         # Combine with uncertainty weighting or fixed weights
@@ -338,7 +340,9 @@ class MultiLossSFT:
         else:
             total_loss = sum(aux_losses_list)
 
-        components["total_loss"] = total_loss.item() if hasattr(total_loss, "item") else float(total_loss)
+        components["total_loss"] = (
+            total_loss.item() if hasattr(total_loss, "item") else float(total_loss)
+        )
         return total_loss, components
 
 

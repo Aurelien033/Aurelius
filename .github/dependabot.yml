@@ -7,7 +7,7 @@ updates:
       day: "monday"
     open-pull-requests-limit: 10
     assignees:
-      - "s3nna13"
+      - "Aurelien033"
     labels:
       - "dependencies"
       - "python"
@@ -27,7 +27,7 @@ updates:
       day: "monday"
     open-pull-requests-limit: 10
     assignees:
-      - "s3nna13"
+      - "Aurelien033"
     labels:
       - "dependencies"
       - "frontend"

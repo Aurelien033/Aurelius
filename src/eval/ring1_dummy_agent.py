@@ -91,9 +91,7 @@ class Ring1DummyAgent:
 
         for step_id in range(1, num_steps + 1):
             force_influenced_read = (
-                not saw_influenced_read
-                and step_id == num_steps
-                and len(memory_store) > 0
+                not saw_influenced_read and step_id == num_steps and len(memory_store) > 0
             )
             step = self._run_step(
                 step_id=step_id,

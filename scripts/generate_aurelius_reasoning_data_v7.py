@@ -644,10 +644,22 @@ def validate(records: list[dict[str, Any]], version: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate Aurelius reasoning dataset v7")
-    parser.add_argument("--scale", type=int, default=20, help="Frontier expansion multiplier for v7 template families.")
+    parser.add_argument(
+        "--scale",
+        type=int,
+        default=20,
+        help="Frontier expansion multiplier for v7 template families.",
+    )
     parser.add_argument("--base-scale", type=int, default=80, help="Base v2 expansion multiplier.")
-    parser.add_argument("--version", default="aurelius-reasoning-sft-v7", help="Dataset version string.")
-    parser.add_argument("--output", type=Path, default=ROOT / "data" / "aurelius_reasoning_sft_v7", help="Output directory.")
+    parser.add_argument(
+        "--version", default="aurelius-reasoning-sft-v7", help="Dataset version string."
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=ROOT / "data" / "aurelius_reasoning_sft_v7",
+        help="Output directory.",
+    )
     parser.add_argument("--seed", type=int, default=SEED, help="Random seed.")
     args = parser.parse_args()
 
@@ -684,7 +696,9 @@ def main() -> None:
     V2.write_jsonl(out / "sft" / "val.jsonl", val)
     V2.write_jsonl(out / "preferences.jsonl", prefs)
     V2.write_jsonl(out / "pretrain_docs.jsonl", pretrain_docs)
-    (out / "curriculum.yaml").write_text(build_curriculum(version, seed, args.scale), encoding="utf-8")
+    (out / "curriculum.yaml").write_text(
+        build_curriculum(version, seed, args.scale), encoding="utf-8"
+    )
     (out / "README.md").write_text(build_readme(version, seed, args.scale, out), encoding="utf-8")
 
     domains = sorted({r["metadata"]["domain"] for r in records})
@@ -728,7 +742,9 @@ def main() -> None:
             "metadata includes domain, skill, difficulty, tags, and version",
         ],
     }
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (out / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     print(json.dumps(manifest, indent=2, ensure_ascii=False))
 
 

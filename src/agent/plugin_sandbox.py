@@ -1,10 +1,18 @@
 """Plugin sandbox for restricted agent extension execution.
 
 Provides import denylisting and callable inspection before execution.
+
+Security note: this module is a best-effort guardrail, not a security
+boundary, and not a real sandbox. Python denylist inspection is bypassable
+through techniques such as
+importlib, ctypes, aliased imports, object graph traversal, or native extension
+side effects. Run untrusted plugins only in an OS/container/VM sandbox with
+separate credentials and filesystem/network controls.
 """
 
 from __future__ import annotations
 
+import functools
 import multiprocessing
 import time
 import types
@@ -21,11 +29,17 @@ class SandboxViolationError(Exception):
 
 @dataclass
 class SandboxConfig:
-    """Configuration for plugin sandbox restrictions."""
+    """Configuration for best-effort plugin sandbox restrictions.
+
+    Denylisted imports reduce accidental misuse by trusted or semi-trusted
+    plugins. They must not be treated as a complete sandbox for hostile code.
+    """
 
     timeout_seconds: float = 5.0
     max_memory_mb: int | None = None
-    denied_imports: list[str] = field(default_factory=lambda: ["os", "subprocess", "sys", "socket"])
+    denied_imports: list[str] = field(
+        default_factory=lambda: ["os", "subprocess", "sys", "socket", "requests", "httpx"]
+    )
     allow_network: bool = False
 
     def __post_init__(self) -> None:
@@ -168,8 +182,9 @@ class PluginSandbox:
     ) -> SandboxResult:
         """Execute *fn* in the current process as fallback when spawning fails.
 
-        This is only reached after the sandbox inspection has already approved
-        *fn* (no denied imports in globals), so it is safe to run directly.
+        This is only reached after the best-effort inspection has approved
+        *fn* (no denied imports in globals). It is not safe for hostile code;
+        use an OS/container boundary for untrusted plugins.
         """
         try:
             result = fn(*args, **kwargs)
@@ -237,8 +252,12 @@ class PluginSandbox:
         return violations
 
     def _check_callable_globals(self, callable_fn: Callable[..., Any]) -> str | None:
-        """Return a violation string if *callable_fn* actually references a denied import."""
-        globs = getattr(callable_fn, "__globals__", {})
+        """Return a violation string if *callable_fn*'s globals contain a denied import."""
+        if isinstance(callable_fn, functools.partial):
+            callable_fn = callable_fn.func
+        globs = getattr(callable_fn, "__globals__", None)
+        if globs is None:
+            return f"cannot inspect globals of {type(callable_fn).__name__!r}: unsafe"
         code = getattr(callable_fn, "__code__", None)
         used_names: set[str] = set(code.co_names) if code is not None else set()
         for name in self.config.denied_imports:

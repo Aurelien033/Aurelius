@@ -237,7 +237,9 @@ def test_environment_collection_excludes_env_vars() -> None:
 # ── Test 16–17: no write on import ───────────────────────────────────────────
 
 
-def test_import_does_not_create_default_registry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_import_does_not_create_default_registry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     import importlib
     import sys
 

@@ -120,7 +120,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nWrote skip report to {args.output}")
         return 0
     if report["status"] != "PASS":
-        print(f"\nFAIL — {len(report.get('failing_shards', []))} shard(s) below diversity threshold")
+        print(
+            f"\nFAIL — {len(report.get('failing_shards', []))} shard(s) below diversity threshold"
+        )
         print(f"Wrote report to {args.output}")
         return 1
     print(f"\nPASS — wrote report to {args.output}")

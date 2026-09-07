@@ -171,7 +171,9 @@ def test_hlm_bank_enabled_with_empty_bank_preserves_logits_close() -> None:
     model = AMCTransformer(_cfg(kv_lrank=64))
     x = torch.randint(0, 1000, (2, 8))
     out_no_bank = model(x)
-    out_empty_bank = model(x, preference_bank=HLMPreferenceBank(HLMPreferenceBankConfig(bank_dim=64)))
+    out_empty_bank = model(
+        x, preference_bank=HLMPreferenceBank(HLMPreferenceBankConfig(bank_dim=64))
+    )
     assert torch.allclose(out_no_bank.logits, out_empty_bank.logits, atol=1e-6)
 
 

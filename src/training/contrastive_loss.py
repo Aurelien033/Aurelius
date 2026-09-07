@@ -10,11 +10,9 @@ Reference: "Contrastive Training for Reliable Tool Use" (Aurelius, 2026)
 
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
-import torch
 import torch.nn.functional as F
 from torch import Tensor
 
@@ -78,73 +76,73 @@ class NegativeGenerator:
         used_error_types = set()
 
         # Negative 1: Parameter name typo
-        if (
-            args
-            and "parameter_name_typo" in self.config.error_types
-        ):
+        if args and "parameter_name_typo" in self.config.error_types:
             for key in args:
                 if len(key) > 3 and "parameter_name_typo" not in used_error_types:
                     typo_key = self._make_typo(key)
                     neg_args = dict(args)
                     neg_args[typo_key] = neg_args.pop(key)
-                    negatives.append({
-                        "name": name,
-                        "arguments": neg_args,
-                        "error_type": "parameter_name_typo",
-                    })
+                    negatives.append(
+                        {
+                            "name": name,
+                            "arguments": neg_args,
+                            "error_type": "parameter_name_typo",
+                        }
+                    )
                     used_error_types.add("parameter_name_typo")
                     break
 
         # Negative 2: Type violation
-        if (
-            args
-            and "type_violation" in self.config.error_types
-        ):
+        if args and "type_violation" in self.config.error_types:
             for key, val in args.items():
                 if isinstance(val, str) and "type_violation" not in used_error_types:
                     neg_args = dict(args)
                     neg_args[key] = 12345  # Replace string with integer
-                    negatives.append({
-                        "name": name,
-                        "arguments": neg_args,
-                        "error_type": "type_violation",
-                    })
+                    negatives.append(
+                        {
+                            "name": name,
+                            "arguments": neg_args,
+                            "error_type": "type_violation",
+                        }
+                    )
                     used_error_types.add("type_violation")
                     break
                 elif isinstance(val, (int, float)) and "type_violation" not in used_error_types:
                     neg_args = dict(args)
                     neg_args[key] = "not_a_number"
-                    negatives.append({
-                        "name": name,
-                        "arguments": neg_args,
-                        "error_type": "type_violation",
-                    })
+                    negatives.append(
+                        {
+                            "name": name,
+                            "arguments": neg_args,
+                            "error_type": "type_violation",
+                        }
+                    )
                     used_error_types.add("type_violation")
                     break
 
         # Negative 3: Wrong tool name
         if len(name) > 3 and "wrong_tool_name" in self.config.error_types:
             wrong_name = self._make_tool_name_typo(name)
-            negatives.append({
-                "name": wrong_name,
-                "arguments": dict(args),
-                "error_type": "wrong_tool_name",
-            })
+            negatives.append(
+                {
+                    "name": wrong_name,
+                    "arguments": dict(args),
+                    "error_type": "wrong_tool_name",
+                }
+            )
 
         # Negative 4: Missing parameter
-        if (
-            args
-            and len(args) >= 2
-            and "missing_parameter" in self.config.error_types
-        ):
+        if args and len(args) >= 2 and "missing_parameter" in self.config.error_types:
             neg_args = dict(args)
             last_key = list(neg_args.keys())[-1]
             del neg_args[last_key]
-            negatives.append({
-                "name": name,
-                "arguments": neg_args,
-                "error_type": "missing_parameter",
-            })
+            negatives.append(
+                {
+                    "name": name,
+                    "arguments": neg_args,
+                    "error_type": "missing_parameter",
+                }
+            )
 
         return negatives[: self.config.n_negatives]
 
@@ -231,18 +229,22 @@ class ContrastiveToolLoss:
         )
 
         # Margin-based contrastive loss
-        margin_loss = F.relu(
-            self.config.margin - (pos_logprob - neg_logprob)
-        )
+        margin_loss = F.relu(self.config.margin - (pos_logprob - neg_logprob))
 
         total = ce_loss + neg_ce + self.config.lambda_c * margin_loss
 
         return total, {
             "ce_loss": ce_loss.item() if hasattr(ce_loss, "item") else float(ce_loss),
             "neg_ce_loss": neg_ce.item() if hasattr(neg_ce, "item") else float(neg_ce),
-            "margin_loss": margin_loss.item() if hasattr(margin_loss, "item") else float(margin_loss),
-            "pos_logprob": pos_logprob.item() if hasattr(pos_logprob, "item") else float(pos_logprob),
-            "neg_logprob": neg_logprob.item() if hasattr(neg_logprob, "item") else float(neg_logprob),
+            "margin_loss": margin_loss.item()
+            if hasattr(margin_loss, "item")
+            else float(margin_loss),
+            "pos_logprob": pos_logprob.item()
+            if hasattr(pos_logprob, "item")
+            else float(pos_logprob),
+            "neg_logprob": neg_logprob.item()
+            if hasattr(neg_logprob, "item")
+            else float(neg_logprob),
             "total_loss": total.item() if hasattr(total, "item") else float(total),
         }
 

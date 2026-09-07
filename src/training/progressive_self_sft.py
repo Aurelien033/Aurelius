@@ -10,11 +10,10 @@ Reference: "Progressive Self-SFT for Aurelius" (Aurelius, 2026)
 
 from __future__ import annotations
 
-import json
 import logging
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Callable
+from dataclasses import dataclass
+from typing import Any
+from collections.abc import Callable
 
 import torch
 
@@ -116,14 +115,20 @@ class ProgressiveSelfSFT:
             if not prompts:
                 logger.warning(
                     "Stage %d (%s): no prompts available, skipping",
-                    stage, difficulty,
+                    stage,
+                    difficulty,
                 )
                 continue
 
             logger.info(
                 "Stage %d/%d (%s): temp=%.1f, samples=%d, epochs=%d, lr=%.1e",
-                stage + 1, self.config.n_stages, difficulty,
-                temperature, n_samples, n_epochs, lr,
+                stage + 1,
+                self.config.n_stages,
+                difficulty,
+                temperature,
+                n_samples,
+                n_epochs,
+                lr,
             )
 
             # Generate completions
@@ -135,39 +140,48 @@ class ProgressiveSelfSFT:
 
             logger.info(
                 "Stage %d: accepted %d/%d (%.1f%%)",
-                stage, len(accepted), len(candidates), acceptance_rate * 100,
+                stage,
+                len(accepted),
+                len(candidates),
+                acceptance_rate * 100,
             )
 
             # Accumulate training data
             for acc in accepted:
-                accumulated_data.append({
-                    "prompt": acc["prompt"],
-                    "response": acc["response"],
-                    "stage": stage,
-                    "difficulty": difficulty,
-                })
+                accumulated_data.append(
+                    {
+                        "prompt": acc["prompt"],
+                        "response": acc["response"],
+                        "stage": stage,
+                        "difficulty": difficulty,
+                    }
+                )
 
             # Train
             if trainer_fn is not None and accepted:
                 self.model = trainer_fn(
-                    self.model, accumulated_data,
-                    lr=lr, epochs=n_epochs,
+                    self.model,
+                    accumulated_data,
+                    lr=lr,
+                    epochs=n_epochs,
                 )
 
             # Save checkpoint
             ckpt_path = f"{self.config.checkpoint_dir}/stage_{stage}_{difficulty}"
             self._checkpoint_paths.append(ckpt_path)
 
-            self._stage_results.append(StageResult(
-                stage=stage,
-                difficulty=difficulty,
-                n_prompts=len(prompts),
-                n_accepted=len(accepted),
-                acceptance_rate=acceptance_rate,
-                temperature=temperature,
-                learning_rate=lr,
-                checkpoint_path=ckpt_path,
-            ))
+            self._stage_results.append(
+                StageResult(
+                    stage=stage,
+                    difficulty=difficulty,
+                    n_prompts=len(prompts),
+                    n_accepted=len(accepted),
+                    acceptance_rate=acceptance_rate,
+                    temperature=temperature,
+                    learning_rate=lr,
+                    checkpoint_path=ckpt_path,
+                )
+            )
 
         return self.summary()
 
@@ -199,7 +213,7 @@ class ProgressiveSelfSFT:
                         pad_token_id=self.tokenizer.eos_token_id,
                     )
                     response = self.tokenizer.decode(
-                        outputs[0][inputs["input_ids"].shape[1]:],
+                        outputs[0][inputs["input_ids"].shape[1] :],
                         skip_special_tokens=True,
                     )
                     candidates.append({"prompt": prompt, "response": response})

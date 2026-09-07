@@ -33,7 +33,7 @@ def test_federated_config_rejects_invalid() -> None:
         dict(dp_sigma=-0.1),
     ]:
         try:
-            FederatedConfig(**bad)     # type: ignore[arg-type]
+            FederatedConfig(**bad)  # type: ignore[arg-type]
         except ValueError:
             pass
         else:
@@ -74,12 +74,22 @@ def test_dp_noise_adds_variance_when_sigma_nonzero() -> None:
     """DP noise should make the reported values differ between two identically-seeded runs."""
     torch.manual_seed(0)
     cfg_quiet = FederatedConfig(
-        num_devices=4, rounds=2, local_cycles_per_round=1,
-        dp_sigma=0.0, seed=42, bank_size=4, bank_dim=8,
+        num_devices=4,
+        rounds=2,
+        local_cycles_per_round=1,
+        dp_sigma=0.0,
+        seed=42,
+        bank_size=4,
+        bank_dim=8,
     )
     cfg_loud = FederatedConfig(
-        num_devices=4, rounds=2, local_cycles_per_round=1,
-        dp_sigma=5.0, seed=42, bank_size=4, bank_dim=8,
+        num_devices=4,
+        rounds=2,
+        local_cycles_per_round=1,
+        dp_sigma=5.0,
+        seed=42,
+        bank_size=4,
+        bank_dim=8,
     )
     sim_quiet = FederatedBankSimulator(cfg_quiet)
     sim_loud = FederatedBankSimulator(cfg_loud)
@@ -89,8 +99,10 @@ def test_dp_noise_adds_variance_when_sigma_nonzero() -> None:
     r_loud = sim_loud.run()
     # The two reports should differ in federated_mean_strength because DP noise
     # perturbs the aggregated tensors.
-    assert abs(r_quiet.federated_mean_strength - r_loud.federated_mean_strength) > 0 or \
-           abs(r_quiet.federated_mean_fill - r_loud.federated_mean_fill) >= 0
+    assert (
+        abs(r_quiet.federated_mean_strength - r_loud.federated_mean_strength) > 0
+        or abs(r_quiet.federated_mean_fill - r_loud.federated_mean_fill) >= 0
+    )
 
 
 def test_isolated_baseline_run() -> None:
@@ -109,6 +121,7 @@ def test_delta_alignment_finite() -> None:
     cfg = FederatedConfig(num_devices=3, rounds=2, seed=19)
     report = FederatedBankSimulator(cfg).run()
     import math
+
     assert math.isfinite(report.delta_fill)
     assert math.isfinite(report.delta_strength)
     assert math.isfinite(report.federated_mean_fill)

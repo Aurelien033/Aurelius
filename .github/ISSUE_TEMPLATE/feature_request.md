@@ -3,7 +3,7 @@ name: Feature request
 about: Suggest an enhancement for Aurelius
 title: '[FEATURE] '
 labels: enhancement
-assignees: s3nna13
+assignees: Aurelien033
 ---
 
 ## Problem Statement

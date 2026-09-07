@@ -70,7 +70,13 @@ def test_llm_debate_voices_judge_admit() -> None:
     with patch("src.memory.llm_debate_voices.httpx.Client") as mock_client_cls:
         mock_resp = MagicMock()
         mock_resp.json.return_value = {
-            "choices": [{"message": {"content": '{"decision": "admit", "reason": "Good quality", "judge_confidence": 0.9}'}}]
+            "choices": [
+                {
+                    "message": {
+                        "content": '{"decision": "admit", "reason": "Good quality", "judge_confidence": 0.9}'
+                    }
+                }
+            ]
         }
         mock_client = MagicMock()
         mock_client.post.return_value = mock_resp

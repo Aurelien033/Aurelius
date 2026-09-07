@@ -130,7 +130,8 @@ def compute_load_balancing_loss(
     Returns:
         Scalar auxiliary loss.
     """
-    router_probs.shape[0]
+    if router_probs.shape[0] != top_k_indices.shape[0]:
+        raise ValueError("router_probs and top_k_indices must have the same token dimension")
 
     # f_i: fraction of tokens assigned to expert i (use top-1 assignment)
     top1_indices = top_k_indices[:, 0]  # (N,)

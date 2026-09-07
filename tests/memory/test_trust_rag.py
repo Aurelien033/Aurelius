@@ -84,7 +84,7 @@ def test_retrieve_detects_same_tokens_diff_provenance_contradiction() -> None:
     store = [
         _block("p1", tokens=(10, 11, 12), provenance="source_A"),
         _block("p2", tokens=(10, 11, 12), provenance="source_B"),  # same tokens
-        _block("ok", tokens=(99,), provenance="source_C"),          # different tokens
+        _block("ok", tokens=(99,), provenance="source_C"),  # different tokens
     ]
     result = TrustRAGController().retrieve(store)
     assert len(result.contradiction_pairs) == 1

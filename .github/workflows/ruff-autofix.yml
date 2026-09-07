@@ -1,5 +1,11 @@
 name: Ruff Autofix
 
+# Enforces ruff formatting/lint cleanliness. Fails with a fix-it message when
+# code needs `ruff format` or `ruff check --fix` — no bot PRs (this repo has
+# GitHub Actions PR creation disabled, which made the previous peter-evans
+# auto-fix step crash CI with "GitHub Actions is not permitted to create or
+# approve pull requests").
+
 on:
   push:
     branches-ignore: [main]
@@ -9,8 +15,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   autofix:
@@ -19,8 +24,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -28,13 +31,16 @@ jobs:
           python-version: '3.12'
 
       - name: Install ruff
-        run: pip install ruff==0.9.0
+        # Pinned to the repo's dev-dependency floor; must match [tool.ruff] in
+        # pyproject.toml so local and CI results agree.
+        run: pip install ruff==0.15.12
 
       - name: Ruff format
         run: ruff format src/ tests/ agent/ aurelius_cli/ gateway/ acp_adapter/ cron/ plugins/ tools/
 
       - name: Ruff fix
-        run: ruff check --fix src/ tests/ agent/ aurelius_cli/ gateway/ acp_adapter/ cron/ plugins/ tools/
+        # --ignore=I001 matches ci.yml's lint gate so the two jobs agree.
+        run: ruff check --fix --ignore=I001 src/ tests/ agent/ aurelius_cli/ gateway/ acp_adapter/ cron/ plugins/ tools/
 
       - name: Check for changes
         id: diff
@@ -45,12 +51,11 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create pull request for fixes
+      - name: Fail on unformatted code
         if: steps.diff.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v7
-        with:
-          commit-message: "style: ruff autofix [skip ci]"
-          title: "style: ruff autofix"
-          body: "Automated ruff format + fix applied by CI."
-          branch: automated/ruff-autofix
-          base: main
+        run: |
+          echo "::error::ruff found formatting/lint fixes to apply. Run locally and push:"
+          echo "::error::  ruff format src/ tests/ agent/ aurelius_cli/ gateway/ acp_adapter/ cron/ plugins/ tools/"
+          echo "::error::  ruff check --fix src/ tests/ agent/ aurelius_cli/ gateway/ acp_adapter/ cron/ plugins/ tools/"
+          git diff --stat
+          exit 1

@@ -40,7 +40,7 @@ def test_helm_chart_values_default_service_type() -> None:
 
 def test_helm_chart_values_default_image_repository() -> None:
     v = HelmChartValues()
-    assert v.image_repository == "ghcr.io/s3nna13/aurelius"
+    assert v.image_repository == "ghcr.io/Aurelien033/aurelius"
 
 
 def test_helm_chart_values_default_image_tag() -> None:

@@ -6,8 +6,10 @@ transient-fault handling in network and I/O operations.
 
 from __future__ import annotations
 
+import asyncio
 import random
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -60,6 +62,25 @@ class RetryPolicy:
                 delay = self._compute_delay(attempt)
                 time.sleep(delay)
         # Unreachable, but keeps type-checkers happy.
+        raise last_exc  # pragma: no cover
+
+    async def async_execute(
+        self,
+        fn: Callable[..., Awaitable[Any]],
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Async variant — uses ``asyncio.sleep`` so the event loop is not blocked."""
+        last_exc: BaseException | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                return await fn(*args, **kwargs)
+            except BaseException as exc:
+                last_exc = exc
+                if attempt >= self.max_retries or not self._should_retry(exc):
+                    raise
+                delay = self._compute_delay(attempt)
+                await asyncio.sleep(delay)
         raise last_exc  # pragma: no cover
 
     def _should_retry(self, exc: BaseException) -> bool:

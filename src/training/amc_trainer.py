@@ -50,22 +50,22 @@ class AMCTrainConfig:
 
 
 class AMCModelProtocol(Protocol):
-  def train(self, mode: bool = True) -> Any: ...
-  def eval(self) -> Any: ...
-  def named_parameters(self) -> Any: ...
-  def parameters(self) -> Any: ...
-  def state_dict(self) -> dict[str, Any]: ...
-  def load_state_dict(self, state_dict: dict[str, Any]) -> None: ...
+    def train(self, mode: bool = True) -> Any: ...
+    def eval(self) -> Any: ...
+    def named_parameters(self) -> Any: ...
+    def parameters(self) -> Any: ...
+    def state_dict(self) -> dict[str, Any]: ...
+    def load_state_dict(self, state_dict: dict[str, Any]) -> None: ...
 
-  def forward(
-      self,
-      input_ids: torch.Tensor,
-      *,
-      session_id: str | list[str] | None = None,
-      step: int | list[int] = 0,
-      use_amc: bool = True,
-      return_memory: bool = False,
-  ) -> AMCModelOutput: ...
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        *,
+        session_id: str | list[str] | None = None,
+        step: int | list[int] = 0,
+        use_amc: bool = True,
+        return_memory: bool = False,
+    ) -> AMCModelOutput: ...
 
 
 def _batch_step(batch: AMCTrainBatch) -> int:
@@ -209,7 +209,7 @@ class CheckpointManager:
         return path
 
     def load(self, path: Path | str) -> dict[str, Any]:
-        return torch.load(Path(path), map_location="cpu", weights_only=False)
+        return torch.load(Path(path), map_location="cpu", weights_only=True)
 
 
 class AMCTrainer:

@@ -134,7 +134,7 @@ class ReferenceModelManager:
             log_probs: shape (batch,)
         """
         with torch.no_grad():
-            logits = self._ref_model(input_ids)
+            _, logits, _ = self._ref_model(input_ids)
             return SequenceLogProbs.compute(logits, labels)
 
     def is_frozen(self) -> bool:
@@ -195,10 +195,10 @@ class DPOTrainer:
         self.optimizer.zero_grad()
 
         # Policy log-probs (with grad)
-        policy_chosen_logits = self.policy_model(chosen_ids)
+        _, policy_chosen_logits, _ = self.policy_model(chosen_ids)
         policy_chosen_logps = SequenceLogProbs.compute(policy_chosen_logits, chosen_labels)
 
-        policy_rejected_logits = self.policy_model(rejected_ids)
+        _, policy_rejected_logits, _ = self.policy_model(rejected_ids)
         policy_rejected_logps = SequenceLogProbs.compute(policy_rejected_logits, rejected_labels)
 
         # Reference log-probs (no_grad inside manager)

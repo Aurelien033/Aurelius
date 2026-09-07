@@ -204,8 +204,7 @@ class StateReconstructor:
 
         def _tier2_signature(memory: EpisodicMemory) -> list[tuple[str, str, float]]:
             return sorted(
-                (entry.role, entry.content, round(entry.importance, 6))
-                for entry in memory._entries
+                (entry.role, entry.content, round(entry.importance, 6)) for entry in memory._entries
             )
 
         tier2_mismatch: list[str] = []
@@ -213,18 +212,14 @@ class StateReconstructor:
             tier2_mismatch.append("tier2_entries")
 
         def _tier3_store_signature(hook: AMCTier3Hook) -> dict[str, tuple[Any, TrustLevel]]:
-            return {
-                key: (entry.value, entry.trust_level)
-                for key, entry in hook._store.items()
-            }
+            return {key: (entry.value, entry.trust_level) for key, entry in hook._store.items()}
 
         tier3_mismatch: list[str] = []
         if _tier3_store_signature(live_tier3) != _tier3_store_signature(reconstructed.tier3):
             tier3_mismatch.append("tier3_store")
 
         live_q = {
-            key: (entry.value, entry.trust_level)
-            for key, entry in live_tier3._quarantine.items()
+            key: (entry.value, entry.trust_level) for key, entry in live_tier3._quarantine.items()
         }
         recon_q = {
             key: (entry.value, entry.trust_level)

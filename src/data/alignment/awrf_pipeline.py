@@ -14,16 +14,21 @@ Everything is driven by an injected teacher with a `.complete(prompt)->str`
 method (see teacher_backend.CleanTeacher). No network in tests: pass a stub.
 The why-density gate reuses the EvalLab scorer so eval and data-gen agree.
 """
+
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Iterable, Protocol
+from typing import Protocol
+from collections.abc import Iterable
 
 from src.eval.alignment.why_density import why_density_score
 
 from .adac_schema import (
-    ADACScenario, parse_scenarios, response_gen_prompt, scenario_gen_prompt,
+    ADACScenario,
+    parse_scenarios,
+    response_gen_prompt,
+    scenario_gen_prompt,
 )
 
 
@@ -49,8 +54,8 @@ class ADACExample:
     scenario_id: str
     domain: str
     principle: list[str]
-    prompt: str            # the user-advice request
-    response: str          # the FINAL rewritten reason-rich response
+    prompt: str  # the user-advice request
+    response: str  # the FINAL rewritten reason-rich response
     why_density: float
     kept: bool
 
@@ -85,12 +90,18 @@ def make_example(
     """Produce one AWRF example with the why-density gate applied."""
     _, rewritten = awrf_rewrite(teacher, scenario)
     wd = why_density_score(rewritten)
-    prompt = (f"I want to {scenario.user_goal}. I'm considering "
-              f"{scenario.tempting_shortcut}. What should I do?")
+    prompt = (
+        f"I want to {scenario.user_goal}. I'm considering "
+        f"{scenario.tempting_shortcut}. What should I do?"
+    )
     return ADACExample(
-        scenario_id=scenario.scenario_id, domain=scenario.domain,
-        principle=scenario.aurelius_principle, prompt=prompt,
-        response=rewritten, why_density=wd, kept=wd >= min_why,
+        scenario_id=scenario.scenario_id,
+        domain=scenario.domain,
+        principle=scenario.aurelius_principle,
+        prompt=prompt,
+        response=rewritten,
+        why_density=wd,
+        kept=wd >= min_why,
     )
 
 
@@ -133,11 +144,18 @@ def write_sft_jsonl(examples: list[ADACExample], path: str, kept_only: bool = Tr
         for e in examples:
             if kept_only and not e.kept:
                 continue
-            f.write(json.dumps({
-                "prompt": e.prompt, "response": e.response,
-                "why_density": round(e.why_density, 3), "domain": e.domain,
-                "source": "adac_awrf",
-            }) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "prompt": e.prompt,
+                        "response": e.response,
+                        "why_density": round(e.why_density, 3),
+                        "domain": e.domain,
+                        "source": "adac_awrf",
+                    }
+                )
+                + "\n"
+            )
             n += 1
     return n
 
@@ -147,7 +165,8 @@ def corpus_stats(examples: list[ADACExample]) -> dict:
         return {"n": 0, "kept": 0, "keep_frac": 0.0, "mean_why": 0.0}
     kept = sum(e.kept for e in examples)
     return {
-        "n": len(examples), "kept": kept,
+        "n": len(examples),
+        "kept": kept,
         "keep_frac": kept / len(examples),
         "mean_why": sum(e.why_density for e in examples) / len(examples),
     }

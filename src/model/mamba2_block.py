@@ -33,6 +33,7 @@ discretization of the continuous SSM:
     h_t = A_disc * h_{t-1}  +  B_disc * x_t
     y_t = C_t @ h_t         +  D * x_t
 """
+
 from __future__ import annotations
 
 import math
@@ -74,21 +75,16 @@ class Mamba2Config:
             raise ValueError(f"headdim must be positive, got {self.headdim}")
         if self.d_inner % self.headdim != 0:
             raise ValueError(
-                f"d_inner ({self.d_inner}) must be divisible by "
-                f"headdim ({self.headdim})"
+                f"d_inner ({self.d_inner}) must be divisible by headdim ({self.headdim})"
             )
         if self.expand <= 0:
             raise ValueError(f"expand must be positive, got {self.expand}")
         if self.d_conv < 1:
             raise ValueError(f"d_conv must be >= 1, got {self.d_conv}")
         if not (0.0 < self.dt_min <= self.dt_max):
-            raise ValueError(
-                f"dt_min/dt_max invalid: {self.dt_min}/{self.dt_max}"
-            )
+            raise ValueError(f"dt_min/dt_max invalid: {self.dt_min}/{self.dt_max}")
         if not (0.0 < self.A_init_range[0] <= self.A_init_range[1]):
-            raise ValueError(
-                f"A_init_range invalid: {self.A_init_range}"
-            )
+            raise ValueError(f"A_init_range invalid: {self.A_init_range}")
 
     @property
     def d_inner(self) -> int:
@@ -135,13 +131,7 @@ class Mamba2Block(nn.Module):
         #   B      : ngroups * d_state             (input SSM matrix)
         #   C      : ngroups * d_state             (output SSM matrix)
         #   dt     : nheads                        (per-head discretization)
-        in_proj_dim = (
-            d_inner
-            + d_inner
-            + ngroups * d_state
-            + ngroups * d_state
-            + nheads
-        )
+        in_proj_dim = d_inner + d_inner + ngroups * d_state + ngroups * d_state + nheads
         self.in_proj = nn.Linear(d_in, in_proj_dim, bias=False)
 
         # --- 2. Short causal depth-wise convolution ---------------------
@@ -220,9 +210,7 @@ class Mamba2Block(nn.Module):
                 f"state must be 3-(H,HD,N) or 4-(B,H,HD,N), got shape {tuple(state.shape)}"
             )
         if tuple(state.shape) != expected:
-            raise ValueError(
-                f"state shape {tuple(state.shape)} != expected {expected}"
-            )
+            raise ValueError(f"state shape {tuple(state.shape)} != expected {expected}")
         self._state = state
 
     # ------------------------------------------------------------------
@@ -270,9 +258,9 @@ class Mamba2Block(nn.Module):
         x_proj, z, B_raw, C_raw, dt_raw = zxbcdt.split(splits, dim=-1)
 
         # 2. Short causal depth-wise conv + SiLU on x_proj -------------------
-        x_conv = x_proj.transpose(1, 2)                          # (B, d_inner, L)
-        x_conv = self.conv1d(x_conv)[..., :L]                    # truncate right padding
-        x_conv = x_conv.transpose(1, 2)                          # (B, L, d_inner)
+        x_conv = x_proj.transpose(1, 2)  # (B, d_inner, L)
+        x_conv = self.conv1d(x_conv)[..., :L]  # truncate right padding
+        x_conv = x_conv.transpose(1, 2)  # (B, L, d_inner)
         x_conv = F.silu(x_conv)
 
         # Reshape x_conv to multi-head: (B, L, H, HD)
@@ -289,39 +277,41 @@ class Mamba2Block(nn.Module):
         C_h = repeat(C_g, "b l g n -> b l (g rep) n", rep=heads_per_group)
 
         # 4. Discretization Δ via softplus on learned bias --------------------
-        dt = F.softplus(dt_raw + self.dt_bias)                   # (B, L, H)
+        dt = F.softplus(dt_raw + self.dt_bias)  # (B, L, H)
         dt = torch.clamp(dt, min=self.dt_init_floor)
 
         # 5. Continuous-time A (diagonal, per-head) ---------------------------
-        A = -torch.exp(self.A_log.float())                       # (H,)
+        A = -torch.exp(self.A_log.float())  # (H,)
 
         # 6. Sequential selective scan ---------------------------------------
         # state: (B, H, HD, N). Initialize from prev_state or zeros.
         if prev_state is not None:
             if prev_state.shape[0] != B:
-                raise ValueError(
-                    f"prev_state batch {prev_state.shape[0]} != input batch {B}"
-                )
+                raise ValueError(f"prev_state batch {prev_state.shape[0]} != input batch {B}")
             state = prev_state.clone()
         else:
             state = torch.zeros(
-                B, cfg.nheads, cfg.headdim, cfg.d_state,
-                device=x.device, dtype=x.dtype,
+                B,
+                cfg.nheads,
+                cfg.headdim,
+                cfg.d_state,
+                device=x.device,
+                dtype=x.dtype,
             )
 
         outputs: list[torch.Tensor] = []
         # Pre-compute per-head A_disc, B_disc, C per token inside the loop.
         for t in range(L):
-            x_t = x_h[:, t]                                      # (B, H, HD)
-            B_t = B_h[:, t]                                      # (B, H, N)
-            C_t = C_h[:, t]                                      # (B, H, N)
-            dt_t = dt[:, t]                                      # (B, H)
+            x_t = x_h[:, t]  # (B, H, HD)
+            B_t = B_h[:, t]  # (B, H, N)
+            C_t = C_h[:, t]  # (B, H, N)
+            dt_t = dt[:, t]  # (B, H)
 
             # ZOH discretization: A_disc = exp(Δ*A). Δ is (B, H), A is (H,).
             # Result shape: (B, H, 1, 1) for broadcasting across (HD, N).
-            A_disc = torch.exp(
-                dt_t.unsqueeze(-1).unsqueeze(-1) * A.view(1, cfg.nheads, 1, 1)
-            ).to(x.dtype)
+            A_disc = torch.exp(dt_t.unsqueeze(-1).unsqueeze(-1) * A.view(1, cfg.nheads, 1, 1)).to(
+                x.dtype
+            )
 
             # B_disc ≈ Δ * B, lifted to (B, H, 1, N) for multiplication with
             # x_t which is (B, H, HD). We form the outer product per head:

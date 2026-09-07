@@ -254,10 +254,7 @@ class AureliusTransformer(nn.Module):
         mask: torch.Tensor | None = None,
         labels: torch.Tensor | None = None,
         past_key_values: list[tuple[torch.Tensor, torch.Tensor] | dict | None] | None = None,
-<<<<<<< HEAD
-=======
         skip_layers: list[int] | None = None,
->>>>>>> wip/alignment-evallab
     ) -> tuple[
         torch.Tensor | None,
         torch.Tensor,
@@ -298,14 +295,13 @@ class AureliusTransformer(nn.Module):
 
         present_key_values: list[tuple[torch.Tensor, torch.Tensor] | dict | None] = []
         moe_aux_loss = torch.tensor(0.0, device=x.device)
-        skip_set = set(skip_layers) if skip_layers else set()   # LayerDrop / skip-native hook (default-off)
+        skip_set = (
+            set(skip_layers) if skip_layers else set()
+        )  # LayerDrop / skip-native hook (default-off)
         for i, layer in enumerate(self.layers):
-<<<<<<< HEAD
-=======
-            if i in skip_set:                                   # identity-pass: x unchanged, no KV produced
+            if i in skip_set:  # identity-pass: x unchanged, no KV produced
                 present_key_values.append(None)
                 continue
->>>>>>> wip/alignment-evallab
             past_kv = (
                 _normalize_past_kv(past_key_values[i])
                 if past_key_values is not None and i < len(past_key_values)

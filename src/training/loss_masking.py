@@ -10,8 +10,8 @@ Reference: "Token-Level Difficulty Masking for Efficient SFT" (Aurelius, 2026)
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Callable
+from dataclasses import dataclass
+from collections.abc import Callable
 
 import torch
 import torch.nn.functional as F
@@ -112,7 +112,7 @@ class TokenDifficultyMask:
 
         # Mean over non-masked, non-ignored positions
         n_effective = (masked_loss > 0.0).sum()
-        n_valid_total = valid_mask.sum()
+        _n_valid_total = valid_mask.sum()
 
         if n_effective < 1:
             return ce[valid_mask].mean()  # Fallback to standard CE

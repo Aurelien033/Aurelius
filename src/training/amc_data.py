@@ -191,11 +191,7 @@ class AMCDataCollator:
         steps = [item.step for item in batch]
 
         max_k = max(
-            (
-                item.retrieved_embeddings.shape[1]
-                if item.retrieved_embeddings is not None
-                else 0
-            )
+            (item.retrieved_embeddings.shape[1] if item.retrieved_embeddings is not None else 0)
             for item in batch
         )
         padded_retrieved: torch.Tensor | None

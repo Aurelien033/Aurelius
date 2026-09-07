@@ -136,8 +136,7 @@ def _deserialize_tier3(data: dict[str, Any]) -> AMCTier3Hook:
     config_raw = data.get("config") or {}
     hook = AMCTier3Hook(AMCTier3Config(**config_raw))
     hook._store = {
-        str(key): _tier3_entry_from_dict(entry)
-        for key, entry in (data.get("store") or {}).items()
+        str(key): _tier3_entry_from_dict(entry) for key, entry in (data.get("store") or {}).items()
     }
     hook._quarantine = {
         str(key): _tier3_entry_from_dict(entry)

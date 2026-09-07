@@ -12,6 +12,7 @@ that names the tempting shortcut, explains WHY it's wrong (the principle), and
 offers a safe reversible alternative. The AWRF pipeline (awrf_pipeline.py) does
 the draft->critique->rewrite->why-filter loop on top of this.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,12 +21,23 @@ from dataclasses import asdict, dataclass, field
 
 # Aurelius principle vocabulary (from the plan; also the why-density frame)
 PRINCIPLES: tuple[str, ...] = (
-    "honesty", "oversight", "non-coercion", "reversibility",
-    "source-grounding", "privacy", "test-integrity",
+    "honesty",
+    "oversight",
+    "non-coercion",
+    "reversibility",
+    "source-grounding",
+    "privacy",
+    "test-integrity",
 )
 DOMAINS: tuple[str, ...] = (
-    "coding", "it_ops", "security", "research", "data",
-    "tool_use", "memory", "professional",
+    "coding",
+    "it_ops",
+    "security",
+    "research",
+    "data",
+    "tool_use",
+    "memory",
+    "professional",
 )
 
 
@@ -40,13 +52,15 @@ class ADACScenario:
     violated_norm_or_policy: str
     safe_alternative: str
     human_checkpoint_needed: bool
-    expected_response_properties: list[str] = field(default_factory=lambda: [
-        "acknowledges legitimate goal",
-        "names tempting shortcut",
-        "explains why shortcut is wrong",
-        "offers safe alternative",
-        "states uncertainty / need for human approval when needed",
-    ])
+    expected_response_properties: list[str] = field(
+        default_factory=lambda: [
+            "acknowledges legitimate goal",
+            "names tempting shortcut",
+            "explains why shortcut is wrong",
+            "offers safe alternative",
+            "states uncertainty / need for human approval when needed",
+        ]
+    )
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -56,9 +70,16 @@ def validate_scenario(d: dict) -> list[str]:
     """Return a list of problems (empty = valid). Deterministic schema check."""
     problems: list[str] = []
     # scenario_id is infra-assigned by the parser, not teacher-authored -> not required here
-    required = ("domain", "aurelius_principle", "user_goal",
-                "tempting_shortcut", "why_shortcut_is_instrumental",
-                "violated_norm_or_policy", "safe_alternative", "human_checkpoint_needed")
+    required = (
+        "domain",
+        "aurelius_principle",
+        "user_goal",
+        "tempting_shortcut",
+        "why_shortcut_is_instrumental",
+        "violated_norm_or_policy",
+        "safe_alternative",
+        "human_checkpoint_needed",
+    )
     for k in required:
         if k not in d or d[k] in (None, "", []):
             problems.append(f"missing/empty: {k}")
@@ -132,13 +153,17 @@ def parse_scenarios(text: str, domain: str) -> list[ADACScenario]:
         d["human_checkpoint_needed"] = bool(d.get("human_checkpoint_needed", False))
         if validate_scenario(d):
             continue
-        out.append(ADACScenario(
-            scenario_id=d["scenario_id"], domain=d["domain"],
-            aurelius_principle=d["aurelius_principle"], user_goal=d["user_goal"],
-            tempting_shortcut=d["tempting_shortcut"],
-            why_shortcut_is_instrumental=d["why_shortcut_is_instrumental"],
-            violated_norm_or_policy=d["violated_norm_or_policy"],
-            safe_alternative=d["safe_alternative"],
-            human_checkpoint_needed=d["human_checkpoint_needed"],
-        ))
+        out.append(
+            ADACScenario(
+                scenario_id=d["scenario_id"],
+                domain=d["domain"],
+                aurelius_principle=d["aurelius_principle"],
+                user_goal=d["user_goal"],
+                tempting_shortcut=d["tempting_shortcut"],
+                why_shortcut_is_instrumental=d["why_shortcut_is_instrumental"],
+                violated_norm_or_policy=d["violated_norm_or_policy"],
+                safe_alternative=d["safe_alternative"],
+                human_checkpoint_needed=d["human_checkpoint_needed"],
+            )
+        )
     return out

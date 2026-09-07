@@ -121,8 +121,12 @@ def test_same_seed_produces_identical_candidates() -> None:
 
 
 def test_different_trajectory_index_differs_with_noise() -> None:
-    p0 = generate_replayable_perturbation(replay_seed=1, trajectory_index=0, width=6, noise_sigma=0.5)
-    p1 = generate_replayable_perturbation(replay_seed=1, trajectory_index=1, width=6, noise_sigma=0.5)
+    p0 = generate_replayable_perturbation(
+        replay_seed=1, trajectory_index=0, width=6, noise_sigma=0.5
+    )
+    p1 = generate_replayable_perturbation(
+        replay_seed=1, trajectory_index=1, width=6, noise_sigma=0.5
+    )
     assert p0 != p1
 
 
@@ -262,9 +266,7 @@ def test_replay_record_changes_when_selection_changes() -> None:
         replay_seed=cfg.replay_seed,
         deterministic_tiebreaker="manual",
         selected_score=trial.candidates[-1].score,
-        rejected_candidate_ids=tuple(
-            c.candidate_id for c in trial.candidates[:-1]
-        ),
+        rejected_candidate_ids=tuple(c.candidate_id for c in trial.candidates[:-1]),
         created_at=trial.selection.created_at,
     )
     replay_alt = build_slr_replay_record(

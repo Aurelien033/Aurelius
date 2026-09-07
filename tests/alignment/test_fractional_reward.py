@@ -28,14 +28,12 @@ Tests:
 
 from __future__ import annotations
 
-import json
 
 import pytest
 
 from src.training.multi_domain_verifier import (
     DomainVerifierConfig,
     MultiDomainVerifier,
-    REGISTERED_DOMAINS,
 )
 
 
@@ -113,9 +111,7 @@ def test_verify_math_near():
 
 def test_verify_math_wrong():
     mdv = MultiDomainVerifier()
-    score = mdv.verify(
-        "math", "What is 2+2?", "It is 5.", answer="4", tolerance_pct=5.0
-    )
+    score = mdv.verify("math", "What is 2+2?", "It is 5.", answer="4", tolerance_pct=5.0)
     assert score == pytest.approx(0.0)
 
 
@@ -283,7 +279,12 @@ def test_floor_ceiling_clamping():
     mdv = MultiDomainVerifier(config=cfg)
     runner = _make_fake_runner(passed=5, total=5)
     score = mdv.verify(
-        "code", "p", "c", test_runner=runner, task_id="t", all_pass_bonus=20.0  # type: ignore[call-arg]
+        "code",
+        "p",
+        "c",
+        test_runner=runner,
+        task_id="t",
+        all_pass_bonus=20.0,  # type: ignore[call-arg]
     )
     # 5/5 + 20.0 = 21.0 → ceiling=10.0
     assert score == pytest.approx(10.0)

@@ -40,9 +40,9 @@ class ServingHarnessConfig:
 class PromptResult:
     prompt_id: int
     generated_ids: list[int]
-    routing_decision: str          # "fast" | "balanced" | "thorough"
-    logit_margin: float            # proxy quality: p_best - p_second on first generated token
-    compute_proxy: float           # tokens * policy cost multiplier
+    routing_decision: str  # "fast" | "balanced" | "thorough"
+    logit_margin: float  # proxy quality: p_best - p_second on first generated token
+    compute_proxy: float  # tokens * policy cost multiplier
     bank_fill_at_route_time: int
 
 
@@ -94,8 +94,8 @@ def greedy_decode(
     with torch.no_grad():
         for step in range(max_new_tokens):
             out = model(current_ids, preference_bank=bank)
-            logits = out.logits                     # (1, T, V)
-            next_token_logits = logits[:, -1, :]    # (1, V)
+            logits = out.logits  # (1, T, V)
+            next_token_logits = logits[:, -1, :]  # (1, V)
 
             if step == 0:
                 # Capture first generated token's logit margin
@@ -159,14 +159,16 @@ def run_harness(
             else 0
         )
 
-        results.append(PromptResult(
-            prompt_id=prompt_id,
-            generated_ids=generated,
-            routing_decision=decision.value,
-            logit_margin=logit_margin,
-            compute_proxy=compute_proxy,
-            bank_fill_at_route_time=bank_fill,
-        ))
+        results.append(
+            PromptResult(
+                prompt_id=prompt_id,
+                generated_ids=generated,
+                routing_decision=decision.value,
+                logit_margin=logit_margin,
+                compute_proxy=compute_proxy,
+                bank_fill_at_route_time=bank_fill,
+            )
+        )
 
     # Aggregate
     policy_dist: dict[str, int] = {"fast": 0, "balanced": 0, "thorough": 0}
@@ -176,8 +178,7 @@ def run_harness(
         per_class_margins[r.routing_decision].append(r.logit_margin)
 
     mean_margin_per_policy = {
-        cls: float(sum(ms) / len(ms)) if ms else 0.0
-        for cls, ms in per_class_margins.items()
+        cls: float(sum(ms) / len(ms)) if ms else 0.0 for cls, ms in per_class_margins.items()
     }
 
     total_compute = sum(r.compute_proxy for r in results)

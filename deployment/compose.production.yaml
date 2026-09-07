@@ -10,12 +10,15 @@ services:
     build:
       context: ..
       dockerfile: deployment/Dockerfile
-    image: ghcr.io/s3nna13/aurelius:${TAG:-v1.0.0} # TODO: pin to digest in production (e.g., @sha256:...)
+    image: ghcr.io/Aurelien033/aurelius:${TAG:-v1.0.0} # TODO: pin to digest in production (e.g., @sha256:...)
     ports:
       - "8080:8080"
     environment:
       - AURELIUS_VERSION=${AURELIUS_VERSION:-0.1.0}
       - AURELIUS_LOG_LEVEL=${AURELIUS_LOG_LEVEL:-info}
+      # Code default is loopback (CWE-605); containers must bind all interfaces
+      # for the published port to work.
+      - AURELIUS_HOST=0.0.0.0
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')"]
       interval: 15s
@@ -35,7 +38,7 @@ services:
     build:
       context: ..
       dockerfile: middle/Dockerfile
-    image: ghcr.io/s3nna13/aurelius-middle:${TAG:-v1.0.0} # TODO: pin to digest in production
+    image: ghcr.io/Aurelien033/aurelius-middle:${TAG:-v1.0.0} # TODO: pin to digest in production
     ports:
       - "3001:3001"
     environment:
@@ -44,7 +47,7 @@ services:
       - UPSTREAM_URL=http://aurelius-api:8080
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
       - MIDDLE_LOG_LEVEL=info
-      - AURELIUS_API_KEY=${AURELIUS_API_KEY:-}
+      - AURELIUS_API_KEY=${AURELIUS_API_KEY:?AURELIUS_API_KEY must be set}
       - UPLOAD_DIR=/data/uploads
     volumes:
       - middle-data:/data
@@ -66,7 +69,7 @@ services:
     build:
       context: ..
       dockerfile: deployment/frontend.Dockerfile
-    image: ghcr.io/s3nna13/aurelius-frontend:${TAG:-v1.0.0} # TODO: pin to digest in production
+    image: ghcr.io/Aurelien033/aurelius-frontend:${TAG:-v1.0.0} # TODO: pin to digest in production
     ports:
       - "3000:80"
     environment:
@@ -98,14 +101,14 @@ services:
     build:
       context: ../crates/api-gateway
       dockerfile: Dockerfile
-    image: ghcr.io/s3nna13/aurelius-gateway:${TAG:-v1.0.0} # TODO: pin to digest in production
+    image: ghcr.io/Aurelien033/aurelius-gateway:${TAG:-v1.0.0} # TODO: pin to digest in production
     ports:
       - "8081:8080"
     environment:
       - GATEWAY_HOST=0.0.0.0
       - GATEWAY_PORT=8080
       - UPSTREAM_URL=http://middle:3001
-      - JWT_SECRET=${JWT_SECRET:-}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
       - RATE_LIMIT_RPS=${RATE_LIMIT_RPS:-100}
       - RATE_LIMIT_BURST=${RATE_LIMIT_BURST:-200}
     depends_on:

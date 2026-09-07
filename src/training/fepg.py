@@ -27,11 +27,11 @@ tasks, or if the entropy term causes mode collapse, demote to research-only.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable
+from collections.abc import Callable
 
-EntropyFn = Callable[[str], float]          # prompt -> output-distribution entropy (0..1)
-ErrorFn = Callable[[str, str], float]       # (prompt, completion) -> prediction error E
-StepFn = Callable[[float, float], dict]     # (E, S) -> train step result
+EntropyFn = Callable[[str], float]  # prompt -> output-distribution entropy (0..1)
+ErrorFn = Callable[[str, str], float]  # (prompt, completion) -> prediction error E
+StepFn = Callable[[float, float], dict]  # (E, S) -> train step result
 
 
 @dataclass
@@ -65,7 +65,7 @@ class FEPGTrainer:
         step_fn: StepFn,
         *,
         T: float = 1.0,
-        collapse_floor: float = 0.05,        # S below this = mode collapse
+        collapse_floor: float = 0.05,  # S below this = mode collapse
         adaptive_T: bool = True,
     ) -> None:
         self.entropy_fn = entropy_fn
@@ -88,8 +88,13 @@ class FEPGTrainer:
         return FEPGStep(E=E, S=S, T=T, F=F, collapsed=collapsed, result=res)
 
 
-def fepg_verdict(fepg_acc: float, grpo_acc: float, min_gain: float = -0.02,
-                 n_collapse_steps: int = 0, total_steps: int = 1) -> dict:
+def fepg_verdict(
+    fepg_acc: float,
+    grpo_acc: float,
+    min_gain: float = -0.02,
+    n_collapse_steps: int = 0,
+    total_steps: int = 1,
+) -> dict:
     """Falsifier-gated verdict (Part 3 A.3): must match GRPO; no mode collapse.
 
     min_gain is slightly negative (within noise) — FEPG need not beat GRPO, but

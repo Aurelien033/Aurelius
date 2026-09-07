@@ -8,11 +8,14 @@ Tracks failure rate and transitions between states:
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class _State(Enum):
@@ -98,6 +101,9 @@ class CircuitBreaker:
                     self._state = _State.HALF_OPEN
                     self._half_open_calls = 0
                     self._success_count = 0
+                    _LOGGER.info(
+                        "Circuit %r: OPEN → HALF_OPEN (recovery timeout elapsed)", self.name
+                    )
                 else:
                     raise CircuitBreakerOpenError(f"Circuit {self.name!r} is OPEN")
             if self._state is _State.HALF_OPEN:
@@ -112,6 +118,9 @@ class CircuitBreaker:
             if self._state is _State.HALF_OPEN:
                 self._success_count += 1
                 if self._success_count >= self.success_threshold_half_open:
+                    _LOGGER.info(
+                        "Circuit %r: HALF_OPEN → CLOSED (success threshold reached)", self.name
+                    )
                     self._reset()
             elif self._state is _State.CLOSED:
                 self._failure_count = 0
@@ -124,8 +133,15 @@ class CircuitBreaker:
                 self._state = _State.OPEN
                 self._half_open_calls = 0
                 self._success_count = 0
+                _LOGGER.warning("Circuit %r: HALF_OPEN → OPEN (probe failed)", self.name)
             elif self._state is _State.CLOSED and self._failure_count >= self.failure_threshold:
                 self._state = _State.OPEN
+                _LOGGER.warning(
+                    "Circuit %r: CLOSED → OPEN (failure_count=%d reached threshold=%d)",
+                    self.name,
+                    self._failure_count,
+                    self.failure_threshold,
+                )
 
     def _reset(self) -> None:
         self._state = _State.CLOSED

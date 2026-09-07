@@ -3,7 +3,7 @@ name: Bug report
 about: Report a bug in Aurelius
 title: '[BUG] '
 labels: bug
-assignees: s3nna13
+assignees: Aurelien033
 ---
 
 ## Describe the Bug

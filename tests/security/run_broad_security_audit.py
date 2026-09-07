@@ -32,10 +32,16 @@ SCAN_DIRS = [_REPO_ROOT / "src", _REPO_ROOT / "gateway", _REPO_ROOT / "tools", _
 IGNORE_DIRS = {"__pycache__", ".git", "node_modules", ".venv", "venv", "build", "dist"}
 
 _SUSPICIOUS_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    ("hardcoded_secret_assignment", re.compile(r"""(?i)(?:api_key|secret|password|token)\s*=\s*['"][A-Za-z0-9_\-]{20,}['"]""")),
+    (
+        "hardcoded_secret_assignment",
+        re.compile(r"""(?i)(?:api_key|secret|password|token)\s*=\s*['"][A-Za-z0-9_\-]{20,}['"]"""),
+    ),
     ("eval_usage", re.compile(r"\beval\s*\(")),
     ("exec_usage", re.compile(r"\bexec\s*\(")),
-    ("subprocess_shell_true", re.compile(r"subprocess\.(?:Popen|run|call)\s*\([^\)]*shell\s*=\s*True")),
+    (
+        "subprocess_shell_true",
+        re.compile(r"subprocess\.(?:Popen|run|call)\s*\([^\)]*shell\s*=\s*True"),
+    ),
     ("pickle_load", re.compile(r"\bpickle\.load\b")),
     ("yaml_unsafe_load", re.compile(r"\byaml\.load\s*\((?!.*Loader\s*=)")),
     ("torch_load_no_weights_only", re.compile(r"torch\.load\s*\([^)]*\)\s*(?!,\s*weights_only)")),
@@ -83,7 +89,19 @@ def run_bandit() -> tuple[str, str]:
     """Return (status, stdout). SKIPPED if bandit not installed."""
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "bandit", "-r", "src", "gateway", "tools", "agent", "-q", "-f", "json"],
+            [
+                sys.executable,
+                "-m",
+                "bandit",
+                "-r",
+                "src",
+                "gateway",
+                "tools",
+                "agent",
+                "-q",
+                "-f",
+                "json",
+            ],
             capture_output=True,
             text=True,
             cwd=str(_REPO_ROOT),
@@ -150,10 +168,14 @@ def main() -> int:
 
     output = _REPO_ROOT / "docs/reproducibility/results/broad_security_audit.json"
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(result.to_json(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    output.write_text(
+        json.dumps(result.to_json(), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     print("\n=== BROAD SECURITY AUDIT ===")
-    print(f"  AMC audit:           {len([r for r in amc.results if r.status == 'PASS'])}/{len(amc.results)} PASS")
+    print(
+        f"  AMC audit:           {len([r for r in amc.results if r.status == 'PASS'])}/{len(amc.results)} PASS"
+    )
     print(f"  Bandit:              {result.bandit_status}")
     print(f"  Files scanned:       {result.scanned_files}")
     print(f"  Pattern findings:    {len(result.patterns_found)}")

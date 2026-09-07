@@ -26,9 +26,7 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     """Raise instead of auto-following redirects — lets the caller re-validate."""
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
-        raise urllib.error.HTTPError(
-            req.full_url, code, f"redirect to {newurl}", headers, fp
-        )
+        raise urllib.error.HTTPError(req.full_url, code, f"redirect to {newurl}", headers, fp)
 
 
 _opener = urllib.request.build_opener(_NoRedirectHandler)
@@ -76,8 +74,8 @@ class WebTool:
             if not safe:
                 return ToolResult(tool_name="web", success=False, output="", error=reason)
             try:
-                req = urllib.request.Request(current_url, headers={"User-Agent": "Aurelius/1.0"})
-                with _opener.open(req, timeout=timeout) as resp:
+                req = urllib.request.Request(current_url, headers={"User-Agent": "Aurelius/1.0"})  # noqa: S310 — URL validated by _is_safe_url (scheme allowlist + SSRF deny patterns) before any request
+                with _opener.open(req, timeout=timeout) as resp:  # nosec B310 — URL validated by _is_safe_url (scheme allowlist + SSRF deny patterns) before open  # noqa: S310
                     status = getattr(resp, "status", 200)
                     if 300 <= status < 400:
                         # _NoRedirectHandler turned this into HTTPError; see except below
@@ -92,7 +90,10 @@ class WebTool:
                     location = e.headers.get("Location")
                     if not location:
                         return ToolResult(
-                            tool_name="web", success=False, output="", error="redirect without Location"
+                            tool_name="web",
+                            success=False,
+                            output="",
+                            error="redirect without Location",
                         )
                     current_url = location
                     continue

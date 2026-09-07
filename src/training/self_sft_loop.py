@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 import torch
 
@@ -84,8 +85,11 @@ class SimpleVerifier(VerifierInterface):
         self.min_words = min_words
         self.max_chars = max_chars
         self.refusal_phrases = refusal_phrases or (
-            "i cannot", "i am not able", "i cannot answer",
-            "i'm not able", "i cannot fulfill",
+            "i cannot",
+            "i am not able",
+            "i cannot answer",
+            "i'm not able",
+            "i cannot fulfill",
         )
         self.min_vocab_ratio = min_vocab_ratio
 
@@ -100,7 +104,7 @@ class SimpleVerifier(VerifierInterface):
                 return False, f"refusal: contains '{phrase}'"
         words = lower.split()
         if len(set(words)) / max(len(words), 1) < self.min_vocab_ratio:
-            return False, f"repetitive: vocab_ratio={len(set(words))/max(len(words),1):.2f}"
+            return False, f"repetitive: vocab_ratio={len(set(words)) / max(len(words), 1):.2f}"
         return True, "accepted"
 
 
@@ -190,10 +194,12 @@ class SelfSFTLoop:
             # Step 3: Prepare training data
             train_data = list(seed_sft_data or [])
             for acc in accepted:
-                train_data.append({
-                    "prompt": acc.prompt,
-                    "response": acc.response,
-                })
+                train_data.append(
+                    {
+                        "prompt": acc.prompt,
+                        "response": acc.response,
+                    }
+                )
 
             # Step 4: Train (via provided function or basic loop)
             if trainer_fn is not None:
@@ -217,14 +223,16 @@ class SelfSFTLoop:
                 sample = accepted[0]
                 logger.info(
                     "Sample accepted: prompt=%.80s... response=%.80s...",
-                    sample.prompt, sample.response,
+                    sample.prompt,
+                    sample.response,
                 )
 
         return {
             "n_rounds_completed": len(self.round_results),
             "rounds": self.round_results,
             "final_acceptance_rate": self.round_results[-1]["acceptance_rate"]
-            if self.round_results else 0.0,
+            if self.round_results
+            else 0.0,
         }
 
     def _generate(
@@ -257,20 +265,22 @@ class SelfSFTLoop:
                     )
 
                     response = self.tokenizer.decode(
-                        outputs[0][inputs["input_ids"].shape[1]:],
+                        outputs[0][inputs["input_ids"].shape[1] :],
                         skip_special_tokens=True,
                     )
 
                     verifier_pass, detail = self.verifier.check(prompt, response)
 
-                    candidates.append(GenerationExample(
-                        prompt=prompt,
-                        response=response,
-                        verifier_result=verifier_pass,
-                        verifier_detail=detail,
-                        round=len(self.round_results) + 1,
-                        temperature=self.config.generation_temperature,
-                    ))
+                    candidates.append(
+                        GenerationExample(
+                            prompt=prompt,
+                            response=response,
+                            verifier_result=verifier_pass,
+                            verifier_detail=detail,
+                            round=len(self.round_results) + 1,
+                            temperature=self.config.generation_temperature,
+                        )
+                    )
 
         return candidates
 

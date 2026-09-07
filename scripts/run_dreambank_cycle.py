@@ -48,7 +48,9 @@ def deterministic_embed(text: str, dim: int = 64) -> torch.Tensor:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="DreamBank dry-run cycle runner")
-    parser.add_argument("--dry-run", action="store_true", default=True, help="Dry run mode (no real model)")
+    parser.add_argument(
+        "--dry-run", action="store_true", default=True, help="Dry run mode (no real model)"
+    )
     parser.add_argument("--cycles", type=int, default=1, help="Number of dream cycles")
     parser.add_argument("--seed", type=str, default="test", nargs="+", help="Seed prompts")
     parser.add_argument("--bank-dim", type=int, default=64, help="Bank dimension")
@@ -65,7 +67,11 @@ def main() -> None:
     ctrl = DreamBankController(bank)
 
     total_writes = 0
-    all_args = args.seed if hasattr(args.seed, "__iter__") and not isinstance(args.seed, str) else [args.seed]
+    all_args = (
+        args.seed
+        if hasattr(args.seed, "__iter__") and not isinstance(args.seed, str)
+        else [args.seed]
+    )
     result = None
 
     for _ in range(args.cycles):

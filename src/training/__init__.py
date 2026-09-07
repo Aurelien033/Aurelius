@@ -169,7 +169,11 @@ __all__ += ["SchedulerType", "WarmupScheduler"]
 # SFT Experiment Modules — ADDITIVE: new training mechanisms for SFT
 # ---------------------------------------------------------------------------
 from src.training.loss_masking import TokenDifficultyMask, TokenMaskConfig  # noqa: E402
-from src.training.contrastive_loss import ContrastiveToolLoss, ContrastiveSFTConfig, NegativeGenerator  # noqa: E402
+from src.training.contrastive_loss import (
+    ContrastiveToolLoss,
+    ContrastiveSFTConfig,
+    NegativeGenerator,
+)  # noqa: E402
 from src.training.self_sft_loop import SelfSFTLoop, SelfSFTConfig, SimpleVerifier  # noqa: E402
 from src.training.forgetting_tracker import ForgettingTracker, ForgettingTrackerConfig, ReplayBuffer  # noqa: E402
 from src.training.auxiliary_losses import MultiLossSFT, AuxiliaryLossConfig  # noqa: E402
@@ -195,16 +199,31 @@ SFT_EXPERIMENT_REGISTRY: dict[str, type] = {
 }
 
 __all__ += [
-    "TokenDifficultyMask", "TokenMaskConfig",
-    "ContrastiveToolLoss", "ContrastiveSFTConfig", "NegativeGenerator",
-    "SelfSFTLoop", "SelfSFTConfig", "SimpleVerifier",
-    "ForgettingTracker", "ForgettingTrackerConfig", "ReplayBuffer",
-    "MultiLossSFT", "AuxiliaryLossConfig",
-    "FIMConverter", "FIMSFTConfig",
-    "AdaptiveSFTDataSelector", "AdaptiveSFTConfig",
-    "CalibratedSFTLoss", "CalibratedSFTConfig",
-    "SelfConsistencyLoss", "SelfConsistencyConfig",
-    "ProgressiveSelfSFT", "ProgressiveSelfSFTConfig",
-    "DataFlywheel", "FlywheelConfig", "InferenceLogger",
+    "TokenDifficultyMask",
+    "TokenMaskConfig",
+    "ContrastiveToolLoss",
+    "ContrastiveSFTConfig",
+    "NegativeGenerator",
+    "SelfSFTLoop",
+    "SelfSFTConfig",
+    "SimpleVerifier",
+    "ForgettingTracker",
+    "ForgettingTrackerConfig",
+    "ReplayBuffer",
+    "MultiLossSFT",
+    "AuxiliaryLossConfig",
+    "FIMConverter",
+    "FIMSFTConfig",
+    "AdaptiveSFTDataSelector",
+    "AdaptiveSFTConfig",
+    "CalibratedSFTLoss",
+    "CalibratedSFTConfig",
+    "SelfConsistencyLoss",
+    "SelfConsistencyConfig",
+    "ProgressiveSelfSFT",
+    "ProgressiveSelfSFTConfig",
+    "DataFlywheel",
+    "FlywheelConfig",
+    "InferenceLogger",
     "SFT_EXPERIMENT_REGISTRY",
 ]

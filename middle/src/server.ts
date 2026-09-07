@@ -1,7 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import { createServer } from 'http'
-import { config } from './config.js'
+import { config, validateConfig } from './config.js'
 import { authMiddleware, requireAdmin } from './middleware/auth.js'
 import { rateLimiter } from './middleware/rate-limiter.js'
 import { requestLogger } from './middleware/logger.js'
@@ -34,10 +34,33 @@ import { ProviderRouter } from './provider_router.js'
 
 const providerRouter = new ProviderRouter();
 
+const MAX_BODY_BYTES = 1 * 1024 * 1024  // 1 MB default cap
+
+function bodySizeGuard(req: express.Request, res: express.Response, next: express.NextFunction): void {
+  const cl = req.headers['content-length']
+  if (cl !== undefined && parseInt(cl, 10) > MAX_BODY_BYTES) {
+    res.status(413).json({ error: 'Request body too large' })
+    return
+  }
+  next()
+}
+
 export function buildApp() {
+  validateConfig(config)
+
+  // Item 7: CORS fail-closed — abort startup in production with no origin configured.
+  if (process.env.NODE_ENV === 'production' && !config.corsOrigin) {
+    console.error('[middle] FATAL: CORS_ORIGIN is not set in production. Aborting.')
+    process.exit(1)
+  }
+
   const app = express()
 
-  app.use(cors({ origin: config.corsOrigin, credentials: true }))
+  const corsOptions = config.corsOrigin
+    ? { origin: config.corsOrigin, credentials: true }
+    : { origin: false as const }
+  app.use(cors(corsOptions))
+  app.use(bodySizeGuard)
   // M-04 (CSV): default body limit is 10MB. 50MB was a DoS vector for
   // all routes; file-upload routes mount a per-route limit via middleware.
   const jsonLimit = process.env.BFF_JSON_BODY_LIMIT?.trim() || '10mb'

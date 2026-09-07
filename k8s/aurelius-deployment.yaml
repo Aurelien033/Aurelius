@@ -14,13 +14,30 @@ spec:
       labels:
         app: aurelius-api
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
       - name: api
         image: aurelius-api:latest
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
         ports:
         - containerPort: 8080
           name: http
         env:
+        - name: AURELIUS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aurelius-secrets
+              key: api-key
         - name: AURELIUS_MODEL_PATH
           value: "/app/checkpoints/aurelius_1.3b"
         - name: AURELIUS_BACKEND
@@ -52,6 +69,8 @@ spec:
           requests:
             memory: "4Gi"
             cpu: "2"
+            nvidia.com/gpu: "1"
           limits:
             memory: "8Gi"
             cpu: "4"
+            nvidia.com/gpu: "1"

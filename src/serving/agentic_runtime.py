@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 from src.computer_use.action_verifier import VERIFIER_DENY_LIST, ActionVerifier
-from src.computer_use.action_planner import ActionPlan, ActionPlanner
+from src.computer_use.action_planner import ActionPlanner
 from src.computer_use.browser_driver import BrowserDriverError
 from src.computer_use.screen_parser import get_screen_parser
 
@@ -183,9 +183,7 @@ def _maybe_register_computer_use_tools(registry: ToolRegistry) -> None:
 
             if action == "verify":
                 target = str(args.get("target", ""))
-                deny_hit = _denylist_check(target) or _denylist_check(
-                    str(args.get("value", ""))
-                )
+                deny_hit = _denylist_check(target) or _denylist_check(str(args.get("value", "")))
                 if deny_hit:
                     return f"Error: action blocked by safety verifier ({deny_hit})"
 

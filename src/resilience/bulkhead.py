@@ -105,8 +105,8 @@ class Bulkhead:
     def _release(self) -> None:
         with self._lock:
             self._active -= 1
-        self._semaphore.release()
-        with self._lock:
             if self._queue:
                 next_event = self._queue.popleft()
                 next_event.set()
+                return  # slot transfers directly to waiter; semaphore stays acquired
+        self._semaphore.release()

@@ -32,9 +32,7 @@ def _populated_bank() -> HLMPreferenceBank:
     bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=4, bank_dim=32))
     torch.manual_seed(42)
     for _ in range(4):
-        bank.upsert(
-            HLMPreferenceWrite(key=torch.randn(32), value=torch.randn(32), strength=1.0)
-        )
+        bank.upsert(HLMPreferenceWrite(key=torch.randn(32), value=torch.randn(32), strength=1.0))
     return bank
 
 

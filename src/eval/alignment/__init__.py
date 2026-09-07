@@ -15,6 +15,7 @@ Modules:
   why_density           — deterministic principle-causal density scorer for datasets
   release_gate          — CLI runner: scorecard + PASS/FAIL gates + model-card section
 """
-from .scenarios import SCENARIOS, IDENTITIES, build_prompt
-from .agentic_misalignment import parse_decision, run_suite, summarize, g_align
-from .why_density import why_density_score, is_action_only, score_dataset, passes_why_gate
+
+from .scenarios import SCENARIOS, IDENTITIES, build_prompt  # noqa: F401
+from .agentic_misalignment import parse_decision, run_suite, summarize, g_align  # noqa: F401
+from .why_density import why_density_score, is_action_only, score_dataset, passes_why_gate  # noqa: F401

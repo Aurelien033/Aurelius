@@ -57,17 +57,13 @@ def test_filled_bank_spreads_across_classes() -> None:
 
     bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=8, bank_dim=8))
     for _ in range(8):
-        bank.upsert(
-            HLMPreferenceWrite(key=torch.randn(8), value=torch.randn(8), strength=1.0)
-        )
+        bank.upsert(HLMPreferenceWrite(key=torch.randn(8), value=torch.randn(8), strength=1.0))
 
     # Extreme thresholds force nontrivial distribution regardless of signal magnitude:
     # - confidence_fast near 1.0 -> almost anything triggers FAST
     # - alpha_thorough near 0.0 + require_confidence_for_thorough=False -> anything triggers THOROUGH
     # Combine both routers on the same data to prove distribution is config-driven.
-    router_fast = CascadeRouter(
-        CascadeRouterConfig(confidence_fast=1.0, alpha_thorough=1.0)
-    )
+    router_fast = CascadeRouter(CascadeRouterConfig(confidence_fast=1.0, alpha_thorough=1.0))
     router_thorough = CascadeRouter(
         CascadeRouterConfig(
             confidence_fast=-1.0,  # never fast
@@ -80,9 +76,7 @@ def test_filled_bank_spreads_across_classes() -> None:
     r2 = run_cascade_ablation(model, _prompts(), bank=bank, router=router_thorough)
 
     # Between the two, we should see at least 2 distinct classes represented
-    all_nonzero_classes = {
-        k for r in (r1, r2) for k, v in r.decision_distribution.items() if v > 0
-    }
+    all_nonzero_classes = {k for r in (r1, r2) for k, v in r.decision_distribution.items() if v > 0}
     assert len(all_nonzero_classes) >= 2, (
         f"Expected at least 2 distinct decision classes across both routers, "
         f"got {all_nonzero_classes}"

@@ -13,26 +13,47 @@ Transport is injectable so the pipeline is unit-testable with no network/keys:
 Real use wires the default OpenAI-compatible transport (OpenRouter etc.),
 mirroring docs/training/make_code_traces.py.
 """
+
 from __future__ import annotations
 
 import json
 import os
 import urllib.request
-from typing import Callable
+from collections.abc import Callable
 
 # Verified open-licensed teacher families (hub-checked: Apache/MIT).
 # Prefix match on the provider/model id. gpt-oss is Apache (open) and allowed;
 # closed OpenAI/Anthropic/Google ids are NOT on this list -> rejected.
 CLEAN_PREFIXES: tuple[str, ...] = (
-    "qwen/", "qwen3", "qwen2", "z-ai/", "zai-org/", "glm",
-    "deepseek/", "deepseek-ai/", "bytedance-seed/", "seed-",
-    "openai/gpt-oss", "gpt-oss", "mistralai/", "meta-llama/llama-3",
+    "qwen/",
+    "qwen3",
+    "qwen2",
+    "z-ai/",
+    "zai-org/",
+    "glm",
+    "deepseek/",
+    "deepseek-ai/",
+    "bytedance-seed/",
+    "seed-",
+    "openai/gpt-oss",
+    "gpt-oss",
+    "mistralai/",
+    "meta-llama/llama-3",
     "moonshotai/kimi-linear",  # note: most Kimi are license "other" -> not blanket-clean
 )
 # Explicit closed denylist (belt-and-suspenders; these must never feed a release).
 CLOSED_MARKERS: tuple[str, ...] = (
-    "claude", "anthropic", "gpt-4", "gpt-5", "gpt-4o", "openai/o1", "openai/o3",
-    "openai/o4", "gemini", "google/gemini", "grok",
+    "claude",
+    "anthropic",
+    "gpt-4",
+    "gpt-5",
+    "gpt-4o",
+    "openai/o1",
+    "openai/o3",
+    "openai/o4",
+    "gemini",
+    "google/gemini",
+    "grok",
 )
 
 
@@ -57,16 +78,20 @@ def _default_transport(api_base: str) -> Callable[[str, str, float, int], str]:
     def _call(model: str, prompt: str, temperature: float, max_tokens: int) -> str:
         if not key:
             raise RuntimeError("set OPENROUTER_API_KEY (or OPENAI_API_KEY)")
-        body = json.dumps({
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }).encode()
-        req = urllib.request.Request(
-            url, data=body,
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=180) as r:
+        body = json.dumps(
+            {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+        ).encode()
+        req = urllib.request.Request(  # noqa: S310 — fixed teacher API endpoint (https), not user-supplied
+            url,
+            data=body,
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=180) as r:  # noqa: S310  # nosec B310 — fixed teacher API endpoint (https), not user-supplied
             data = json.loads(r.read())
         return data["choices"][0]["message"]["content"]
 
@@ -86,12 +111,15 @@ class CleanTeacher:
         max_tokens: int = 1024,
     ):
         if not is_clean_model(model):
-            msg = (f"teacher {model!r} is NOT on the verified-clean allowlist. "
-                   "Release-bound alignment data must use open-licensed teachers "
-                   "(Qwen/GLM/DeepSeek/Seed/gpt-oss). ")
+            msg = (
+                f"teacher {model!r} is NOT on the verified-clean allowlist. "
+                "Release-bound alignment data must use open-licensed teachers "
+                "(Qwen/GLM/DeepSeek/Seed/gpt-oss). "
+            )
             if not allow_unverified:
-                raise FirewallError(msg + "Pass allow_unverified=True only for "
-                                    "PRIVATE, non-release experiments.")
+                raise FirewallError(
+                    msg + "Pass allow_unverified=True only for PRIVATE, non-release experiments."
+                )
             print("⚠ FIREWALL OVERRIDE: " + msg + "Output must NOT enter a release pipeline.")
         self.model = model
         self.clean = is_clean_model(model)
@@ -99,10 +127,12 @@ class CleanTeacher:
         self.max_tokens = max_tokens
         self._transport = transport or _default_transport(api_base)
 
-    def complete(self, prompt: str, temperature: float | None = None,
-                 max_tokens: int | None = None) -> str:
+    def complete(
+        self, prompt: str, temperature: float | None = None, max_tokens: int | None = None
+    ) -> str:
         return self._transport(
-            self.model, prompt,
+            self.model,
+            prompt,
             self.temperature if temperature is None else temperature,
             self.max_tokens if max_tokens is None else max_tokens,
         )

@@ -17,6 +17,8 @@ interface User {
 const users = new Map<string, User>()
 const userSessions = new Map<string, { token: string; expiresAt: number }>()
 const inviteTokens = new Map<string, { role: 'admin' | 'user'; used: boolean }>()
+// One-time reveal tokens: revealToken → { apiKey, usedAt }
+const revealTokens = new Map<string, { apiKey: string; usedAt: number | null }>()
 
 const adminKey = process.env.AURELIUS_API_KEY || ''
 if (adminKey) {
@@ -98,10 +100,16 @@ router.post('/register', validateBody([
     inviteTokens.get(inviteToken)!.used = true
   }
 
+  // Issue a one-time reveal token; never return the full key directly.
+  const revealToken = uuidv4()
+  revealTokens.set(revealToken, { apiKey, usedAt: null })
+
   res.json({
     success: true,
     user: { id, username, role: 'user' },
-    apiKey,
+    apiKeyPrefix: apiKey.slice(0, 8) + '...',
+    revealed: false,
+    revealToken,
   })
 })
 
@@ -116,6 +124,25 @@ function cleanupExpiredSessions() {
 
 // Run cleanup every 5 minutes
 setInterval(cleanupExpiredSessions, 300_000)
+
+router.post('/keys/reveal', (req, res) => {
+  const { revealToken } = req.body || {}
+  if (!revealToken || typeof revealToken !== 'string') {
+    res.status(400).json({ error: 'revealToken required' })
+    return
+  }
+  const entry = revealTokens.get(revealToken)
+  if (!entry) {
+    res.status(404).json({ error: 'Invalid or expired reveal token' })
+    return
+  }
+  if (entry.usedAt !== null) {
+    res.status(410).json({ error: 'Reveal token already used' })
+    return
+  }
+  entry.usedAt = Date.now()
+  res.json({ success: true, apiKey: entry.apiKey, revealed: true })
+})
 
 router.get('/users', requireScope('auth:read'), (_req, res) => {
   cleanupExpiredSessions()

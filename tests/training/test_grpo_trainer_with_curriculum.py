@@ -200,7 +200,9 @@ def test_verbose_includes_sampler_stats():
     prompt_ids = torch.zeros((1, 3), dtype=torch.long)
 
     trainer.train_step = MagicMock(return_value={"loss": 0.5, "mean_reward": 1.0, "n_samples": 1})
-    result = wrapped.train_step(task_ids=["task_0"], prompt_ids=prompt_ids, prompt_text="p", answer="a")
+    result = wrapped.train_step(
+        task_ids=["task_0"], prompt_ids=prompt_ids, prompt_text="p", answer="a"
+    )
     assert "sampler_stats" in result
     assert isinstance(result["sampler_stats"], dict)
 

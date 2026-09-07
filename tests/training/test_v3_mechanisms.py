@@ -7,6 +7,7 @@ require a live model).
 
 These mirror tests/training/test_verifier_recursion.py in style.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -20,13 +21,14 @@ from src.training.fepg import FEPGTrainer, fepg_verdict
 # RSVA
 # ---------------------------------------------------------------------------
 
+
 def test_rsva_converges_on_stable_verifier():
     # Convergence: verifier score rises then plateaus; output text stabilizes.
     calls = {"n": 0}
 
     def gen(prompt):
         calls["n"] += 1
-        return f"answer-{calls['n']}"        # changes each call (text never equal)
+        return f"answer-{calls['n']}"  # changes each call (text never equal)
 
     def verify(prompt, comp):
         # score climbs to a plateau quickly, verdict True always
@@ -52,6 +54,7 @@ def test_rsva_does_not_converge_within_budget():
     # oscillating verifier, never within eps -> returns last, converged=False
     def gen(prompt):
         return "x"
+
     def verify(prompt, comp):
         # alternating scores, never stable
         verify._i = getattr(verify, "_i", 0) + 1
@@ -81,6 +84,7 @@ def test_rsva_verdict_killed_when_not_beating_best_of_k():
 # HMC
 # ---------------------------------------------------------------------------
 
+
 def test_hmc_stores_and_retrieves_mechanism():
     # Spec math: read(f_i) = (W . r_i)/||r_i||^2 must equal f_i exactly. With a
     # zero base W (proxy), recovery is exact. This is the PROVABLE claim; real
@@ -108,10 +112,10 @@ def test_hmc_retrieval_degrades_under_interference():
 
 def test_hmc_birth_on_accumulated_gradient():
     h = HMC(HMCConfig(d_hidden=16, seed=0, birth_threshold=2.0))
-    g = np.ones(16)                      # ||g|| = 4
-    born = h.accumulate_gradient("math_error", g * 0.3)   # cum norm 1.2 < 2.0
+    g = np.ones(16)  # ||g|| = 4
+    born = h.accumulate_gradient("math_error", g * 0.3)  # cum norm 1.2 < 2.0
     assert born is None
-    born = h.accumulate_gradient("math_error", g * 1.6)   # cum 1.2 + 6.4 = 7.6 >= 2.0
+    born = h.accumulate_gradient("math_error", g * 1.6)  # cum 1.2 + 6.4 = 7.6 >= 2.0
     assert born == "math_error"
     assert "math_error" in h.birthed
     assert "born_math_error" in h.refs
@@ -140,15 +144,18 @@ def test_hmc_verdict_fails_when_recovery_low():
 # FEPG
 # ---------------------------------------------------------------------------
 
+
 def test_fepg_computes_free_energy_and_detects_collapse():
-    ents = [0.5, 0.02, 0.01]             # third is mode collapse (< floor)
+    ents = [0.5, 0.02, 0.01]  # third is mode collapse (< floor)
     calls = {"i": 0}
 
     def entropy(prompt):
         e = ents[calls["i"]]
         return e
+
     def error(prompt, comp):
         return 0.3
+
     def step(E, S):
         calls["i"] += 1
         return {"ok": True}
@@ -174,10 +181,12 @@ def test_fepg_verdict_mode_collapse():
 # real-wiring factory import smoke (no live model)
 # ---------------------------------------------------------------------------
 
+
 def test_real_wiring_factories_importable():
     from src.training.rsva import wire_real_rsva
     from src.training.hmc import HMC
     from src.training.fepg import FEPGTrainer
+
     assert callable(wire_real_rsva)
     assert HMC is not None
     assert FEPGTrainer is not None

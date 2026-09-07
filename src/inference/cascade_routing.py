@@ -82,9 +82,7 @@ class CascadeRouter:
         # Default: balanced
         return ComputePolicy.BALANCED
 
-    def telemetry(
-        self, histories: Sequence[ComputePolicy] | None = None
-    ) -> dict[str, int]:
+    def telemetry(self, histories: Sequence[ComputePolicy] | None = None) -> dict[str, int]:
         """Class distribution over a history of decisions.  Pure function."""
         counts = {p.value: 0 for p in ComputePolicy}
         if histories:

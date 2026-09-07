@@ -37,9 +37,7 @@ def test_router_consumes_real_bank_alpha_confidence_shape() -> None:
 
     bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=4, bank_dim=8))
     for _ in range(3):
-        bank.upsert(
-            HLMPreferenceWrite(key=torch.randn(8), value=torch.randn(8), strength=1.0)
-        )
+        bank.upsert(HLMPreferenceWrite(key=torch.randn(8), value=torch.randn(8), strength=1.0))
 
     ids = torch.randint(0, 32, (1, 5))
     with torch.no_grad():
@@ -88,9 +86,7 @@ def test_router_nonempty_bank_produces_nontrivial_decision() -> None:
 
     bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=4, bank_dim=8))
     for _ in range(4):
-        bank.upsert(
-            HLMPreferenceWrite(key=torch.randn(8), value=torch.randn(8), strength=1.0)
-        )
+        bank.upsert(HLMPreferenceWrite(key=torch.randn(8), value=torch.randn(8), strength=1.0))
 
     ids = torch.randint(0, 32, (1, 5))
     with torch.no_grad():
