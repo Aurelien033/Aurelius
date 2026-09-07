@@ -10,6 +10,7 @@ import math
 
 import pytest
 import torch
+
 from aurelius.data.qura_scorer import (
     QuRaScorer,
     QuRatingConfig,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from aurelius.data.civitai_loader import (
     CivitaiImage,
     CivitaiImageMeta,
