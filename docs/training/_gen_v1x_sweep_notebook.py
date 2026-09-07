@@ -15,7 +15,7 @@ Which clean **base** + our SFT wins, and how far **more verified traces** keep h
 **HOW TO RUN:** Upload to **Google Colab**, set **Runtime → A100**, **Run all**. These are notebook cells — don't paste into a terminal. Edit the `--bases` / `--trace_sizes` in the last cell. Each grid cell ≈ one SFT (~30–70 min), so keep the grid small. (Run this *after* v1 ships.)"""),
 
 code("""# 1. Setup
-!git clone --depth 1 -b spike/first-light-readiness https://github.com/S3nna13/Aurelius.git
+!git clone --depth 1 -b spike/first-light-readiness https://github.com/Aurelien033/Aurelius.git
 %cd Aurelius
 !pip -q install -U transformers peft accelerate jsonschema pyyaml
 !pip -q uninstall -y torchao   # Colab ships torchao 0.10 which peft's LoRA dispatch rejects; we don't use it

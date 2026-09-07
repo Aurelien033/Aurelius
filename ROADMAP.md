@@ -22,7 +22,7 @@ v5 (gated)         From-Scratch Continued Pretraining — gated behind v4
 ## v0 — Pre-Aurelius: Infrastructure & Learning (2024–2025)
 
 **What was built:**
-- `ps-it-toolkit` — PowerShell IT automation toolkit (public, S3nna13)
+- `ps-it-toolkit` — PowerShell IT automation toolkit (public, Aurelien033)
 - `windows-admin-reference` — cross-platform admin command reference (public)
 - Homelab: Dell OptiPlex, MSI laptop, M1 Pro MBP 32GB
 - Deep study of the transformer architecture (Vaswani et al. 2017 through GPT-4)
@@ -34,7 +34,7 @@ v5 (gated)         From-Scratch Continued Pretraining — gated behind v4
 - Enterprise IT infrastructure (Intune, Entra ID, Graph PowerShell, Autopilot)
 - The transformer architecture end-to-end: attention, training dynamics, scaling laws
 
-**Artifacts:** public GitHub repos (S3nna13), homelab running Qwen3 MoE via MLX + LM Studio
+**Artifacts:** public GitHub repos (Aurelien033), homelab running Qwen3 MoE via MLX + LM Studio
 
 ---
 
@@ -308,10 +308,10 @@ Drop-in improvements ready for Lane C or any RLVR work.
 
 | Repo | Purpose |
 |------|---------|
-| `S3nna13/Aurelius` | Main repo — v1 backbone code, v3 eval harnesses, Composer, TruthSurface |
-| `S3nna13/Aurelius-v2` | v2 shipped — Qwen3-Coder-30B-A3B GGUF, verifier-native |
-| `S3nna13/Borealis` | Multi-model family + 200+ skills + POLARIS governance |
-| `S3nna13/mosaic` | MOSAIC unified framework — Moses/Setus/Aigis + Aurelius capabilities |
+| `Aurelien033/Aurelius` | Main repo — v1 backbone code, v3 eval harnesses, Composer, TruthSurface |
+| `Aurelien033/Aurelius-v2` | v2 shipped — Qwen3-Coder-30B-A3B GGUF, verifier-native |
+| `Aurelien033/Borealis` | Multi-model family + 200+ skills + POLARIS governance |
+| `Aurelien033/mosaic` | MOSAIC unified framework — Moses/Setus/Aigis + Aurelius capabilities |
 | `Zephyrs33` (HF) | 6 private model repos — Qwen3-based experimental checkpoints |
 
 ---

@@ -15,7 +15,7 @@ Clean base + clean verified data → SFT → DPO → merged model. **No external
 **HOW TO RUN:** Upload this file to **Google Colab** (File → Upload notebook), set **Runtime → Change runtime type → A100**, then **Runtime → Run all**. These are notebook cells — do **not** paste them into a terminal (they use Colab's `python` and the `!`/`%` magics). To change the base or sizes, edit the values marked `# EDIT` in each cell. End-to-end ≈ 2–2.5 h on A100."""),
 
 code("""# 1. Setup
-!git clone --depth 1 -b spike/first-light-readiness https://github.com/S3nna13/Aurelius.git
+!git clone --depth 1 -b spike/first-light-readiness https://github.com/Aurelien033/Aurelius.git
 %cd Aurelius
 !pip -q install -U transformers peft accelerate jsonschema pyyaml
 !pip -q uninstall -y torchao   # Colab ships torchao 0.10 which peft's LoRA dispatch rejects; we don't use it

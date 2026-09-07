@@ -282,7 +282,7 @@ interactive chat.
 ## Quick Start
 
 ```bash
-git clone https://github.com/S3nna13/Aurelius.git
+git clone https://github.com/Aurelien033/Aurelius.git
 cd Aurelius
 bash scripts/bootstrap.sh         # full setup (Rust + Python + Node)
 bash scripts/bootstrap.sh --fast  # skip Rust builds
@@ -463,7 +463,7 @@ make ci             # lint + typecheck + security + all tests
 
 [MIT License](LICENSE) — Copyright © 2025 Aurelius Systems, Inc.
 
-**GitHub:** [https://github.com/S3nna13/Aurelius](https://github.com/S3nna13/Aurelius)
+**GitHub:** [https://github.com/Aurelien033/Aurelius](https://github.com/Aurelien033/Aurelius)
 
 
 ---

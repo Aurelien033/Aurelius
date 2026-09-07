@@ -8,7 +8,7 @@ Welcome! Here's everything you need to know to work on Aurelius effectively.
 
 ```bash
 # Clone and bootstrap
-git clone https://github.com/S3nna13/Aurelius.git
+git clone https://github.com/Aurelien033/Aurelius.git
 cd Aurelius
 bash scripts/bootstrap.sh --fast   # Python deps only (skip Rust build)
 

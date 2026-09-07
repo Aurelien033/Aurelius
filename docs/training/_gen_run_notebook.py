@@ -13,7 +13,7 @@ md("""# Aurelius — full run (RLVR + stronger-teacher SFT)
 **Upload to Colab, set Runtime → A100, run Cell 0 first.** Then **Path A** (RLVR — ⚠ the v1 recipe measured ≈ base on 2026-06-25; re-run only with a changed recipe, see note) and/or **Path B** (stronger-teacher SFT). Paths write to distinct `/content` names, so run either order. These are notebook cells — don't paste into a terminal."""),
 
 md("""## Cell 0 — Setup (always run first)"""),
-code("""!git clone --depth 1 -b spike/first-light-readiness https://github.com/S3nna13/Aurelius.git
+code("""!git clone --depth 1 -b spike/first-light-readiness https://github.com/Aurelien033/Aurelius.git
 %cd Aurelius
 !pip -q install -U transformers peft accelerate datasets bitsandbytes jsonschema pyyaml
 !pip -q uninstall -y torchao   # Colab's torchao 0.10 breaks peft's LoRA dispatch

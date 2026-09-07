@@ -2,7 +2,7 @@ accelerate==1.13.0
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.13.0
--e git+https://github.com/S3nna13/Aurelius.git@62e86cb9b76679a73b9c26e7dbab7b77e2e195e1#egg=aurelius
+-e git+https://github.com/Aurelien033/Aurelius.git@62e86cb9b76679a73b9c26e7dbab7b77e2e195e1#egg=aurelius
 bandit==1.9.4
 boolean.py==5.0
 CacheControl==0.14.4

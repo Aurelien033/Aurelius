@@ -12,7 +12,7 @@ git push origin spike/first-light-readiness
 ```
 On the Lightning Studio (a fresh GPU Studio), in the terminal:
 ```bash
-git clone https://github.com/S3nna13/Aurelius.git && cd Aurelius
+git clone https://github.com/Aurelien033/Aurelius.git && cd Aurelius
 git checkout spike/first-light-readiness
 pip install -q torch transformers peft datasets accelerate safetensors numpy
 huggingface-cli login            # only if a dataset/model needs auth; Qwen base is open
