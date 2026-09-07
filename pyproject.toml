@@ -16,8 +16,9 @@ dependencies = [
     "datasets>=2.19.0",
 ]
 # pip>=26.1 required at environment level for CVE-2026-3219
-# Removed: einops (0 imports), lxml (0 imports), langchain-core (0 imports, was CVE-patched),
-#   langsmith (0 imports, was GHSA-patched)
+# Removed: lxml (0 imports), langchain-core (0 imports, was CVE-patched),
+#   langsmith (0 imports, was GHSA-patched). einops restored 2026-09-07 —
+#   tests/model + tests/inference import it (earlier "0 imports" audit was wrong).
 
 [project.optional-dependencies]
 full = [
@@ -76,7 +77,9 @@ dev = [
         "fastapi>=0.115.0",
         "uvicorn>=0.46.0",
         "openai>=1.50.0",
-        "psutil>=6.0.0",]
+        "psutil>=6.0.0",
+        "einops>=0.8.0",
+        "msgpack>=1.1.0",]
 
 xgrammar = [
     # Optional structured-output decoding. Moved out of dev/serve because
