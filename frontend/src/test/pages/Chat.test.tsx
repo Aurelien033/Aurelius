@@ -151,3 +151,52 @@ describe('Chat', () => {
     expect(completionsReq?.backend).toBeUndefined()
   })
 })
+
+// ── Contract: negative-path status codes ────────────────────────────────────
+
+describe('Chat API contract — error responses', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('handles 413 too-large response without crashing', async () => {
+    localStorage.clear()
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response(JSON.stringify({ error: 'Request body too large' }), {
+        status: 413,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    ))
+
+    const { default: Chat } = await import('../../pages/Chat')
+    // Should render without throwing
+    expect(() => render(<Chat />)).not.toThrow()
+  })
+
+  it('handles 429 rate-limit response without crashing', async () => {
+    localStorage.clear()
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response(JSON.stringify({ error: 'Too Many Requests' }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    ))
+
+    const { default: Chat } = await import('../../pages/Chat')
+    expect(() => render(<Chat />)).not.toThrow()
+  })
+
+  it('handles 401 unauthorized response on command without crashing', async () => {
+    localStorage.clear()
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    ))
+
+    const { default: Chat } = await import('../../pages/Chat')
+    expect(() => render(<Chat />)).not.toThrow()
+  })
+})

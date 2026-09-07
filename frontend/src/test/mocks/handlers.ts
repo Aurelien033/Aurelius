@@ -2,6 +2,26 @@ import { http, HttpResponse } from 'msw'
 
 const BASE = '/api'
 
+// ── Negative-path handlers (off by default; activate per-test via server.use) ─
+
+export const errorHandlers = {
+  registerForbidden: http.post(`${BASE}/auth/register`, () =>
+    HttpResponse.json(
+      { error: 'Forbidden', message: 'Public registration is disabled' },
+      { status: 403 }
+    )
+  ),
+  commandUnauthorized: http.post(`${BASE}/command`, () =>
+    HttpResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  ),
+  commandTooLarge: http.post(`${BASE}/command`, () =>
+    HttpResponse.json({ error: 'Request body too large' }, { status: 413 })
+  ),
+  commandRateLimited: http.post(`${BASE}/command`, () =>
+    HttpResponse.json({ error: 'Too Many Requests' }, { status: 429 })
+  ),
+}
+
 export const handlers = [
   http.get(`${BASE}/v1/models`, () =>
     HttpResponse.json({

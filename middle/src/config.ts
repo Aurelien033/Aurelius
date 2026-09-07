@@ -24,11 +24,51 @@ export const config = {
     process.env.AURELIUS_AGENTIC_URL || process.env.UPSTREAM_URL || 'http://127.0.0.1:8080',
   defaultChatBackend: normalizeChatBackend(process.env.AURELIUS_DEFAULT_CHAT_BACKEND, 'mock'),
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379/0',
-  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  corsOrigin: process.env.CORS_ORIGIN ?? (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5173'),
   apiKey: process.env.AURELIUS_API_KEY || '',
   logLevel: process.env.MIDDLE_LOG_LEVEL || 'info',
   rateLimitRps: parseInt(process.env.RATE_LIMIT_RPS || '60', 10),
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
   allowPublicRegistration: process.env.ALLOW_PUBLIC_REGISTRATION === 'true' ? true : false,
   serviceApiKey: process.env.AURELIUS_SERVICE_KEY || process.env.AURELIUS_API_KEY || '',
+}
+
+export function validateConfig(cfg: typeof config): void {
+  const errors: string[] = []
+
+  if (isNaN(cfg.port) || cfg.port < 1 || cfg.port > 65535) {
+    errors.push(`MIDDLE_PORT must be an integer in 1..65535, got: ${process.env.MIDDLE_PORT}`)
+  }
+
+  if (!cfg.host || !cfg.host.trim()) {
+    errors.push('MIDDLE_HOST must be a non-empty bind address')
+  }
+
+  const dbUrl = process.env.DATABASE_URL
+  if (dbUrl) {
+    try {
+      new URL(dbUrl)
+    } catch {
+      errors.push(`DATABASE_URL is not a valid URL: ${dbUrl}`)
+    }
+  }
+
+  if (cfg.corsOrigin) {
+    for (const origin of cfg.corsOrigin.split(',').map((s) => s.trim()).filter(Boolean)) {
+      try {
+        new URL(origin)
+      } catch {
+        errors.push(`CORS_ORIGIN contains an invalid origin: ${origin}`)
+      }
+    }
+  }
+
+  if (isNaN(cfg.rateLimitRps) || cfg.rateLimitRps < 1) {
+    errors.push(`RATE_LIMIT_RPS must be >= 1, got: ${process.env.RATE_LIMIT_RPS}`)
+  }
+
+  if (errors.length > 0) {
+    console.error('[middle] Configuration errors:\n' + errors.map((e) => `  - ${e}`).join('\n'))
+    process.exit(1)
+  }
 }

@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 import time
 import weakref
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -27,12 +28,13 @@ class EventBus:
     Callbacks are stored via weak references when possible to avoid leaks.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, max_subscribers_per_event: int = 1_000) -> None:
         self._lock = threading.Lock()
         # event_type -> list of (callback_ref, strong_flag)
         self._subs: dict[str, list[tuple[Any, bool]]] = {}
-        self._history: list[Event] = []
         self._history_limit: int = 10_000
+        self._history: deque[Event] = deque(maxlen=self._history_limit)
+        self._max_subscribers: int = max_subscribers_per_event
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -51,6 +53,10 @@ class EventBus:
         """
         with self._lock:
             self._subs.setdefault(event_type, [])
+            if len(self._subs[event_type]) >= self._max_subscribers:
+                raise RuntimeError(
+                    f"Subscriber limit ({self._max_subscribers}) reached for event {event_type!r}"
+                )
             if weak:
                 ref = weakref.ref(callback)
                 self._subs[event_type].append((ref, False))
@@ -73,8 +79,6 @@ class EventBus:
         """Publish an event to all subscribers. Returns number of deliveries."""
         with self._lock:
             self._history.append(event)
-            if len(self._history) > self._history_limit:
-                self._history.pop(0)
             subs = list(self._subs.get(event.event_type, []))
 
         delivered = 0
@@ -89,11 +93,14 @@ class EventBus:
                 delivered += 1
             except Exception:
                 pass  # subscriber errors must not break bus
-        # prune dead weak refs
+        # prune dead weak refs, preserving subscribers added during dispatch
         with self._lock:
             current = self._subs.get(event.event_type, [])
-            if len(current) != len(alive):
-                self._subs[event.event_type] = alive
+            subs_ids = {id(s) for s in subs}
+            new_during_publish = [s for s in current if id(s) not in subs_ids]
+            pruned = alive + new_during_publish
+            if len(current) != len(pruned):
+                self._subs[event.event_type] = pruned
         return delivered
 
     def publish_typed(

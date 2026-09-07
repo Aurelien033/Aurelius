@@ -44,7 +44,7 @@ services:
       - UPSTREAM_URL=http://aurelius-api:8080
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
       - MIDDLE_LOG_LEVEL=info
-      - AURELIUS_API_KEY=${AURELIUS_API_KEY:-}
+      - AURELIUS_API_KEY=${AURELIUS_API_KEY:?AURELIUS_API_KEY must be set}
       - UPLOAD_DIR=/data/uploads
     volumes:
       - middle-data:/data
@@ -105,7 +105,7 @@ services:
       - GATEWAY_HOST=0.0.0.0
       - GATEWAY_PORT=8080
       - UPSTREAM_URL=http://middle:3001
-      - JWT_SECRET=${JWT_SECRET:-}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
       - RATE_LIMIT_RPS=${RATE_LIMIT_RPS:-100}
       - RATE_LIMIT_BURST=${RATE_LIMIT_BURST:-200}
     depends_on:

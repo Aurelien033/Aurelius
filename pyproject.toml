@@ -183,3 +183,9 @@ markers = [
     "slow: marks tests as slow (deselect with '-m not slow')",
     "integration: marks integration tests",
 ]
+
+[tool.bandit]
+# B110: try-except-pass is intentional in many optional-import guards.
+# B301: torch.load with weights_only=True is safe; pickle warning is a false positive.
+skips = ["B110", "B301"]
+exclude_dirs = ["tests", "archive", "docs"]

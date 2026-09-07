@@ -227,7 +227,6 @@ fn score_for_eviction(page: &MemoryPage, clock: u64) -> f32 {
 }
 
 #[derive(Clone, Debug)]
-#[repr(C)]
 struct CheckpointHeader {
     magic: [u8; 8],
     version: u32,
@@ -238,7 +237,19 @@ struct CheckpointHeader {
 }
 
 const MAGIC: [u8; 8] = *b"AURLCKPT";
-const HEADER_SIZE: u64 = std::mem::size_of::<CheckpointHeader>() as u64;
+const HEADER_SIZE: u64 = 40;
+
+fn serialize_header(header: &CheckpointHeader) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(HEADER_SIZE as usize);
+    bytes.extend_from_slice(&header.magic);
+    bytes.extend_from_slice(&header.version.to_le_bytes());
+    bytes.extend_from_slice(&header.num_tensors.to_le_bytes());
+    bytes.extend_from_slice(&header.total_bytes.to_le_bytes());
+    bytes.extend_from_slice(&header.step.to_le_bytes());
+    bytes.extend_from_slice(&header.timestamp.to_le_bytes());
+    debug_assert_eq!(bytes.len(), HEADER_SIZE as usize);
+    bytes
+}
 
 #[pyclass]
 pub struct MmapCheckpointWriter {
@@ -279,11 +290,9 @@ impl MmapCheckpointWriter {
                 .unwrap_or_default()
                 .as_secs(),
         };
-        let hp: *const CheckpointHeader = &header;
-        let hb: &[u8] =
-            unsafe { std::slice::from_raw_parts(hp as *const u8, HEADER_SIZE as usize) };
+        let hb = serialize_header(&header);
         (&file)
-            .write_all(hb)
+            .write_all(&hb)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
         file.set_len(HEADER_SIZE)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
@@ -305,7 +314,7 @@ impl MmapCheckpointWriter {
         let mut f = self
             .file
             .as_ref()
-            .expect("File not opened for finalization");
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("File not opened"))?;
         f.seek(SeekFrom::End(0))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
         f.write_all(bytes)
@@ -336,16 +345,14 @@ impl MmapCheckpointWriter {
                 .unwrap_or_default()
                 .as_secs(),
         };
-        let hp: *const CheckpointHeader = &header;
-        let hb: &[u8] =
-            unsafe { std::slice::from_raw_parts(hp as *const u8, HEADER_SIZE as usize) };
+        let hb = serialize_header(&header);
         let mut f = self
             .file
             .as_ref()
-            .expect("File not opened for finalization");
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("File not opened"))?;
         f.seek(SeekFrom::Start(0))
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
-        f.write_all(hb)
+        f.write_all(&hb)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("{}", e)))?;
         let index_bytes = serialize_index(&self.index);
         f.seek(SeekFrom::End(0))

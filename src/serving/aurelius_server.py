@@ -909,6 +909,7 @@ class AureliusHandler(BaseHTTPRequestHandler, _JSONMixin):
                         entries = memory.dump_layer(layer_name)
                         layers[layer_name] = len(entries)
                     except Exception:
+                        logger.debug("Memory layer %r unavailable", layer_name, exc_info=True)
                         layers[layer_name] = 0
                 self._send_json(200, {"layers": layers})
                 return

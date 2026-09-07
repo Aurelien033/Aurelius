@@ -2,24 +2,21 @@
 
 from __future__ import annotations
 
-import threading
-import uuid
+import secrets
 from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 
-# Module-level ContextVar so it works correctly with frozen/slotted dataclass
+# Module-level ContextVar propagates correctly across both sync and async boundaries.
 _trace_ctx_var: ContextVar[TraceContext | None] = ContextVar("trace_context", default=None)
-_trace_local = threading.local()
 
 
 @dataclass(frozen=True)
 class TraceContext:
     """Immutable distributed tracing context.
 
-    Uses a ContextVar for automatic propagation across async boundaries,
-    plus a thread-local fallback for synchronous code.
+    Uses a ContextVar for automatic propagation across both sync and async boundaries.
     """
 
     trace_id: str
@@ -48,22 +45,17 @@ class TraceContext:
     @classmethod
     def current(cls) -> TraceContext | None:
         """Return the current trace context for this task/thread."""
-        ctx = _trace_ctx_var.get(None)
-        if ctx is not None:
-            return ctx
-        return getattr(_trace_local, "current", None)
+        return _trace_ctx_var.get(None)
 
     @classmethod
     def set_current(cls, ctx: TraceContext | None) -> None:
         """Set the current trace context."""
         _trace_ctx_var.set(ctx)
-        _trace_local.current = ctx
 
     @classmethod
     def clear_current(cls) -> None:
         """Remove the current trace context."""
         _trace_ctx_var.set(None)
-        _trace_local.current = None
 
     # ------------------------------------------------------------------ #
     # Context manager / helper
@@ -95,4 +87,8 @@ class TraceContext:
 
 
 def _gen_id() -> str:
+<<<<<<< Updated upstream
     return uuid.uuid4().hex[:16]
+=======
+    return secrets.token_hex(16)
+>>>>>>> Stashed changes

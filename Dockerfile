@@ -55,7 +55,7 @@ EXPOSE 8080
 ENV AURELIUS_MODEL_PATH=/app/checkpoints/aurelius_1.3b \
     AURELIUS_BACKEND=vllm \
     TENSOR_PARALLEL_SIZE=1 \
-    CORS_ORIGINS=*
+    CORS_ORIGINS=""
 
 # Health-check endpoint
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \

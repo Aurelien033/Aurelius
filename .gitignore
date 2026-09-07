@@ -145,3 +145,23 @@ var/
 pyproject.toml.consolidated
 pyproject.toml.pre_consolidation
 tmp_job_test.sh
+
+# Reproducibility artifacts (Option B — large traces stay out of git; commit only manifests/configs)
+*.ndjson
+artifacts/reproducibility/
+docs/reproducibility/**/*.ndjson
+docs/reproducibility/**/raw_results.json
+
+# Remediation notes
+remediation/
+
+# Training artifacts & downloads (large; not repo content)
+aurelius-14b-sft.zip
+aurelius-14b-sft-extracted/
+aurelius-rlvr.zip
+aurelius-rlvr/
+adapter_config.json
+*.pdf
+ai_ml_frontier_master_400.json
+ai_architecture_technical_papers.md
+ai_pdf_seed_library_300.md

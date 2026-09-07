@@ -29,3 +29,25 @@ repos:
         additional_dependencies: [tokenizers>=0.20, numpy>=1.26]
         args: [--ignore-missing-imports]
         files: ^(src|agent|aurelius_cli|gateway|acp_adapter|cron|plugins|tools)/
+
+  - repo: local
+    hooks:
+      - id: pytest-fast
+        name: pytest (fast unit tests)
+        language: system
+        entry: python -m pytest tests/ -x -q --tb=short --ignore=tests/ui
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+      - id: bandit-security
+        name: bandit (security scan)
+        language: system
+        entry: .venv/bin/bandit -q -ll -r src agent gateway aurelius_cli
+        pass_filenames: false
+        stages: [pre-push]
+      - id: pip-audit
+        name: pip-audit (dependency scan)
+        language: system
+        entry: .venv/bin/python -m pip_audit --skip-editable --progress-spinner off
+        pass_filenames: false
+        stages: [pre-push]

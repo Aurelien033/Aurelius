@@ -134,7 +134,11 @@ def handle_schedule(args: argparse.Namespace) -> int:
         sched = TaskScheduler()
 
         if args.schedule_cmd == "cron":
-            job_id = sched.schedule_cron(args.cron_expr, runner, shell_cmd=args.shell_cmd)
+            try:
+                job_id = sched.schedule_cron(args.cron_expr, runner, shell_cmd=args.shell_cmd)
+            except ValueError as exc:
+                print(f"error: invalid cron expression {args.cron_expr!r} — {exc}", file=sys.stderr)
+                return 1
             print(f" Scheduled cron job {job_id}: {args.shell_cmd}")
         elif args.schedule_cmd == "interval":
             job_id = sched.schedule_interval(args.seconds, runner, shell_cmd=args.shell_cmd)
@@ -147,6 +151,7 @@ def handle_schedule(args: argparse.Namespace) -> int:
         print(" Press Ctrl+C to stop the scheduler.")
         try:
             sched.start()
+            sched._stop_event.wait()  # block until scheduler is stopped externally
         except KeyboardInterrupt:
             print("\n Interrupted — stopping scheduler…")
         finally:
@@ -183,7 +188,7 @@ def handle_schedule(args: argparse.Namespace) -> int:
                 f"{job['id']:<8} {job['name'][:20]:<20} {schedule:<20} "
                 f"{str(next_run)[:19]:<19} {paused}"
             )
-        print(job_line)
+            print(job_line)
         return 0
 
     elif args.schedule_cmd == "cancel":

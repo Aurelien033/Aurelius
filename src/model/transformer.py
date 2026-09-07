@@ -379,10 +379,10 @@ class AureliusTransformer(nn.Module):
             if temperature != 1.0:
                 next_logits = next_logits / temperature
 
-            sorted_logits, sorted_indices = torch.sort(next_logits, descending=False)
+            sorted_logits, sorted_indices = torch.sort(next_logits, descending=True)
             cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
-            sorted_mask = cumulative_probs <= (1.0 - top_p)
-            sorted_mask[..., -1:] = False
+            sorted_mask = (cumulative_probs - sorted_logits.softmax(dim=-1)) >= top_p
+            sorted_mask[..., 0] = False
             mask = sorted_mask.scatter(1, sorted_indices, sorted_mask)
             next_logits = next_logits.masked_fill(mask, float("-inf"))
 
@@ -439,10 +439,10 @@ class AureliusTransformer(nn.Module):
                 next_logits = next_logits / temperature
 
             # Top-p nucleus sampling (same as generate())
-            sorted_logits, sorted_indices = torch.sort(next_logits, descending=False)
+            sorted_logits, sorted_indices = torch.sort(next_logits, descending=True)
             cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
-            sorted_mask = cumulative_probs <= (1.0 - top_p)
-            sorted_mask[..., -1:] = False
+            sorted_mask = (cumulative_probs - sorted_logits.softmax(dim=-1)) >= top_p
+            sorted_mask[..., 0] = False
             mask = sorted_mask.scatter(1, sorted_indices, sorted_mask)
             next_logits = next_logits.masked_fill(mask, float("-inf"))
 

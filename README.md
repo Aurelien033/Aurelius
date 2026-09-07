@@ -13,6 +13,74 @@ Every component — transformer core, training pipeline, alignment system, infer
 
 ---
 
+## Current Status
+
+**Last updated:** 2026-06-01
+
+Aurelius is in active Phase 1 execution: master planning complete, dataset construction underway, research skill infrastructure deployed, and infrastructure auditing in progress.
+
+### Master Plan v3 (2026-05-29)
+
+The project follows a structured 5-phase master plan targeting ICLR/NeurIPS 2027:
+
+| Phase | Focus | Status |
+|-------|-------|--------|
+| 1 | Planning & Architecture | Complete |
+| 2 | Dataset Construction & AMC Substrate | Active |
+| 3 | Core Experiments | Pending Gate G-A |
+| 4 | Sidecar Modules (PD-PMA/LPD/PMA) | Pending AMC readiness |
+| 5 | Thesis Writing & Submission | Future |
+
+**Novel contributions defined:**
+1. **ZO-SimPO** — Zero-shot SimPO alignment
+2. **MemEval-AMC** — Evaluation benchmark for associative memory circuits
+3. **AXPO+BPPO+GRPO** — Hybrid RL training recipe
+4. **SERE-Bench** — Safety/robustness evaluation suite
+5. **MemGuardian** — Memory safety architecture
+
+**Bibliography baseline:** 72+ papers, ~1.3MB corpus across 5 contributions.
+
+### Dataset Construction
+
+- **Primary store:** `/Volumes/Yggdrasil/Ai Training datasets`
+- **Current size:** 79 GB accumulated
+- **Best yields:** fineweb-edu (~8 GB/batch), fineweb, c4, stack-exchange-preferences via HF streaming
+- **Code channel:** GitHub source saturated at ~24 GB / 160 repos (~400 MB/repo average); pivoting to HF streaming for continued scale
+
+### Model & Provider Configuration
+
+- **Research model:** `qwen3.6-27b` via Alibaba (switched 2026-05-30)
+- **Previous:** `x-ai/grok-build-0.1`
+- **v5 Plan enacted:** 7 artifacts including truth surface, trace spec, smoke plan, eval harness design, gate definitions, technical debt ledger, and cross-link index
+
+### P0 Dependencies & Gaps
+
+| Dependency | Status | Purpose |
+|------------|--------|---------|
+| Liger-Kernel | Uninstalled | Fused RMSNorm, SwiGLU, cross-entropy kernels |
+| lm-eval-harness | Uninstalled | Benchmark evaluation harness |
+| triton | Uninstalled | Kernel development and custom ops |
+
+These are gated as P0 and must be resolved before Phase 2 gates can close.
+
+### Skills Ecosystem
+
+152+ skills deployed across research and software-development domains:
+
+- **Research layer:** arXiv mining, Semantic Scholar citation graphs, OpenReview analysis, GitHub/Kaggle/HuggingFace research, deep research workflows, universal research protocol
+- **Software-development layer:** Clean code, architecture patterns, distributed systems, security, observability, SRE, platform engineering, embedded systems
+- **Specialized research:** AI safety, agent ecosystems, alignment/post-training, multi-modal, inference systems, experimental design, grant landscape, data engineering
+
+All skills are API-first, Firecrawl-independent, and stored under `~/.hermes/skills/`.
+
+### AMC/UPD Architecture Boundary
+
+- **AMC-first thesis spine:** AMC memory substrate, admission/safety, and baseline tests must be green before PD-PMA/LPD/PMA work proceeds
+- **UPD role:** Downstream audit/provenance only; does not own memory/admission/routing until AMC gates pass
+- **Gate G-A:** AMC-only evidence required; UPD work is post-AMC sidecar
+
+---
+
 ## Stack
 
 | Layer | Location | Language | Role |

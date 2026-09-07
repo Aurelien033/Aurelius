@@ -23,6 +23,91 @@ except Exception:  # pragma: no cover
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _LOGGER = logging.getLogger(__name__)
 
+_SAFE_BUILTINS: dict[str, Any] = {
+    "abs": abs,
+    "all": all,
+    "any": any,
+    "bool": bool,
+    "dict": dict,
+    "enumerate": enumerate,
+    "float": float,
+    "int": int,
+    "len": len,
+    "list": list,
+    "max": max,
+    "min": min,
+    "range": range,
+    "round": round,
+    "set": set,
+    "sorted": sorted,
+    "str": str,
+    "sum": sum,
+    "tuple": tuple,
+    "zip": zip,
+}
+
+_FORBIDDEN_CALL_NAMES: frozenset[str] = frozenset(
+    {
+        "__import__",
+        "breakpoint",
+        "compile",
+        "delattr",
+        "dir",
+        "eval",
+        "exec",
+        "getattr",
+        "globals",
+        "input",
+        "locals",
+        "open",
+        "setattr",
+        "vars",
+    }
+)
+
+# Forbidden AST node types in skill code — prevent builtins-escape via
+# import statements and dunder attribute traversal.
+_FORBIDDEN_NODES: frozenset[str] = frozenset(
+    {
+        "Import",
+        "ImportFrom",
+        "Global",
+        "Nonlocal",
+    }
+)
+
+
+def _validate_skill_code(code: str) -> None:
+    """Raise ValueError if *code* contains constructs that can escape the sandbox."""
+    import ast as _ast
+
+    try:
+        tree = _ast.parse(code)
+    except SyntaxError as exc:
+        raise ValueError(f"Skill code has syntax error: {exc}") from exc
+    for node in _ast.walk(tree):
+        node_type = type(node).__name__
+        if node_type in _FORBIDDEN_NODES:
+            raise ValueError(f"Skill code contains forbidden construct: {node_type}")
+        if isinstance(node, _ast.Name) and node.id.startswith("__"):
+            raise ValueError(f"Skill code contains forbidden dunder name: {node.id!r}")
+        if isinstance(node, _ast.Attribute) and node.attr.startswith("__"):
+            raise ValueError(f"Skill code contains dunder attribute access: {node.attr!r}")
+        if isinstance(node, _ast.Call) and isinstance(node.func, _ast.Name):
+            if node.func.id in _FORBIDDEN_CALL_NAMES:
+                raise ValueError(f"Skill code calls forbidden function: {node.func.id!r}")
+
+
+def _new_exec_namespace() -> dict[str, Any]:
+    """Return an exec namespace with an explicit restricted builtins table."""
+    return {"__builtins__": _SAFE_BUILTINS}
+
+
+def _safe_exec(code: str | Any, namespace: dict[str, Any]) -> None:
+    namespace.setdefault("__builtins__", _SAFE_BUILTINS)
+    exec(code, namespace, namespace)  # nosec B102 - AST-validated, restricted builtins.  # noqa: S102
+
+
 # Momentum-encoder coefficient (Voyager / MoCo style). The dissertation
 # specifies tau=0.99 for slowly-updated skill embedding statistics.
 _SKILL_MOMENTUM_TAU: float = 0.99
@@ -133,13 +218,15 @@ class VoyagerSkillLibrary:
     @staticmethod
     def _run_test_case(namespace: dict[str, Any], test_case: Any) -> None:
         if isinstance(test_case, str):
-            exec(test_case, {}, namespace)  # noqa: S102  # nosec B102 - test case code is trusted skill verification input
+            _validate_skill_code(test_case)
+            _safe_exec(test_case, namespace)
             return
 
         if isinstance(test_case, dict):
             setup = test_case.get("setup")
             if isinstance(setup, str):
-                exec(setup, {}, namespace)  # noqa: S102  # nosec B102 - test case code is trusted skill verification input
+                _validate_skill_code(setup)
+                _safe_exec(setup, namespace)
             elif callable(setup):
                 setup(namespace)
 
@@ -151,7 +238,9 @@ class VoyagerSkillLibrary:
                 if result is False:
                     raise AssertionError("callable assertion returned False")
             else:
-                exec(str(assertion), {}, namespace)  # noqa: S102  # nosec B102 - test case code is trusted skill verification input
+                assertion_str = str(assertion)
+                _validate_skill_code(assertion_str)
+                _safe_exec(assertion_str, namespace)
             return
 
         raise TypeError("test cases must be strings or dicts")
@@ -183,15 +272,16 @@ class VoyagerSkillLibrary:
             return skill.reliability > 0.8
 
         try:
-            base_namespace: dict[str, Any] = {}
-            exec(skill.code, {}, base_namespace)  # noqa: S102  # nosec B102 - skill code is loaded from the local skill library
+            _validate_skill_code(skill.code)
+            _code_obj = compile(skill.code, "<skill>", "exec")
         except Exception:
             return False
 
         passed = 0
         for tc in test_cases:
             try:
-                namespace = dict(base_namespace)
+                namespace = _new_exec_namespace()
+                _safe_exec(_code_obj, namespace)
                 self._run_test_case(namespace, tc)
                 passed += 1
             except Exception:

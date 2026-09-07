@@ -13,7 +13,7 @@ import json
 import uuid
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field, replace
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -89,6 +89,18 @@ def _safe_filename(value: str, field_name: str) -> str:
     if ".." in lower:
         raise InterfaceFrameworkError(f"{field_name} contains directory-traversal patterns")
     return value
+
+
+def _resolve_safe_path(root: Path, candidate: str | Path) -> Path:
+    """Resolve *candidate* within *root*, rejecting traversals and symlinks."""
+    resolved_root = Path(root).expanduser().resolve()
+    raw = Path(candidate).expanduser()
+    resolved_candidate = raw.resolve()
+    if not resolved_candidate.is_relative_to(resolved_root):
+        raise ValueError(f"path {candidate!r} escapes allowed root {root!r}")
+    if raw.is_symlink():
+        raise ValueError(f"symlink paths are not permitted: {candidate!r}")
+    return resolved_candidate
 
 
 def _coerce_optional_text(value: Any, field_name: str) -> str | None:
@@ -475,7 +487,10 @@ class SessionManager:
         }
 
     def write_session_export(self, session_id: str, path: str | Path) -> Path:
-        target = Path(path).expanduser().resolve()
+        raw_target = Path(path).expanduser()
+        if raw_target.is_symlink():
+            raise ValueError(f"export path must not be a symlink: {path!r}")
+        target = raw_target.resolve()
         target.parent.mkdir(parents=True, exist_ok=True)
         payload = self.export_session(session_id)
         try:
@@ -1394,7 +1409,7 @@ class SessionManager:
     # ------------------------------------------------------------------
     def _journal_path(self, session_id: str) -> Path:
         safe_id = _safe_filename(session_id, "session_id")
-        return self._journal_dir / f"{safe_id}.json"
+        return _resolve_safe_path(self._journal_dir, self._journal_dir / f"{safe_id}.json")
 
     def _persist_journal(self, journal: SessionJournal) -> None:
         if not self.persist:
@@ -1463,7 +1478,7 @@ class SessionManager:
 
     def _session_path(self, session_id: str) -> Path:
         safe_id = _safe_filename(session_id, "session_id")
-        return self.state_dir / f"{safe_id}.json"
+        return _resolve_safe_path(self.state_dir, self.state_dir / f"{safe_id}.json")
 
     def _persist(self, session: SessionRecord) -> None:
         if not self.persist:

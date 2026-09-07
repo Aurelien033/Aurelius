@@ -169,7 +169,7 @@ class GroupSampler:
             cumulative_logp = torch.tensor(0.0, device=device)
 
             for _step in range(max_new_tokens):
-                logits = self.model(cur_ids)
+                _, logits, _ = self.model(cur_ids)
                 next_logits = logits[:, -1, :]
                 if self.temperature != 1.0:
                     next_logits = next_logits / self.temperature
@@ -307,7 +307,7 @@ class GRPOTrainer:
         resp = response_ids.unsqueeze(0)
         full = torch.cat([input_ids, resp], dim=1)
 
-        logits = model(full)
+        _, logits, _ = model(full)
 
         T_prompt = input_ids.size(1)
         T_new = response_ids.size(0)
