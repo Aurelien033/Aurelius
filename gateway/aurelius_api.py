@@ -43,7 +43,7 @@ def validate_config() -> None:
     except ValueError:
         errors.append(f"AURELIUS_PORT is not an integer: {port_str}")
 
-    host = os.environ.get("AURELIUS_HOST", "0.0.0.0")  # noqa: S104
+    host = os.environ.get("AURELIUS_HOST", "127.0.0.1")  # loopback default (CWE-605)
     if not host or not host.strip():
         errors.append("AURELIUS_HOST must be a non-empty bind address")
 

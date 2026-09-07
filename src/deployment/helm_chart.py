@@ -29,7 +29,7 @@ class HelmChartError(Exception):
 class HelmChartValues:
     """Values for a Helm chart (mirrors values.yaml)."""
 
-    image_repository: str = "ghcr.io/s3nna13/aurelius"
+    image_repository: str = "ghcr.io/Aurelien033/aurelius"
     image_tag: str = "latest"
     replicas: int = 1
     port: int = 8080

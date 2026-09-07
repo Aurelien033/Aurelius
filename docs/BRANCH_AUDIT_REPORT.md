@@ -1,7 +1,7 @@
 # Branch Audit Report — Aurelius AI
 
 **Date:** 2026-05-01
-**Repository:** `https://github.com/S3nna13/Aurelius.git`
+**Repository:** `https://github.com/Aurelien033/Aurelius.git`
 **Audit scope:** All 42 remote branches + Desktop working copy
 
 ---

@@ -26,7 +26,7 @@ _DENY_HOSTS: frozenset[str] = frozenset(
     {
         "127.0.0.1",
         "localhost",
-        "0.0.0.0",  # noqa: S104
+        "0.0.0.0",  # nosec B104 — SSRF deny-list, not a bind  # noqa: S104
         "::1",
         "169.254.169.254",  # AWS/GCP/Azure IMDS
         "metadata.google.internal",

@@ -1,9 +1,9 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/s3nna13/aurelius
+  repository: ghcr.io/Aurelien033/aurelius
   # TODO: pin to digest in production after building and pushing:
-  #   docker pull ghcr.io/s3nna13/aurelius:v1.0.0
+  #   docker pull ghcr.io/Aurelien033/aurelius:v1.0.0
   #   tag: "v1.0.0@sha256:..."
   tag: "v1.0.0"
   pullPolicy: IfNotPresent
@@ -38,7 +38,7 @@ gateway:
   enabled: false
   replicaCount: 1
   image:
-    repository: ghcr.io/s3nna13/aurelius-gateway
+    repository: ghcr.io/Aurelien033/aurelius-gateway
     # TODO: pin to digest in production after building and pushing
     tag: "v1.0.0"
     pullPolicy: IfNotPresent
@@ -53,7 +53,7 @@ middle:
   enabled: true
   replicaCount: 1
   image:
-    repository: ghcr.io/s3nna13/aurelius-middle
+    repository: ghcr.io/Aurelien033/aurelius-middle
     # TODO: pin to digest in production after building and pushing
     tag: "v1.0.0"
     pullPolicy: IfNotPresent
@@ -71,7 +71,7 @@ frontend:
   enabled: true
   replicaCount: 1
   image:
-    repository: ghcr.io/s3nna13/aurelius-frontend
+    repository: ghcr.io/Aurelien033/aurelius-frontend
     # TODO: pin to digest in production after building and pushing
     tag: "v1.0.0"
     pullPolicy: IfNotPresent
