@@ -86,7 +86,7 @@ xgrammar = [
     # xgrammar caps transformers<5, which drags in CVE-affected transformers
     # 4.57.x (PYSEC-2025-217, PYSEC-2026-2288/2289/2290) into CI installs.
     # src/serving/xgrammar_decoder.py falls back transparently without it.
-    "xgrammar>=0.1.0",
+    "xgrammar>=0.2.5.post1",
 ]
 
 [project.scripts]
