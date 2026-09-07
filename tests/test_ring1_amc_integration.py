@@ -47,7 +47,9 @@ def test_tier2_write_and_read_cross_step() -> None:
     )
     assert writes[0].decision == "promote"
 
-    reads = read_memory_for_think(session, observation="Follow-up about entity_3", step_id=3, rng=rng)
+    reads = read_memory_for_think(
+        session, observation="Follow-up about entity_3", step_id=3, rng=rng
+    )
     assert any(read.source == "episodic" for read in reads)
     assert any(read.influenced_action for read in reads)
 
@@ -119,6 +121,8 @@ def test_batch_integrated_traces_have_cross_step_memory() -> None:
         for step in trace.steps:
             if step.step_id > 1:
                 cross_step_total += sum(
-                    1 for read in step.memory_reads if read.source == "episodic" and read.influenced_action
+                    1
+                    for read in step.memory_reads
+                    if read.source == "episodic" and read.influenced_action
                 )
     assert cross_step_total >= 15

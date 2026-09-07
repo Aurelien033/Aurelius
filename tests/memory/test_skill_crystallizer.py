@@ -49,7 +49,9 @@ def test_scan_returns_proposals_over_threshold(
     assert proposals[0].retrieval_count == 3
 
 
-def test_crystallize_produces_new_entry(crystallizer: SkillCrystallizer, tier3: AMCTier3Hook) -> None:
+def test_crystallize_produces_new_entry(
+    crystallizer: SkillCrystallizer, tier3: AMCTier3Hook
+) -> None:
     _trusted_entry(tier3, "fact:c", "Tier-2 stores episodic surprises.")
     proposal = CrystallizationProposal(
         source_key="fact:c",
@@ -92,7 +94,9 @@ def test_crystallize_resets_count(crystallizer: SkillCrystallizer, tier3: AMCTie
     assert crystallizer._retrieval_counts["fact:e"] == 0
 
 
-def test_run_cycle_processes_all_ready(crystallizer: SkillCrystallizer, tier3: AMCTier3Hook) -> None:
+def test_run_cycle_processes_all_ready(
+    crystallizer: SkillCrystallizer, tier3: AMCTier3Hook
+) -> None:
     _trusted_entry(tier3, "fact:f", "Replay only commits durable events.")
     _trusted_entry(tier3, "fact:g", "KV cache respects trust levels.")
     for key in ("fact:f", "fact:g"):

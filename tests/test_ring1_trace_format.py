@@ -135,7 +135,11 @@ def test_generated_trace_has_required_step_fields() -> None:
             assert "memory_writes" in step
             assert "action" in step
             assert "reflection" in step
-            assert step["reflection"]["decision"] in {"continue", "backtrack", "request_clarification"}
+            assert step["reflection"]["decision"] in {
+                "continue",
+                "backtrack",
+                "request_clarification",
+            }
 
 
 def test_reproducibility_same_seed_same_length() -> None:

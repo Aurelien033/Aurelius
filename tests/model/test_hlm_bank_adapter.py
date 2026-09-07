@@ -22,9 +22,13 @@ def _empty_bank(dim=32) -> HLMPreferenceBank:
 
 def _filled_bank(dim=32) -> HLMPreferenceBank:
     bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=4, bank_dim=dim))
-    bank.upsert(HLMPreferenceWrite(
-        key=torch.ones(dim), value=torch.ones(dim) * 2, strength=1.0,
-    ))
+    bank.upsert(
+        HLMPreferenceWrite(
+            key=torch.ones(dim),
+            value=torch.ones(dim) * 2,
+            strength=1.0,
+        )
+    )
     return bank
 
 
@@ -91,7 +95,11 @@ def test_adapter_gradients_flow_to_adapter_not_bank_buffers() -> None:
 
     # Bank buffers should NOT have gradients
     for buf_name, buf in bank.named_buffers():
-        if hasattr(buf, "grad") and buf.grad is not None and buf_name not in ("keys", "values", "strengths"):
+        if (
+            hasattr(buf, "grad")
+            and buf.grad is not None
+            and buf_name not in ("keys", "values", "strengths")
+        ):
             continue
         # Keys, values, strengths should not receive gradients (they were detached)
 

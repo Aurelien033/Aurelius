@@ -28,12 +28,14 @@ extra steps — kill and fall back to best-of-N.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable
+from collections.abc import Callable
 
-Generate = Callable[[str], str]                       # prompt -> completion
-VerifyFn = Callable[[str, str], dict]                 # (prompt, completion) -> {score:float, verdict:bool, detail:str}
-Converged = Callable[[str, str, dict, dict], bool]    # (prev, cur, vprev, vcur) -> converged?
-LabelFn = Callable[[str, str], bool]                  # optional held-out ground truth
+Generate = Callable[[str], str]  # prompt -> completion
+VerifyFn = Callable[
+    [str, str], dict
+]  # (prompt, completion) -> {score:float, verdict:bool, detail:str}
+Converged = Callable[[str, str, dict, dict], bool]  # (prev, cur, vprev, vcur) -> converged?
+LabelFn = Callable[[str, str], bool]  # optional held-out ground truth
 
 
 @dataclass
@@ -43,8 +45,8 @@ class RSVAResult:
     final_output: str
     final_verify: dict
     scores: list[float] = field(default_factory=list)
-    cost_generations: int = 0          # == iterations (one gen per iter)
-    correct: bool | None = None        # needs label_fn
+    cost_generations: int = 0  # == iterations (one gen per iter)
+    correct: bool | None = None  # needs label_fn
 
     def ledger_row(self) -> dict:
         """TruthSurface-style row. value = final verify score; baseline set by caller."""
@@ -53,7 +55,7 @@ class RSVAResult:
             "iterations": self.iterations,
             "converged": self.converged,
             "value": round(self.final_verify.get("score", 0.0), 4),
-            "n": 1,                     # single task per RSVA run; aggregate across tasks
+            "n": 1,  # single task per RSVA run; aggregate across tasks
             "cost_generations": self.cost_generations,
             "correct": None if self.correct is None else bool(self.correct),
         }
@@ -106,8 +108,12 @@ class RSVALoop:
                 if self.label_fn is not None:
                     correct = self.label_fn(prompt, cur)
                 return RSVAResult(
-                    iterations=it + 1, converged=True, final_output=cur,
-                    final_verify=vcur, scores=scores, cost_generations=it + 1,
+                    iterations=it + 1,
+                    converged=True,
+                    final_output=cur,
+                    final_verify=vcur,
+                    scores=scores,
+                    cost_generations=it + 1,
                     correct=correct,
                 )
             prev, vprev = cur, vcur
@@ -116,14 +122,19 @@ class RSVALoop:
         if self.label_fn is not None:
             correct = self.label_fn(prompt, prev)
         return RSVAResult(
-            iterations=self.max_iters, converged=False, final_output=prev,
-            final_verify=vprev, scores=scores, cost_generations=self.max_iters,
+            iterations=self.max_iters,
+            converged=False,
+            final_output=prev,
+            final_verify=vprev,
+            scores=scores,
+            cost_generations=self.max_iters,
             correct=correct,
         )
 
 
-def rsva_verdict(rsva_rows: list[dict], single_pass: float, best_of_k: float,
-                 min_gain: float = 0.03) -> dict:
+def rsva_verdict(
+    rsva_rows: list[dict], single_pass: float, best_of_k: float, min_gain: float = 0.03
+) -> dict:
     """Falsifier-gated verdict (Part 3 A.1).
 
     RSVA must beat BOTH single-pass AND best-of-k independent sampling, else it is
@@ -152,8 +163,9 @@ def rsva_verdict(rsva_rows: list[dict], single_pass: float, best_of_k: float,
 
 
 # ---- real-wiring factory (guarded imports; not needed for tests) ----
-def wire_real_rsva(model_generate, verifier, *, max_iters: int = 10,
-                   label_fn: LabelFn | None = None) -> RSVALoop:
+def wire_real_rsva(
+    model_generate, verifier, *, max_iters: int = 10, label_fn: LabelFn | None = None
+) -> RSVALoop:
     """Assemble an RSVA loop from a model sampler + a verifier.
 
     model_generate(prompt) -> str          : your model sampler (single completion)

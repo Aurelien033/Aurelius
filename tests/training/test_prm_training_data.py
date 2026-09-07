@@ -27,9 +27,7 @@ Tests:
 from __future__ import annotations
 
 import json
-import os
 
-import pytest
 
 from src.training.prm_training_data import (
     LabelledTrajectory,
@@ -37,7 +35,6 @@ from src.training.prm_training_data import (
     PRMTrainingDataConfig,
     StepRecord,
     TrajectoryBuilder,
-    _default_label_fn,
     auto_label,
     filter_steps,
 )
@@ -81,12 +78,15 @@ def test_step_record_state_hash_same_for_same_state():
 
 def _make_trajectory(n_steps: int, labelled: bool = True):
     steps = [
-        StepRecord(step_idx=i, text=f"step_{i}", test_state={"passed": i, "total": n_steps}, label=int(i > 0) if labelled else None)
+        StepRecord(
+            step_idx=i,
+            text=f"step_{i}",
+            test_state={"passed": i, "total": n_steps},
+            label=int(i > 0) if labelled else None,
+        )
         for i in range(n_steps)
     ]
-    return LabelledTrajectory(
-        task_id="t1", prompt="p", steps=steps, final_score=1.0
-    )
+    return LabelledTrajectory(task_id="t1", prompt="p", steps=steps, final_score=1.0)
 
 
 def test_labelled_trajectory_valid_with_minimum_steps():
@@ -114,7 +114,10 @@ def test_labelled_trajectory_invalid_unlabelled_steps():
 
 
 def test_auto_label_exact_match():
-    steps = [StepRecord(0, "", {"passed": 3, "total": 3}), StepRecord(1, "", {"passed": 2, "total": 3})]
+    steps = [
+        StepRecord(0, "", {"passed": 3, "total": 3}),
+        StepRecord(1, "", {"passed": 2, "total": 3}),
+    ]
     auto_label(steps)
     assert steps[0].label == 1
     assert steps[1].label == 0
@@ -173,10 +176,7 @@ def test_filter_steps_keeps_valid_steps():
 
 
 def test_filter_steps_preserves_order():
-    steps = [
-        StepRecord(i, f"s{i}", {"passed": i, "total": 5}, label=1)
-        for i in range(5)
-    ]
+    steps = [StepRecord(i, f"s{i}", {"passed": i, "total": 5}, label=1) for i in range(5)]
     out = filter_steps(steps)
     assert [s.step_idx for s in out] == list(range(5))
 

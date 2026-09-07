@@ -109,9 +109,7 @@ class HLMPreferenceBank(nn.Module):
         self._slot_counter += 1
         return float(self._slot_counter)
 
-    def read(
-        self, query: torch.Tensor, *, top_k: int | None = None
-    ) -> HLMPreferenceRead:
+    def read(self, query: torch.Tensor, *, top_k: int | None = None) -> HLMPreferenceRead:
         """Top-k cosine-similarity read; returns weighted context.
 
         Args:
@@ -227,7 +225,7 @@ class HLMPreferenceBank(nn.Module):
     @torch.no_grad
     def decay_(self, steps: int = 1) -> None:
         """Exponentially decay strengths; entries below min_strength are cleared."""
-        factor = self.cfg.decay ** steps
+        factor = self.cfg.decay**steps
         self.strengths.mul_(factor)
         below = self.strengths < self.cfg.min_strength
         self.strengths[below] = 0.0

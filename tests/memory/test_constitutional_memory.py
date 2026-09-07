@@ -23,7 +23,9 @@ def test_injects_all_default_principles(constitutional: ConstitutionalMemory) ->
     assert constitutional.principle_count == len(DEFAULT_PRINCIPLES)
 
 
-def test_all_principles_are_trusted(constitutional: ConstitutionalMemory, tier3: AMCTier3Hook) -> None:
+def test_all_principles_are_trusted(
+    constitutional: ConstitutionalMemory, tier3: AMCTier3Hook
+) -> None:
     for index in range(len(DEFAULT_PRINCIPLES)):
         key = f"constitutional:{index}"
         entry = tier3._store.get(key)
@@ -36,7 +38,9 @@ def test_integrity_verify_passes_when_untouched(constitutional: ConstitutionalMe
     assert valid, f"integrity issues: {issues}"
 
 
-def test_integrity_fails_on_content_tamper(constitutional: ConstitutionalMemory, tier3: AMCTier3Hook) -> None:
+def test_integrity_fails_on_content_tamper(
+    constitutional: ConstitutionalMemory, tier3: AMCTier3Hook
+) -> None:
     entry = tier3._store["constitutional:0"]
     entry.value = "tampered"
     valid, issues = constitutional.verify_integrity()
@@ -44,7 +48,9 @@ def test_integrity_fails_on_content_tamper(constitutional: ConstitutionalMemory,
     assert any("modified" in issue for issue in issues)
 
 
-def test_integrity_fails_on_missing(constitutional: ConstitutionalMemory, tier3: AMCTier3Hook) -> None:
+def test_integrity_fails_on_missing(
+    constitutional: ConstitutionalMemory, tier3: AMCTier3Hook
+) -> None:
     del tier3._store["constitutional:3"]
     valid, issues = constitutional.verify_integrity()
     assert not valid
@@ -59,7 +65,9 @@ def test_attempt_revoke_is_blocked(constitutional: ConstitutionalMemory) -> None
     assert constitutional.violation_count() == 1
 
 
-def test_attempt_delete_is_blocked(constitutional: ConstitutionalMemory, tier3: AMCTier3Hook) -> None:
+def test_attempt_delete_is_blocked(
+    constitutional: ConstitutionalMemory, tier3: AMCTier3Hook
+) -> None:
     assert constitutional.attempt_delete("constitutional:0", source="test")
     assert "constitutional:0" in tier3._store
     assert constitutional.violation_count() == 1
@@ -73,7 +81,9 @@ def test_attempt_quarantine_is_blocked(constitutional: ConstitutionalMemory) -> 
     assert constitutional.violation_count() == 1
 
 
-def test_attempt_modify_is_blocked(constitutional: ConstitutionalMemory, tier3: AMCTier3Hook) -> None:
+def test_attempt_modify_is_blocked(
+    constitutional: ConstitutionalMemory, tier3: AMCTier3Hook
+) -> None:
     assert constitutional.attempt_modify("constitutional:0", "new content", source="attacker")
     assert tier3._store["constitutional:0"].value == DEFAULT_PRINCIPLES[0]
     assert constitutional.violation_count() == 1

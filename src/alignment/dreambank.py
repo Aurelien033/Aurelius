@@ -116,13 +116,15 @@ class DreamBankController:
                 continue
 
             prompt_hash = self._hash_prompt(seed.prompt, cfg.metadata_salt)
-            pairs.append(DreamPreferencePair(
-                prompt_hash=prompt_hash,
-                chosen=chosen_text,
-                rejected=rejected_text,
-                margin=margin,
-                provenance=f"dream_{seed.source}",
-            ))
+            pairs.append(
+                DreamPreferencePair(
+                    prompt_hash=prompt_hash,
+                    chosen=chosen_text,
+                    rejected=rejected_text,
+                    margin=margin,
+                    provenance=f"dream_{seed.source}",
+                )
+            )
 
         # Upsert chosen embeddings into bank
         bank_dim = self.bank.cfg.bank_dim
@@ -143,14 +145,16 @@ class DreamBankController:
                     embedding = pad
             embedding = embedding.to(self.bank.keys.device, self.bank.keys.dtype)
 
-            self.bank.upsert(HLMPreferenceWrite(
-                key=embedding,
-                value=embedding,
-                strength=min(max(pair.margin, 0.0), 1.0),
-                provenance=pair.provenance,
-                trust="unverified",
-                metadata_hash=pair.prompt_hash,
-            ))
+            self.bank.upsert(
+                HLMPreferenceWrite(
+                    key=embedding,
+                    value=embedding,
+                    strength=min(max(pair.margin, 0.0), 1.0),
+                    provenance=pair.provenance,
+                    trust="unverified",
+                    metadata_hash=pair.prompt_hash,
+                )
+            )
             writes += 1
 
         # Decay at end of cycle

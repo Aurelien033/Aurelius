@@ -47,7 +47,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -136,7 +136,7 @@ class CurriculumRLVRTrainer:
     def train_step(
         self,
         task_ids: Sequence[str],
-        prompt_ids: "torch.Tensor",
+        prompt_ids: torch.Tensor,
         prompt_text: str,
         answer: str = "",
         **reward_kwargs: Any,

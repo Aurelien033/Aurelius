@@ -16,6 +16,7 @@ Contains the statistical gate math (all hand-verified against the arc's receipts
 
 Pure-python (math + optional pyyaml). Append-only JSONL ledger = event-sourced.
 """
+
 from __future__ import annotations
 
 import json
@@ -53,12 +54,12 @@ def mcnemar(b: int, c: int, continuity: bool = True) -> dict:
         diff = max(diff - 1, 0)
     chi2 = (diff * diff) / n
     p = _chi2_1_sf(chi2)
-    return {"b": b, "c": c, "chi2": round(chi2, 4), "p": round(p, 4),
-            "significant": p < 0.05}
+    return {"b": b, "c": c, "chi2": round(chi2, 4), "p": round(p, 4), "significant": p < 0.05}
 
 
-def min_n_for_delta(p: float, delta: float, power: float = 0.80,
-                    alpha_two_sided: float = 0.05) -> int:
+def min_n_for_delta(
+    p: float, delta: float, power: float = 0.80, alpha_two_sided: float = 0.05
+) -> int:
     """Sample size to resolve a `delta` (in proportion, e.g. 0.02) at base rate
     `p`. n = (z_alpha + z_beta)^2 * p(1-p) / delta^2.
 
@@ -99,8 +100,11 @@ def vb_mca(delta_pp: float, n_tasks: int, cost_usd: float) -> dict:
     """
     dsolved = (delta_pp / 100.0) * n_tasks
     cost_per = (cost_usd / dsolved) if dsolved > 0 else float("inf")
-    return {"d_solved": round(dsolved, 2), "cost_usd": cost_usd,
-            "usd_per_solution": round(cost_per, 2) if cost_per != float("inf") else None}
+    return {
+        "d_solved": round(dsolved, 2),
+        "cost_usd": cost_usd,
+        "usd_per_solution": round(cost_per, 2) if cost_per != float("inf") else None,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -114,13 +118,14 @@ _STATUSES = ("proposed", "confirmed", "refuted", "noise")
 class ClaimRecord:
     """One measured claim. metric/baseline/falsifier/rollback are REQUIRED for
     promotion (the completeness-blueprint Phase-0 exit gate)."""
+
     claim_id: str
     statement: str
-    metric: str = ""              # e.g. "HumanEval pass@1"
-    baseline: str = ""            # e.g. "Qwen3-8B base 84.1%"
-    falsifier: str = ""           # the pre-registered kill condition
-    rollback: str = ""            # what to revert to if it fails in prod
-    value: float | None = None    # measured metric value (pp or rate)
+    metric: str = ""  # e.g. "HumanEval pass@1"
+    baseline: str = ""  # e.g. "Qwen3-8B base 84.1%"
+    falsifier: str = ""  # the pre-registered kill condition
+    rollback: str = ""  # what to revert to if it fails in prod
+    value: float | None = None  # measured metric value (pp or rate)
     baseline_value: float | None = None
     n: int | None = None
     cost_usd: float | None = None
@@ -130,8 +135,7 @@ class ClaimRecord:
     ts: float = field(default_factory=time.time)
 
     def missing_fields(self) -> list[str]:
-        return [f for f in ("metric", "baseline", "falsifier", "rollback")
-                if not getattr(self, f)]
+        return [f for f in ("metric", "baseline", "falsifier", "rollback") if not getattr(self, f)]
 
 
 def promotion_gate(claim: ClaimRecord) -> dict:
@@ -148,8 +152,10 @@ def promotion_gate(claim: ClaimRecord) -> dict:
         hw = ci_halfwidth(claim.baseline_value / 100.0, claim.n, z=1.96) * 100
         sig = abs(d) >= hw
         if not sig:
-            reasons.append(f"delta {d:+.2f}pp within CI half-width ±{hw:.2f}pp "
-                           f"(n={claim.n}) — not significant; raise n or use MBPP")
+            reasons.append(
+                f"delta {d:+.2f}pp within CI half-width ±{hw:.2f}pp "
+                f"(n={claim.n}) — not significant; raise n or use MBPP"
+            )
     else:
         reasons.append("no value/baseline_value/n -> significance unprovable")
     return {"ok": not reasons, "significant": sig, "reasons": reasons}
@@ -207,9 +213,14 @@ class TruthSurface:
                 f.write(json.dumps(asdict(c)) + "\n")
 
     def _load(self) -> None:
-        self.claims = [ClaimRecord(**json.loads(l)) for l in self.path.read_text().splitlines() if l.strip()]
+        self.claims = [
+            ClaimRecord(**json.loads(line))
+            for line in self.path.read_text().splitlines()
+            if line.strip()
+        ]
 
     # -- YAML export (human-readable claims ledger) --
     def to_yaml(self, path: str | Path) -> None:
         import yaml
+
         Path(path).write_text(yaml.safe_dump([asdict(c) for c in self.claims], sort_keys=False))

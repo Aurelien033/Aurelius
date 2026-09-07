@@ -181,7 +181,10 @@ def simulate_no_memory_traces(amc_traces: list[dict[str, Any]]) -> list[dict[str
             mcts["nodes_using_memory"] = 0
         tags = clone.setdefault("metadata", {}).setdefault("tags", [])
         tags.append("variant:no_memory_simulated")
-        if clone.get("final_outcome") == "success" and random.Random(clone.get("seed", 0)).random() < 0.25:
+        if (
+            clone.get("final_outcome") == "success"
+            and random.Random(clone.get("seed", 0)).random() < 0.25
+        ):
             clone["final_outcome"] = "partial"
         simulated.append(clone)
     return simulated
@@ -199,8 +202,7 @@ def estimate_dreambank_lift(
     pre_mean, pre_low, pre_high = bootstrap_ci(pre_values)
     fill_factor = min(1.0, bank_fill / max(len(holdout_traces), 1))
     post_values = [
-        min(1.0, value + lift_prior * fill_factor * (1.0 - value))
-        for value in pre_values
+        min(1.0, value + lift_prior * fill_factor * (1.0 - value)) for value in pre_values
     ]
     post_mean, post_low, post_high = bootstrap_ci(post_values, seed=1)
     delta_pp = (post_mean - pre_mean) * 100.0

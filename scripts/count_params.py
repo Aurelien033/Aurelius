@@ -73,9 +73,7 @@ def validate_config(config: AMCTransformerConfig) -> list[str]:
     errors: list[str] = []
 
     if config.d_model % config.n_heads != 0:
-        errors.append(
-            f"d_model ({config.d_model}) must be divisible by n_heads ({config.n_heads})"
-        )
+        errors.append(f"d_model ({config.d_model}) must be divisible by n_heads ({config.n_heads})")
 
     head_dim = config.d_model // config.n_heads
     if head_dim < 32:

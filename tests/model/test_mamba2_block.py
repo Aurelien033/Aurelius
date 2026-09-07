@@ -12,6 +12,7 @@ Covers:
   - Causality: zeroing future tokens does not affect earlier outputs
   - Runs on CPU (and CUDA when available)
 """
+
 from __future__ import annotations
 
 import random
@@ -25,6 +26,7 @@ from src.model.mamba2_block import Mamba2Block, Mamba2Config
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _small_config(**overrides) -> Mamba2Config:
     defaults = dict(
@@ -49,6 +51,7 @@ def _seed(seed: int = 0) -> None:
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
+
 
 class TestMamba2Config:
     def test_d_inner_and_nheads_defaults(self) -> None:
@@ -82,6 +85,7 @@ class TestMamba2Config:
 # Initialization
 # ---------------------------------------------------------------------------
 
+
 class TestInitialization:
     def test_construction(self) -> None:
         _seed(0)
@@ -105,9 +109,9 @@ class TestInitialization:
 # Forward pass
 # ---------------------------------------------------------------------------
 
+
 class TestForwardShape:
-    @pytest.mark.parametrize("B,L,D", [(1, 1, 64), (2, 8, 64),
-                                        (1, 64, 64), (4, 16, 128)])
+    @pytest.mark.parametrize("B,L,D", [(1, 1, 64), (2, 8, 64), (1, 64, 64), (4, 16, 128)])
     def test_output_shape(self, B: int, L: int, D: int) -> None:
         _seed(0)
         cfg = _small_config(d_model=D)
@@ -153,6 +157,7 @@ class TestReturnState:
 # State continuation — the key correctness check
 # ---------------------------------------------------------------------------
 
+
 class TestStateContinuation:
     def test_chunked_forward_matches_full(self) -> None:
         """Run (B=1, L=16) full. Then run L=8, take state, run L=8 with
@@ -170,21 +175,25 @@ class TestStateContinuation:
             # First half.
             first_half, state = model(x[:, :8], step=0, return_state=True)
             # Second half using the cached state.
-            second_half = model(x[:, 8:], step=8,
-                                prev_state=state["ssm_state"])
+            second_half = model(x[:, 8:], step=8, prev_state=state["ssm_state"])
 
         combined = torch.cat([first_half, second_half], dim=1)
         assert combined.shape == full_out.shape
         # Sequential scan should reproduce exactly (no parallel-scan
         # numerical error). Allow a small tolerance for float ops.
-        torch.testing.assert_close(combined, full_out,
-                                   rtol=1e-4, atol=1e-5,
-                                   msg="chunked != full — state continuity broken")
+        torch.testing.assert_close(
+            combined,
+            full_out,
+            rtol=1e-4,
+            atol=1e-5,
+            msg="chunked != full — state continuity broken",
+        )
 
 
 # ---------------------------------------------------------------------------
 # Reset / introspection
 # ---------------------------------------------------------------------------
+
 
 class TestStateIntrospection:
     def test_get_state_initially_none(self) -> None:
@@ -224,8 +233,7 @@ class TestStateIntrospection:
 
         x = torch.randn(1, 4, cfg.d_model)
         _, state1 = model(x, step=0, return_state=True)
-        _, state2 = model(x, step=4,
-                          prev_state=state1["ssm_state"], return_state=True)
+        _, state2 = model(x, step=4, prev_state=state1["ssm_state"], return_state=True)
 
         s1 = state1["ssm_state"]
         s2 = state2["ssm_state"]
@@ -235,6 +243,7 @@ class TestStateIntrospection:
 # ---------------------------------------------------------------------------
 # Gradient flow
 # ---------------------------------------------------------------------------
+
 
 class TestGradientFlow:
     def test_gradients_reach_all_parameters(self) -> None:
@@ -265,6 +274,7 @@ class TestGradientFlow:
 # Various batch sizes
 # ---------------------------------------------------------------------------
 
+
 class TestBatchSizes:
     @pytest.mark.parametrize("B", [1, 2, 4, 8])
     def test_batch_sizes_forward(self, B: int) -> None:
@@ -279,6 +289,7 @@ class TestBatchSizes:
 # ---------------------------------------------------------------------------
 # Causality
 # ---------------------------------------------------------------------------
+
 
 class TestCausality:
     def test_future_tokens_do_not_affect_past_outputs(self) -> None:
@@ -299,19 +310,22 @@ class TestCausality:
         # Outputs at positions 0..9 (inclusive) must be identical because
         # those positions never see tokens 10+.
         torch.testing.assert_close(
-            out_full[:, :10, :], out_modified[:, :10, :],
-            rtol=1e-5, atol=1e-6,
+            out_full[:, :10, :],
+            out_modified[:, :10, :],
+            rtol=1e-5,
+            atol=1e-6,
             msg="causality violation: future tokens affected past outputs",
         )
         # Position 10+ should differ.
-        assert not torch.allclose(out_full[:, 10:, :], out_modified[:, 10:, :],
-                                  atol=1e-6), \
+        assert not torch.allclose(out_full[:, 10:, :], out_modified[:, 10:, :], atol=1e-6), (
             "future positions unchanged despite zeroed input — scan bug"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Device
 # ---------------------------------------------------------------------------
+
 
 class TestDevice:
     def test_runs_on_cpu(self) -> None:
@@ -335,6 +349,7 @@ class TestDevice:
 # ---------------------------------------------------------------------------
 # Smoke (the exact command from Tranched T00)
 # ---------------------------------------------------------------------------
+
 
 def test_tranched_smoke() -> None:
     """Reproduce the smoke snippet from the tranche doc."""

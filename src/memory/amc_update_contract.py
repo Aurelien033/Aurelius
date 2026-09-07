@@ -456,10 +456,14 @@ def admit_ewm_update(
     ):
         admitted = False
         reject_code = "collision_reject"
-    elif update.contradiction_policy in (
-        AMCContradictionPolicy.REJECT,
-        AMCContradictionPolicy.QUARANTINE,
-    ) and update.update_reason == AMCUpdateReason.CONFLICT:
+    elif (
+        update.contradiction_policy
+        in (
+            AMCContradictionPolicy.REJECT,
+            AMCContradictionPolicy.QUARANTINE,
+        )
+        and update.update_reason == AMCUpdateReason.CONFLICT
+    ):
         if update.contradiction_policy == AMCContradictionPolicy.REJECT:
             admitted = False
             reject_code = "contradiction_reject"

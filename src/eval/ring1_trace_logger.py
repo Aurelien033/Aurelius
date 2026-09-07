@@ -40,7 +40,7 @@ def get_git_sha() -> str:
     """Return current git commit SHA, or 'unknown' if unavailable."""
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "rev-parse", "HEAD"],  # noqa: S607 — git is a PATH-resolved system dependency
             capture_output=True,
             text=True,
             check=True,
@@ -249,13 +249,17 @@ class Ring1TraceLogger:
                 for read_event in step.memory_reads:
                     read_event.step_id = step.step_id
                     handle.write(
-                        json.dumps(read_event.to_sidecar(trace.trace_id, timestamp), ensure_ascii=True)
+                        json.dumps(
+                            read_event.to_sidecar(trace.trace_id, timestamp), ensure_ascii=True
+                        )
                         + "\n"
                     )
                 for write_event in step.memory_writes:
                     write_event.step_id = step.step_id
                     handle.write(
-                        json.dumps(write_event.to_sidecar(trace.trace_id, timestamp), ensure_ascii=True)
+                        json.dumps(
+                            write_event.to_sidecar(trace.trace_id, timestamp), ensure_ascii=True
+                        )
                         + "\n"
                     )
         return sidecar_path

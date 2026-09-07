@@ -39,7 +39,9 @@ def test_bootstrap_requires_equal_lengths() -> None:
 def test_oracle_amc_memory_monotonic_by_tier() -> None:
     order = ["baseline", "tier1_only", "tier12", "full_amc"]
     means = [
-        float(np.mean(run_benchmark_scores(config_name=name, benchmark="amc_memory", mode="oracle")))
+        float(
+            np.mean(run_benchmark_scores(config_name=name, benchmark="amc_memory", mode="oracle"))
+        )
         for name in order
     ]
     assert means == sorted(means)

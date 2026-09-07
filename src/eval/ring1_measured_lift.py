@@ -75,7 +75,7 @@ def measure_dreambank_lift(
     bank_fill: int = 0,
 ) -> DreamBankLiftReport:
     """Measure post-DreamBank lift via bank-on vs bank-off logit ablation."""
-    # empty_bank = HLMPreferenceBank(\n    #     HLMPreferenceBankConfig(\n    #         bank_size=filled_bank.cfg.bank_size,\n    #         bank_dim=filled_bank.cfg.bank_dim,\n    #     )\n    # )
+    # empty_bank = HLMPreferenceBank(\n    #     HLMPreferenceBankConfig(\n    #         bank_size=filled_bank.cfg.bank_size,\n    #         bank_dim=filled_bank.cfg.bank_dim,\n    #     )\n    # )  # noqa: E501
 
     pre_values = [_trace_success(trace) for trace in holdout_traces]
     post_values: list[float] = []
@@ -84,7 +84,9 @@ def measure_dreambank_lift(
     device = next(model.parameters()).device
     with torch.inference_mode():
         for trace, pre in zip(holdout_traces, pre_values):
-            input_ids = trace_prompt_to_input_ids(trace, vocab_size=model.config.vocab_size).to(device)
+            input_ids = trace_prompt_to_input_ids(trace, vocab_size=model.config.vocab_size).to(
+                device
+            )
             ablation = run_ablation(model, input_ids, filled_bank)
             delta = ablation.mean_logit_delta
             deltas.append(delta)

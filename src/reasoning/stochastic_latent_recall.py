@@ -171,9 +171,7 @@ def validate_slr_config(config: SLRConfig) -> None:
             f"SLRConfig.k ({config.k}) must be <= max_candidates ({config.max_candidates})"
         )
     if config.max_candidates > 32:
-        raise ValueError(
-            f"SLRConfig.max_candidates must be <= 32, got {config.max_candidates}"
-        )
+        raise ValueError(f"SLRConfig.max_candidates must be <= 32, got {config.max_candidates}")
     if not math.isfinite(config.noise_sigma) or config.noise_sigma < 0.0:
         raise ValueError(f"SLRConfig.noise_sigma must be finite and >= 0, got {config.noise_sigma}")
     if not isinstance(config.replay_seed, int):
@@ -416,9 +414,7 @@ def generate_slr_candidates(
             "SLR is disabled (config.enabled=False); enable explicitly for stochastic candidates"
         )
 
-    key_fn = recall_key_provider or (
-        lambda q, p: _default_recall_key_provider(q, p)
-    )
+    key_fn = recall_key_provider or (lambda q, p: _default_recall_key_provider(q, p))
     score_fn_impl = score_fn or _default_score_fn
     width = DEFAULT_PERTURBATION_WIDTH
     candidates: list[SLRCandidate] = []

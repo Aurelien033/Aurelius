@@ -38,10 +38,10 @@ class HLMPreferenceAdapterConfig:
 
 @dataclass(frozen=True)
 class HLMPreferenceAdapterOutput:
-    hidden: torch.Tensor     # (B, T, d_model)
-    alpha: torch.Tensor      # (B, T, 1)
+    hidden: torch.Tensor  # (B, T, d_model)
+    alpha: torch.Tensor  # (B, T, 1)
     bank_context: torch.Tensor  # (B, T, bank_dim)
-    confidence: torch.Tensor   # (B, T, 1)
+    confidence: torch.Tensor  # (B, T, 1)
 
 
 class HLMPreferenceAdapter(nn.Module):

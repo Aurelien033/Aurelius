@@ -23,7 +23,7 @@ class FederatedConfig:
     num_devices: int = 8
     rounds: int = 3
     local_cycles_per_round: int = 2
-    dp_sigma: float = 0.0               # 0 = no DP noise; >0 adds Gaussian noise pre-aggregation
+    dp_sigma: float = 0.0  # 0 = no DP noise; >0 adds Gaussian noise pre-aggregation
     seeds_per_device_per_cycle: int = 4
     max_writes_per_cycle: int = 8
     bank_size: int = 8
@@ -124,10 +124,12 @@ class FederatedBankSimulator:
         self.cfg = config or FederatedConfig()
 
     def _make_local_bank(self) -> HLMPreferenceBank:
-        return HLMPreferenceBank(HLMPreferenceBankConfig(
-            bank_size=self.cfg.bank_size,
-            bank_dim=self.cfg.bank_dim,
-        ))
+        return HLMPreferenceBank(
+            HLMPreferenceBankConfig(
+                bank_size=self.cfg.bank_size,
+                bank_dim=self.cfg.bank_dim,
+            )
+        )
 
     def _run_local_cycles(self, device_id: int, bank: HLMPreferenceBank) -> None:
         ctrl = DreamBankController(
@@ -193,12 +195,8 @@ class FederatedBankSimulator:
 
             if federate and self.cfg.num_devices >= 2:
                 # "Upload" (with optional DP noise)
-                uploaded_keys = torch.stack(
-                    [self._add_dp_noise(b.keys.clone()) for b in banks]
-                )
-                uploaded_values = torch.stack(
-                    [self._add_dp_noise(b.values.clone()) for b in banks]
-                )
+                uploaded_keys = torch.stack([self._add_dp_noise(b.keys.clone()) for b in banks])
+                uploaded_values = torch.stack([self._add_dp_noise(b.values.clone()) for b in banks])
                 uploaded_strengths = torch.stack(
                     [self._add_dp_noise(b.strengths.clone()) for b in banks]
                 )
@@ -241,5 +239,6 @@ class FederatedBankSimulator:
             delta_strength=fed_mean_strength - isolated_mean_strength,
             total_comm_bytes_proxy=_comm_bytes_per_round(
                 self.cfg.num_devices, self.cfg.bank_size, self.cfg.bank_dim
-            ) * self.cfg.rounds,
+            )
+            * self.cfg.rounds,
         )

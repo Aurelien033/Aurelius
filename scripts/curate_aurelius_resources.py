@@ -12,7 +12,9 @@ import urllib.request
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
-from xml.etree import ElementTree as ET
+from xml.etree import (
+    ElementTree as ET,  # nosec B405 — arxiv export API responses (trusted, well-formed Atom feeds); defusedxml is unnecessary overhead for this curation script
+)
 
 TODAY = date.today().isoformat()
 BASE = Path.home() / "Desktop" / "AI Plans" / f"aurelius-research-resource-audit-{TODAY}"
@@ -28,7 +30,10 @@ RESOURCE_PLAN = [
         "id": "fastcontext",
         "lane": "composer_agent",
         "name": "FastContext / microsoft/fastcontext",
-        "resources": ["https://arxiv.org/abs/2606.14066", "https://github.com/microsoft/fastcontext"],
+        "resources": [
+            "https://arxiv.org/abs/2606.14066",
+            "https://github.com/microsoft/fastcontext",
+        ],
         "priority": "P0",
         "status": "immediate_build_reference",
         "why": "Dedicated repository-exploration subagent; local corpus says it improves SWE-style resolution up to 5.5% and cuts main-agent tokens up to 60%. This directly upgrades ContextAssembler beyond heuristic search.",
@@ -61,7 +66,11 @@ RESOURCE_PLAN = [
         "id": "react-toolformer-reflexion",
         "lane": "composer_agent",
         "name": "ReAct + Toolformer + Reflexion",
-        "resources": ["https://arxiv.org/abs/2210.03629", "https://arxiv.org/abs/2302.04761", "https://arxiv.org/abs/2303.11366"],
+        "resources": [
+            "https://arxiv.org/abs/2210.03629",
+            "https://arxiv.org/abs/2302.04761",
+            "https://arxiv.org/abs/2303.11366",
+        ],
         "priority": "P0",
         "status": "agent_reasoning_reference",
         "why": "The local corpus repeatedly uses this trio as the agent/tool/memory backbone: reason-act traces, tool-use learning, and verbal reinforcement repair.",
@@ -83,7 +92,12 @@ RESOURCE_PLAN = [
         "id": "rlvr-stack",
         "lane": "rlvr_verifier",
         "name": "DeepSeekMath / DAPO / BPPO / RLVR-over-SFT sources",
-        "resources": ["https://arxiv.org/abs/2402.03300", "https://arxiv.org/abs/2503.14476", "https://arxiv.org/abs/2605.28028", "https://arxiv.org/abs/2606.22938"],
+        "resources": [
+            "https://arxiv.org/abs/2402.03300",
+            "https://arxiv.org/abs/2503.14476",
+            "https://arxiv.org/abs/2605.28028",
+            "https://arxiv.org/abs/2606.22938",
+        ],
         "priority": "P0/P1",
         "status": "training_recipe_pool",
         "why": "The corpus repeatedly frames RLVR as the only lever that moved held-out code/math scores versus SFT-only specialization.",
@@ -94,7 +108,12 @@ RESOURCE_PLAN = [
         "id": "pagedattention-vllm-sglang-lmcache",
         "lane": "inference_efficiency",
         "name": "PagedAttention / vLLM / SGLang / LMCache",
-        "resources": ["https://arxiv.org/abs/2309.06180", "https://github.com/vllm-project/vllm", "https://github.com/sgl-project/sglang", "https://github.com/LMCache/LMCache"],
+        "resources": [
+            "https://arxiv.org/abs/2309.06180",
+            "https://github.com/vllm-project/vllm",
+            "https://github.com/sgl-project/sglang",
+            "https://github.com/LMCache/LMCache",
+        ],
         "priority": "P0 for serving, not raw intelligence",
         "status": "release_infra_reference",
         "why": "High-frequency corpus cluster for serving and KV-cache management. Makes Aurelius runnable and cheaper, but not by itself more intelligent.",
@@ -105,7 +124,11 @@ RESOURCE_PLAN = [
         "id": "structured-generation",
         "lane": "composer_agent",
         "name": "XGrammar / Outlines / constrained structured generation",
-        "resources": ["https://arxiv.org/abs/2411.15100", "https://github.com/mlc-ai/xgrammar", "https://github.com/dottxt-ai/outlines"],
+        "resources": [
+            "https://arxiv.org/abs/2411.15100",
+            "https://github.com/mlc-ai/xgrammar",
+            "https://github.com/dottxt-ai/outlines",
+        ],
         "priority": "P0",
         "status": "implementation_reference",
         "why": "Composer-like agents need reliable JSON/tool/diff protocol. Structured generation reduces malformed actions and Apply Model training burden.",
@@ -116,7 +139,11 @@ RESOURCE_PLAN = [
         "id": "memory-agent-stack",
         "lane": "memory_amc",
         "name": "MemGPT + Titans + RMT / recurrent memory lines",
-        "resources": ["https://arxiv.org/abs/2310.08560", "https://arxiv.org/abs/2501.00663", "https://arxiv.org/abs/2207.06881"],
+        "resources": [
+            "https://arxiv.org/abs/2310.08560",
+            "https://arxiv.org/abs/2501.00663",
+            "https://arxiv.org/abs/2207.06881",
+        ],
         "priority": "P1",
         "status": "agi_memory_reference",
         "why": "These support Aurelius as a persistent developmental system rather than a stateless code assistant.",
@@ -138,7 +165,13 @@ RESOURCE_PLAN = [
         "id": "fast-kv-quant",
         "lane": "inference_efficiency",
         "name": "KIVI / KVQuant / AWQ / GPTQ / SmoothQuant",
-        "resources": ["https://arxiv.org/abs/2402.02750", "https://arxiv.org/abs/2401.18079", "https://arxiv.org/abs/2306.00978", "https://arxiv.org/abs/2210.17323", "https://arxiv.org/abs/2211.10438"],
+        "resources": [
+            "https://arxiv.org/abs/2402.02750",
+            "https://arxiv.org/abs/2401.18079",
+            "https://arxiv.org/abs/2306.00978",
+            "https://arxiv.org/abs/2210.17323",
+            "https://arxiv.org/abs/2211.10438",
+        ],
         "priority": "P1/P2 gated",
         "status": "research_gated_efficiency",
         "why": "Important for local deployment, long context, and memory cost, but the corpus warns not to claim savings until packed storage and quality are measured.",
@@ -149,7 +182,14 @@ RESOURCE_PLAN = [
         "id": "speculative-decoding-stack",
         "lane": "inference_efficiency",
         "name": "Speculative decoding / Medusa / EAGLE / SpecInfer",
-        "resources": ["https://arxiv.org/abs/2203.16487", "https://arxiv.org/abs/2302.01318", "https://arxiv.org/abs/2401.10774", "https://arxiv.org/abs/2401.15077", "https://arxiv.org/abs/2406.16858", "https://arxiv.org/abs/2305.09781"],
+        "resources": [
+            "https://arxiv.org/abs/2203.16487",
+            "https://arxiv.org/abs/2302.01318",
+            "https://arxiv.org/abs/2401.10774",
+            "https://arxiv.org/abs/2401.15077",
+            "https://arxiv.org/abs/2406.16858",
+            "https://arxiv.org/abs/2305.09781",
+        ],
         "priority": "P1 serving",
         "status": "acceptance_rate_gated",
         "why": "Can speed decoding with exact or near-exact verification. Useful after baseline serving is measured, not before.",
@@ -171,7 +211,11 @@ RESOURCE_PLAN = [
         "id": "skillopt-openclaw-skill",
         "lane": "composer_agent",
         "name": "SkillOpt / OpenClaw-Skill / trace-derived agent skills",
-        "resources": ["https://aka.ms/SkillOpt", "https://arxiv.org/abs/2606.16774", "https://arxiv.org/abs/2601.22607"],
+        "resources": [
+            "https://aka.ms/SkillOpt",
+            "https://arxiv.org/abs/2606.16774",
+            "https://arxiv.org/abs/2601.22607",
+        ],
         "priority": "P1/P2",
         "status": "skill_learning_reference",
         "why": "Supports moving from raw trajectories to reusable skills. This is central to AGI-track continual learning but needs careful provenance and eval gates.",
@@ -204,7 +248,11 @@ RESOURCE_PLAN = [
         "id": "avoid-layer-skip-mod",
         "lane": "avoid_for_now",
         "name": "LayerSkip / Mixture-of-Depths / frozen-base routing path",
-        "resources": ["https://arxiv.org/abs/2404.16710", "https://arxiv.org/abs/2404.02258", "https://github.com/facebookresearch/LayerSkip"],
+        "resources": [
+            "https://arxiv.org/abs/2404.16710",
+            "https://arxiv.org/abs/2404.02258",
+            "https://github.com/facebookresearch/LayerSkip",
+        ],
         "priority": "DO_NOT_PRIORITIZE",
         "status": "caution_falsified_context",
         "why": "The local corpus mentions these in negative/falsified contexts. They may still be useful as literature, but not as immediate Aurelius build direction.",
@@ -237,17 +285,21 @@ def resolve_arxiv(ids: list[str]) -> dict[str, dict[str, str]]:
         query = ",".join(batch)
         url = "https://export.arxiv.org/api/query?id_list=" + urllib.parse.quote(query)
         try:
-            with urllib.request.urlopen(url, timeout=30) as resp:  # noqa: S310
+            with urllib.request.urlopen(url, timeout=30) as resp:  # noqa: S310  # nosec B310 — fixed https endpoint (arxiv export API)
                 xml = resp.read()
-            root = ET.fromstring(xml)  # noqa: S314
+            root = ET.fromstring(xml)  # noqa: S314  # nosec B314 — see B405 above
             for entry in root.findall("atom:entry", ARXIV_NS):
                 id_url = entry.findtext("atom:id", default="", namespaces=ARXIV_NS)
                 match = re.search(r"(\d{4}\.\d{4,5})(?:v\d+)?", id_url)
                 if not match:
                     continue
                 aid = match.group(1)
-                title = " ".join(entry.findtext("atom:title", default="", namespaces=ARXIV_NS).split())
-                summary = " ".join(entry.findtext("atom:summary", default="", namespaces=ARXIV_NS).split())
+                title = " ".join(
+                    entry.findtext("atom:title", default="", namespaces=ARXIV_NS).split()
+                )
+                summary = " ".join(
+                    entry.findtext("atom:summary", default="", namespaces=ARXIV_NS).split()
+                )
                 published = entry.findtext("atom:published", default="", namespaces=ARXIV_NS)
                 out[aid] = {"title": title, "summary": summary[:600], "published": published}
         except Exception as exc:  # noqa: BLE001
@@ -281,7 +333,9 @@ def decorate_plan(inv: dict, arxiv_meta: dict[str, dict[str, str]]) -> list[dict
                     "resource": res,
                     "local_score": rec.get("score") if rec else None,
                     "local_files": len(rec.get("files", [])) if rec else 0,
-                    "sample_context": (rec.get("contexts") or [""])[0] if rec else "not found in scan",
+                    "sample_context": (rec.get("contexts") or [""])[0]
+                    if rec
+                    else "not found in scan",
                     "arxiv_title": meta.get("title", "") if meta else "",
                     "arxiv_published": meta.get("published", "") if meta else "",
                 }
@@ -295,7 +349,17 @@ def decorate_plan(inv: dict, arxiv_meta: dict[str, dict[str, str]]) -> list[dict
 def write_outputs(inv: dict, decorated: list[dict]) -> None:
     CURATED_JSON.write_text(json.dumps(decorated, indent=2, ensure_ascii=False), encoding="utf-8")
     with CURATED_CSV.open("w", newline="", encoding="utf-8") as f:
-        fields = ["id", "priority", "lane", "status", "name", "resources", "why", "aurelius_action", "falsifier"]
+        fields = [
+            "id",
+            "priority",
+            "lane",
+            "status",
+            "name",
+            "resources",
+            "why",
+            "aurelius_action",
+            "falsifier",
+        ]
         w = csv.DictWriter(f, fieldnames=fields)
         w.writeheader()
         for item in decorated:
@@ -314,23 +378,41 @@ def write_outputs(inv: dict, decorated: list[dict]) -> None:
     lines.append("")
     s = inv["summary"]
     lines.append(f"- Local research files analyzed: {s['files_included']:,}")
-    lines.append(f"- Included corpus size: {s['total_included_bytes']:,} bytes / {s['total_included_lines']:,} lines")
+    lines.append(
+        f"- Included corpus size: {s['total_included_bytes']:,} bytes / {s['total_included_lines']:,} lines"
+    )
     lines.append(f"- Deduplicated resources extracted: {s['resources_deduped']:,}")
-    lines.append("- This curated report filters the raw regex inventory into resources that can actually assist Aurelius.")
-    lines.append("- ArXiv titles are resolved through the arXiv API when available; unresolved/future IDs remain local-corpus candidates.")
+    lines.append(
+        "- This curated report filters the raw regex inventory into resources that can actually assist Aurelius."
+    )
+    lines.append(
+        "- ArXiv titles are resolved through the arXiv API when available; unresolved/future IDs remain local-corpus candidates."
+    )
     lines.append("")
     lines.append("## Executive conclusion")
     lines.append("")
-    lines.append("The biggest additional resource signal is not another generic LLM paper. It is a stack:")
+    lines.append(
+        "The biggest additional resource signal is not another generic LLM paper. It is a stack:"
+    )
     lines.append("")
-    lines.append("1. FastContext-style repository exploration subagent for Cursor Composer-like coding agency.")
-    lines.append("2. SWE-agent/SWE-bench/LiveCodeBench-style evaluation for realistic software tasks.")
+    lines.append(
+        "1. FastContext-style repository exploration subagent for Cursor Composer-like coding agency."
+    )
+    lines.append(
+        "2. SWE-agent/SWE-bench/LiveCodeBench-style evaluation for realistic software tasks."
+    )
     lines.append("3. Process supervision + RLVR for verifier-grounded learning from those traces.")
     lines.append("4. PagedAttention/vLLM/SGLang/LMCache for scalable serving and trace generation.")
-    lines.append("5. AMC/SDB/DreamBank-style memory plus MemGPT/Titans/RMT references for developmental continuity.")
-    lines.append("6. Structured generation (XGrammar/Outlines) so Aurelius emits reliable actions, diffs, and schemas.")
+    lines.append(
+        "5. AMC/SDB/DreamBank-style memory plus MemGPT/Titans/RMT references for developmental continuity."
+    )
+    lines.append(
+        "6. Structured generation (XGrammar/Outlines) so Aurelius emits reliable actions, diffs, and schemas."
+    )
     lines.append("")
-    lines.append("That stack supports the AGI-track goal because it creates a closed loop: explore -> act -> verify -> repair -> remember -> train.")
+    lines.append(
+        "That stack supports the AGI-track goal because it creates a closed loop: explore -> act -> verify -> repair -> remember -> train."
+    )
     lines.append("")
 
     lane_order = [
@@ -381,13 +463,25 @@ def write_outputs(inv: dict, decorated: list[dict]) -> None:
 
     lines.append("## Recommended immediate work order")
     lines.append("")
-    lines.append("1. P0: Build `ExplorerAgent` / FastContext analogue on top of the new `ContextAssembler`.")
-    lines.append("2. P0: Add trajectory recorder for ComposerAgent: task, search/read, selected context, diff, verifier output, repair, final result.")
+    lines.append(
+        "1. P0: Build `ExplorerAgent` / FastContext analogue on top of the new `ContextAssembler`."
+    )
+    lines.append(
+        "2. P0: Add trajectory recorder for ComposerAgent: task, search/read, selected context, diff, verifier output, repair, final result."
+    )
     lines.append("3. P0: Add PRM-ready step labels and a repair dataset export format.")
-    lines.append("4. P0: Stand up the truth surface: pass@1, oracle@K, selection gap, repair success, verifier precision/recall, cost per solved task.")
-    lines.append("5. P1: Harden serving with vLLM/SGLang/LMCache only after benchmark ledger exists.")
-    lines.append("6. P1: Promote memory resources into AMC/SDB contracts, but keep memory writes shadow-only until verifier admission is measured.")
-    lines.append("7. P2: Revisit architecture papers like Tapered LM only after the Composer/RLVR trace engine is producing reliable evidence.")
+    lines.append(
+        "4. P0: Stand up the truth surface: pass@1, oracle@K, selection gap, repair success, verifier precision/recall, cost per solved task."
+    )
+    lines.append(
+        "5. P1: Harden serving with vLLM/SGLang/LMCache only after benchmark ledger exists."
+    )
+    lines.append(
+        "6. P1: Promote memory resources into AMC/SDB contracts, but keep memory writes shadow-only until verifier admission is measured."
+    )
+    lines.append(
+        "7. P2: Revisit architecture papers like Tapered LM only after the Composer/RLVR trace engine is producing reliable evidence."
+    )
     lines.append("")
     lines.append("## Files emitted")
     lines.append("")

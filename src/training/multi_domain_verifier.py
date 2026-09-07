@@ -29,7 +29,7 @@ import json
 import logging
 import re
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -186,7 +186,9 @@ def _json_verifier(
         # Non-strict: check key presence by regex word-boundary match;
         # handles "key":  (JSON-style) and bare  key  mentions in prose.
         for key in required_keys:
-            keys_pat = rf'(?<!\w)(?:"{re.escape(key)}"(?:\s*:|\s)|(?<!\w){re.escape(key)}(?:\s|$|[:=]))'
+            keys_pat = (
+                rf'(?<!\w)(?:"{re.escape(key)}"(?:\s*:|\s)|(?<!\w){re.escape(key)}(?:\s|$|[:=]))'
+            )
             if re.search(keys_pat, completion):
                 score = max(score, 0.3)
 
@@ -439,6 +441,7 @@ class MultiDomainVerifier:
         Returns:
             Callable ``(prompt, completion, **override_kwargs) -> float``.
         """
+
         def _reward_fn(
             prompt: str,
             completion: str,

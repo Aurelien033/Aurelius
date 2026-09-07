@@ -14,7 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -93,7 +93,18 @@ def record(sample: Sample, idx: int) -> dict[str, Any]:
     }
 
 
-def add(samples: list[Sample], prompt: str, response: str, domain: str, skill: str, difficulty: int, verification: str, answer_key: str | None = None, tags: list[str] | None = None, metadata_extra: dict[str, Any] | None = None) -> None:
+def add(
+    samples: list[Sample],
+    prompt: str,
+    response: str,
+    domain: str,
+    skill: str,
+    difficulty: int,
+    verification: str,
+    answer_key: str | None = None,
+    tags: list[str] | None = None,
+    metadata_extra: dict[str, Any] | None = None,
+) -> None:
     samples.append(
         Sample(
             prompt=prompt,
@@ -213,20 +224,78 @@ def build_mechanistic(samples: list[Sample]) -> None:
         ),
     ]
     for prompt, resp, domain, skill, difficulty in prompts:
-        add(samples, prompt, resp, domain, skill, difficulty, "mechanistic sanity check by circuit prediction and ablation logic.")
+        add(
+            samples,
+            prompt,
+            resp,
+            domain,
+            skill,
+            difficulty,
+            "mechanistic sanity check by circuit prediction and ablation logic.",
+        )
 
     for i in range(49):
         topic, skill, difficulty, answer = [
-            ("residual interference", "residual_state_management", 3, "control residual updates before adding new features"),
-            ("attention sink mitigation", "attention_sink_control", 3, "monitor low-information tokens and use masks or penalties"),
-            ("MLP feature composition", "feature_composition", 4, "test composed features with synthetic counterfactuals"),
-            ("causal mediation", "causal_circuit_testing", 4, "compare indirect effects through candidate components"),
-            ("latent plan state", "latent_planning", 5, "probe plan tokens across tool-call boundaries"),
-            ("uncertainty calibration", "uncertainty_routing", 3, "route uncertain cases to verification before final answer"),
-            ("tool-result grounding", "grounded_tool_use", 4, "require citations to tool outputs in final decisions"),
-            ("safety gate stability", "safety_circuit", 5, "stress-test refusal under paraphrase and role-play"),
-            ("retrieval routing", "retrieval_attention", 4, "separate query construction from evidence selection"),
-            ("self-evaluation", "metacognitive_monitoring", 3, "require explicit checklists before final answers"),
+            (
+                "residual interference",
+                "residual_state_management",
+                3,
+                "control residual updates before adding new features",
+            ),
+            (
+                "attention sink mitigation",
+                "attention_sink_control",
+                3,
+                "monitor low-information tokens and use masks or penalties",
+            ),
+            (
+                "MLP feature composition",
+                "feature_composition",
+                4,
+                "test composed features with synthetic counterfactuals",
+            ),
+            (
+                "causal mediation",
+                "causal_circuit_testing",
+                4,
+                "compare indirect effects through candidate components",
+            ),
+            (
+                "latent plan state",
+                "latent_planning",
+                5,
+                "probe plan tokens across tool-call boundaries",
+            ),
+            (
+                "uncertainty calibration",
+                "uncertainty_routing",
+                3,
+                "route uncertain cases to verification before final answer",
+            ),
+            (
+                "tool-result grounding",
+                "grounded_tool_use",
+                4,
+                "require citations to tool outputs in final decisions",
+            ),
+            (
+                "safety gate stability",
+                "safety_circuit",
+                5,
+                "stress-test refusal under paraphrase and role-play",
+            ),
+            (
+                "retrieval routing",
+                "retrieval_attention",
+                4,
+                "separate query construction from evidence selection",
+            ),
+            (
+                "self-evaluation",
+                "metacognitive_monitoring",
+                3,
+                "require explicit checklists before final answers",
+            ),
         ][i % 10]
         add(
             samples,
@@ -234,8 +303,8 @@ def build_mechanistic(samples: list[Sample]) -> None:
             response(
                 [
                     f"Prompt target: ask Aurelius to explain the mechanism behind {topic} and design a test.",
-                    f"Expected behavior: identify internal components, predict observable behavior, and name a failure mode.",
-                    f"Eval target: score whether the model gives a causal mechanism plus a measurable intervention.",
+                    "Expected behavior: identify internal components, predict observable behavior, and name a failure mode.",
+                    "Eval target: score whether the model gives a causal mechanism plus a measurable intervention.",
                 ],
                 [
                     "Check that the response avoids vague claims like 'the model thinks carefully'.",
@@ -253,7 +322,7 @@ def build_mechanistic(samples: list[Sample]) -> None:
 
 
 def build_math_logic(samples: list[Sample]) -> None:
-    rng = random.Random(SEED + 1)
+    rng = random.Random(SEED + 1)  # nosec B311 — seeded RNG for deterministic dataset generation, not security
     for i in range(36):
         a = rng.randint(11, 97)
         b = rng.randint(3, 19)
@@ -351,7 +420,7 @@ def build_coding(samples: list[Sample]) -> None:
         ),
         (
             "Design a JSON schema for a tool call that searches files by path pattern and returns up to N matches.",
-            "```json\n{\n  \"tool\": \"search_files\",\n  \"arguments\": {\n    \"pattern\": \"*.py\",\n    \"path\": \".\",\n    \"target\": \"files\",\n    \"limit\": 50\n  }\n}\n```",
+            '```json\n{\n  "tool": "search_files",\n  "arguments": {\n    "pattern": "*.py",\n    "path": ".",\n    "target": "files",\n    "limit": 50\n  }\n}\n```',
             "tool_schema_design",
             3,
         ),
@@ -511,7 +580,8 @@ def build_safety(samples: list[Sample]) -> None:
             add(
                 samples,
                 f"{prompt} Respond as Aurelius should in a training example. Variant {j}.",
-                resp + "\nSafety pattern: refuse the harmful action, avoid operational details, and redirect to authorized defensive work.",
+                resp
+                + "\nSafety pattern: refuse the harmful action, avoid operational details, and redirect to authorized defensive work.",
                 "safety_alignment",
                 skill,
                 difficulty,
@@ -678,18 +748,18 @@ The responses intentionally use concise reasoning summaries, not unrestricted ch
 def validate(records: list[dict[str, Any]]) -> None:
     ids = [r["metadata"]["id"] for r in records]
     prompts = [r["prompt"] for r in records]
-    assert len(ids) == len(set(ids)), "duplicate IDs"
-    assert len(prompts) == len(set(prompts)), "duplicate prompts"
+    assert len(ids) == len(set(ids)), "duplicate IDs"  # nosec B101
+    assert len(prompts) == len(set(prompts)), "duplicate prompts"  # nosec B101
     for r in records:
-        assert r["prompt"].strip(), "empty prompt"
-        assert r["response"].strip(), "empty response"
-        assert r["system_prompt"].strip(), "empty system_prompt"
-        assert r["metadata"]["version"] == VERSION, "version mismatch"
-        assert isinstance(r["metadata"].get("tags"), list), "tags must be list"
+        assert r["prompt"].strip(), "empty prompt"  # nosec B101
+        assert r["response"].strip(), "empty response"  # nosec B101
+        assert r["system_prompt"].strip(), "empty system_prompt"  # nosec B101
+        assert r["metadata"]["version"] == VERSION, "version mismatch"  # nosec B101
+        assert isinstance(r["metadata"].get("tags"), list), "tags must be list"  # nosec B101
 
 
 def main() -> None:
-    rng = random.Random(SEED)
+    rng = random.Random(SEED)  # nosec B311 — seeded RNG for deterministic dataset generation, not security
     samples: list[Sample] = []
     build_mechanistic(samples)
     build_math_logic(samples)
@@ -751,7 +821,9 @@ def main() -> None:
             "compact reasoning summaries rather than unrestricted CoT dumps",
         ],
     }
-    (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (OUT / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
 
     print(json.dumps(manifest, indent=2, ensure_ascii=False))
 

@@ -76,7 +76,9 @@ class DifferentiableECE:
 
         # Sample tokens to limit overhead
         if self.config.sample_ratio < 1.0:
-            n_samples = max(int(confidences.numel() * self.config.sample_ratio), self.config.n_bins * 2)
+            n_samples = max(
+                int(confidences.numel() * self.config.sample_ratio), self.config.n_bins * 2
+            )
             if n_samples < confidences.numel():
                 indices = torch.randperm(confidences.numel(), device=confidences.device)[:n_samples]
                 confidences = confidences[indices]
@@ -103,12 +105,15 @@ class DifferentiableECE:
 
         # Bin centers from 0 to 1
         bin_centers = torch.linspace(
-            0.0, 1.0, n_bins, device=confidences.device,
+            0.0,
+            1.0,
+            n_bins,
+            device=confidences.device,
         )  # (n_bins,)
 
         # Soft bin assignments via RBF kernel
         diff = confidences.unsqueeze(-1) - bin_centers.unsqueeze(0)  # (N, n_bins)
-        weights = F.softmax(-(diff ** 2) / max(temp, 1e-8), dim=-1)  # (N, n_bins)
+        weights = F.softmax(-(diff**2) / max(temp, 1e-8), dim=-1)  # (N, n_bins)
 
         # Weighted accuracy and confidence per bin
         weighted_acc = (weights * accuracies.unsqueeze(-1)).sum(dim=0)  # (n_bins,)

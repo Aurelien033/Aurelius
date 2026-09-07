@@ -31,6 +31,7 @@ LLMCallable = Callable[[list[dict[str, str]]], str]
 @dataclass(frozen=True)
 class LLMConfig:
     """Configuration for the LLM API used in debate voices."""
+
     base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     model: str = "qwen3.6-plus"
     api_key: str | None = None
@@ -44,8 +45,7 @@ class LLMConfig:
             api_key = os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
         if api_key is None:
             raise ValueError(
-                "api_key must be provided or set via "
-                "DASHSCOPE_API_KEY / OPENROUTER_API_KEY env var"
+                "api_key must be provided or set via DASHSCOPE_API_KEY / OPENROUTER_API_KEY env var"
             )
         object.__setattr__(self, "api_key", api_key)
 
@@ -144,8 +144,8 @@ class LLMDebateVoices:
             f"Proposer: {proposer_argument}\n"
             f"Skeptic: {skeptic_argument}\n\n"
             f"Respond in exactly this JSON format:\n"
-            f"{{\"decision\": \"admit\"|\"quarantine\"|\"reject\", "
-            f"\"reason\": \"...\", \"judge_confidence\": 0.0 to 1.0}}"
+            f'{{"decision": "admit"|"quarantine"|"reject", '
+            f'"reason": "...", "judge_confidence": 0.0 to 1.0}}'
         )
         messages = [
             {

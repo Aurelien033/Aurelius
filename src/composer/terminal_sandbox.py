@@ -233,7 +233,7 @@ class TerminalSandbox:
         truncated_stderr = False
 
         try:
-            proc = subprocess.Popen(  # noqa: S603
+            proc = subprocess.Popen(  # noqa: S603  # nosec B602 — shell flag is an explicit sandbox config; command policy is caller-validated
                 command,
                 shell=shell,
                 stdout=subprocess.PIPE,

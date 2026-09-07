@@ -66,14 +66,18 @@ def _run_pytest_bundle() -> CrossValidationCheck:
     ]
     proc = subprocess.run(cmd, cwd=_REPO_ROOT, capture_output=True, text=True)
     if proc.returncode == 0:
-        return CrossValidationCheck("bundle_structure", "PASS", "reproducibility bundle tests passed")
+        return CrossValidationCheck(
+            "bundle_structure", "PASS", "reproducibility bundle tests passed"
+        )
     tail = (proc.stdout + proc.stderr)[-500:]
     return CrossValidationCheck("bundle_structure", "FAIL", tail)
 
 
 def _run_forge_config_validation() -> CrossValidationCheck:
     script = _REPO_ROOT / "scripts" / "validate_amc_forge_config.py"
-    proc = subprocess.run([sys.executable, str(script)], cwd=_REPO_ROOT, capture_output=True, text=True)
+    proc = subprocess.run(
+        [sys.executable, str(script)], cwd=_REPO_ROOT, capture_output=True, text=True
+    )
     if proc.returncode == 0:
         return CrossValidationCheck("forge_config", "PASS", "validate_amc_forge_config.py ok")
     return CrossValidationCheck("forge_config", "FAIL", proc.stderr[-400:] or proc.stdout[-400:])
@@ -90,7 +94,11 @@ def _check_ablation_results(results_path: Path) -> list[CrossValidationCheck]:
             )
         ]
 
-    rows = [json.loads(line) for line in results_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = [
+        json.loads(line)
+        for line in results_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     expected_rows = len(CONFIGS) * len(DEFAULT_BENCHMARKS)
     if len(rows) != expected_rows:
         checks.append(
@@ -110,9 +118,7 @@ def _check_ablation_results(results_path: Path) -> list[CrossValidationCheck]:
         )
 
     amc_scores = {
-        row["config"]: float(row["score"])
-        for row in rows
-        if row.get("benchmark") == "amc_memory"
+        row["config"]: float(row["score"]) for row in rows if row.get("benchmark") == "amc_memory"
     }
     if set(amc_scores) != set(CONFIG_ORDER):
         checks.append(
@@ -189,7 +195,9 @@ def _check_script_paths() -> CrossValidationCheck:
             "FAIL",
             f"absolute paths in: {', '.join(offenders)}",
         )
-    return CrossValidationCheck("hardcoded_paths", "PASS", "no /Users or /home literals in bundle scripts")
+    return CrossValidationCheck(
+        "hardcoded_paths", "PASS", "no /Users or /home literals in bundle scripts"
+    )
 
 
 def run_cross_validation(*, profile: str = "smoke") -> CrossValidationResult:

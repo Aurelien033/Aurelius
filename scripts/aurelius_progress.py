@@ -62,7 +62,9 @@ def build_parser() -> argparse.ArgumentParser:
     event = sub.add_parser("event", help="Append a dashboard event.")
     event.add_argument("message")
     event.add_argument("--kind", default="general")
-    event.add_argument("--severity", default="info", choices=["info", "warning", "error", "critical"])
+    event.add_argument(
+        "--severity", default="info", choices=["info", "warning", "error", "critical"]
+    )
     event.add_argument("--metadata", default=None, help="JSON object metadata.")
 
     metric = sub.add_parser("metric", help="Append a scalar metric sample.")
@@ -98,7 +100,9 @@ def main() -> None:
     metrics_path = Path(args.metrics) if args.metrics else None
 
     if args.command == "seed":
-        path = ensure_state(state_path or "data/aurelius_progress/state.json", overwrite=args.overwrite)
+        path = ensure_state(
+            state_path or "data/aurelius_progress/state.json", overwrite=args.overwrite
+        )
         _print_json({"ok": True, "state": str(path)})
         return
 

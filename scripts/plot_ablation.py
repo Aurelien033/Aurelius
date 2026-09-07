@@ -31,7 +31,9 @@ def plot_ascii_table(results: list[dict]) -> None:
     for cfg in configs:
         row = f"{cfg:<14}"
         for bench in benchmarks:
-            matches = [item for item in results if item["config"] == cfg and item["benchmark"] == bench]
+            matches = [
+                item for item in results if item["config"] == cfg and item["benchmark"] == bench
+            ]
             if matches:
                 match = matches[0]
                 cell = f"{match['score']:.3f}±{match.get('stderr', 0.0):.3f}"

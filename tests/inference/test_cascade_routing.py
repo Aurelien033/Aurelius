@@ -46,14 +46,14 @@ def test_router_custom_fallback():
 def test_router_low_confidence_returns_fast():
     router = CascadeRouter()
     alpha = torch.tensor([[[0.8]]])  # high alpha
-    conf = torch.tensor([[[0.1]]])   # low confidence (< 0.40)
+    conf = torch.tensor([[[0.1]]])  # low confidence (< 0.40)
     assert router.decision(alpha, conf) == ComputePolicy.FAST
 
 
 def test_router_high_alpha_with_sufficient_confidence_returns_thorough():
     router = CascadeRouter()
     alpha = torch.tensor([[[0.8]]])  # > 0.70
-    conf = torch.tensor([[[0.5]]])   # > 0.40 and > 0.30
+    conf = torch.tensor([[[0.5]]])  # > 0.40 and > 0.30
     assert router.decision(alpha, conf) == ComputePolicy.THOROUGH
 
 
@@ -66,11 +66,13 @@ def test_router_high_alpha_with_low_confidence_returns_balanced_when_required():
 
 def test_router_high_alpha_balanced_confidence_returns_balanced():
     """High alpha but confidence between confidence_fast and balanced_confidence_floor."""
-    router = CascadeRouter(CascadeRouterConfig(
-        alpha_thorough=0.70,
-        confidence_fast=0.20,
-        balanced_confidence_floor=0.40,
-    ))
+    router = CascadeRouter(
+        CascadeRouterConfig(
+            alpha_thorough=0.70,
+            confidence_fast=0.20,
+            balanced_confidence_floor=0.40,
+        )
+    )
     alpha = torch.tensor([[[0.8]]])  # > 0.70
     conf = torch.tensor([[[0.30]]])  # > 0.20 (not fast), but < 0.40 (fails floor)
     assert router.decision(alpha, conf) == ComputePolicy.BALANCED
@@ -80,7 +82,7 @@ def test_router_ambiguous_input_returns_balanced():
     """Alpha below thorough threshold, confidence above fast threshold."""
     router = CascadeRouter()
     alpha = torch.tensor([[[0.5]]])  # < 0.70
-    conf = torch.tensor([[[0.6]]])   # > 0.40
+    conf = torch.tensor([[[0.6]]])  # > 0.40
     assert router.decision(alpha, conf) == ComputePolicy.BALANCED
 
 

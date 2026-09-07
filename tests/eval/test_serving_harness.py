@@ -38,9 +38,7 @@ def _populated_bank(dim: int = 8, size: int = 4) -> HLMPreferenceBank:
     bank = _tiny_bank(dim, size)
     torch.manual_seed(999)
     for _ in range(size):
-        bank.upsert(
-            HLMPreferenceWrite(key=torch.randn(dim), value=torch.randn(dim), strength=1.0)
-        )
+        bank.upsert(HLMPreferenceWrite(key=torch.randn(dim), value=torch.randn(dim), strength=1.0))
     return bank
 
 
@@ -86,8 +84,13 @@ def test_greedy_decode_zero_tokens_returns_empty() -> None:
 
 
 def test_policy_cost_multiplier_ordering_fast_balanced_thorough() -> None:
-    assert POLICY_COST_MULTIPLIER[ComputePolicy.FAST] < POLICY_COST_MULTIPLIER[ComputePolicy.BALANCED]
-    assert POLICY_COST_MULTIPLIER[ComputePolicy.BALANCED] < POLICY_COST_MULTIPLIER[ComputePolicy.THOROUGH]
+    assert (
+        POLICY_COST_MULTIPLIER[ComputePolicy.FAST] < POLICY_COST_MULTIPLIER[ComputePolicy.BALANCED]
+    )
+    assert (
+        POLICY_COST_MULTIPLIER[ComputePolicy.BALANCED]
+        < POLICY_COST_MULTIPLIER[ComputePolicy.THOROUGH]
+    )
     # Sanity: BALANCED is the baseline (1.0)
     assert POLICY_COST_MULTIPLIER[ComputePolicy.BALANCED] == 1.0
 
@@ -135,7 +138,9 @@ def test_run_harness_with_populated_bank_routes_nontrivially() -> None:
     )
     # With alpha_thorough=0.0 and require_confidence_for_thorough=False,
     # any non-zero alpha should escalate to THOROUGH.
-    assert report.policy_distribution["thorough"] >= 1 or report.policy_distribution["balanced"] >= 1
+    assert (
+        report.policy_distribution["thorough"] >= 1 or report.policy_distribution["balanced"] >= 1
+    )
 
 
 def test_run_harness_per_prompt_compute_proxy_uses_policy_multiplier() -> None:

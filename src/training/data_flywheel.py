@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import json
 import logging
-from collections import defaultdict
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +39,7 @@ class FlywheelConfig:
     output_dir: str = "data/flywheel/training"
     min_accepted_for_training: int = 50
     max_pairs_per_cycle: int = 1000
-    task_families: tuple[str, ...] = (
-        "code", "tool", "math", "safety", "long_context", "general"
-    )
+    task_families: tuple[str, ...] = ("code", "tool", "math", "safety", "long_context", "general")
     rotate_logs_every_n_calls: int = 1000
 
 
@@ -92,7 +90,7 @@ class InferenceLogger:
 
     def _rotate_file(self) -> Path:
         """Create a new log file with timestamp."""
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         path = self.log_dir / f"inference_log_{ts}.jsonl"
         logger.info("Rotating inference log to %s", path)
         return path
@@ -114,8 +112,9 @@ class InferenceLogger:
         self._call_count += 1
 
         import hashlib
+
         entry = InferenceLogEntry(
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             prompt=prompt,
             model_output=model_output,
             verifier_name=verifier_name,
@@ -126,8 +125,8 @@ class InferenceLogger:
             latency_ms=latency_ms,
             model_name=model_name,
             temperature=temperature,
-            prompt_hash=hashlib.md5(prompt.encode()).hexdigest()[:16],
-            output_hash=hashlib.md5(model_output.encode()).hexdigest()[:16],
+            prompt_hash=hashlib.md5(prompt.encode(), usedforsecurity=False).hexdigest()[:16],
+            output_hash=hashlib.md5(model_output.encode(), usedforsecurity=False).hexdigest()[:16],
         )
 
         with open(self._current_file, "a") as f:
@@ -199,23 +198,26 @@ class LogToTrainingConverter:
                 # If we don't have a correction, we can't create a pair
                 continue
 
-            pairs.append(TrainingPair(
-                prompt=entry.prompt,
-                chosen=chosen,
-                rejected=entry.model_output,
-                task_family=entry.task_family,
-                source_log_hash=entry.prompt_hash,
-                verifier_detail=entry.verifier_detail,
-                created_at=datetime.now(timezone.utc).isoformat(),
-            ))
+            pairs.append(
+                TrainingPair(
+                    prompt=entry.prompt,
+                    chosen=chosen,
+                    rejected=entry.model_output,
+                    task_family=entry.task_family,
+                    source_log_hash=entry.prompt_hash,
+                    verifier_detail=entry.verifier_detail,
+                    created_at=datetime.now(UTC).isoformat(),
+                )
+            )
 
         # Limit pairs
         if len(pairs) > self.config.max_pairs_per_cycle:
-            pairs = pairs[:self.config.max_pairs_per_cycle]
+            pairs = pairs[: self.config.max_pairs_per_cycle]
 
         logger.info(
             "Converted %d log entries into %d training pairs",
-            len(failed_entries), len(pairs),
+            len(failed_entries),
+            len(pairs),
         )
         return pairs
 
@@ -236,15 +238,20 @@ class LogToTrainingConverter:
         path = self.output_dir / f"flywheel_cycle_{cycle:04d}.jsonl"
         with open(path, "w") as f:
             for pair in pairs:
-                f.write(json.dumps({
-                    "prompt": pair.prompt,
-                    "chosen": pair.chosen,
-                    "rejected": pair.rejected,
-                    "task_family": pair.task_family,
-                    "source_log_hash": pair.source_log_hash,
-                    "verifier_detail": pair.verifier_detail,
-                    "created_at": pair.created_at,
-                }) + "\n")
+                f.write(
+                    json.dumps(
+                        {
+                            "prompt": pair.prompt,
+                            "chosen": pair.chosen,
+                            "rejected": pair.rejected,
+                            "task_family": pair.task_family,
+                            "source_log_hash": pair.source_log_hash,
+                            "verifier_detail": pair.verifier_detail,
+                            "created_at": pair.created_at,
+                        }
+                    )
+                    + "\n"
+                )
         logger.info("Saved %d training pairs to %s", len(pairs), path)
         return path
 
@@ -294,7 +301,9 @@ class DataFlywheel:
         if len(pairs) < self.config.min_accepted_for_training:
             logger.info(
                 "Cycle %d: %d pairs < min %d, skipping training",
-                self._cycle, len(pairs), self.config.min_accepted_for_training,
+                self._cycle,
+                len(pairs),
+                self.config.min_accepted_for_training,
             )
             return {
                 "cycle": self._cycle,
@@ -312,7 +321,8 @@ class DataFlywheel:
 
         logger.info(
             "Flywheel cycle %d complete: %d pairs, model updated",
-            self._cycle, len(pairs),
+            self._cycle,
+            len(pairs),
         )
 
         return {

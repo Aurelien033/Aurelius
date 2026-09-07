@@ -671,9 +671,13 @@ class AureliusTrainer:
                 use_reentrant=False,
             )
             n_wrapped = apply_activation_checkpointing(self.model, TransformerBlock, ckpt_cfg)
-            logger.info("Gradient checkpointing enabled: wrapped %d TransformerBlock layers", n_wrapped)
+            logger.info(
+                "Gradient checkpointing enabled: wrapped %d TransformerBlock layers", n_wrapped
+            )
         elif ac_mode not in ("none", "off", "", None):
-            logger.warning("Unknown activation_checkpoint mode: %s (expected 'full' or 'none')", ac_mode)
+            logger.warning(
+                "Unknown activation_checkpoint mode: %s (expected 'full' or 'none')", ac_mode
+            )
 
         # FP8 training via torchao
         if getattr(self.cfg, "fp8", False):

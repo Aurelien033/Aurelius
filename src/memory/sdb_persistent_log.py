@@ -222,8 +222,7 @@ class SDBPersistentLog:
     def load_latest_checkpoint(self) -> tuple[int, dict[str, Any]] | None:
         """Load the most recent checkpoint."""
         row = self._conn.execute(
-            "SELECT seq, checkpoint_blob FROM amc_checkpoints "
-            "ORDER BY checkpoint_id DESC LIMIT 1"
+            "SELECT seq, checkpoint_blob FROM amc_checkpoints ORDER BY checkpoint_id DESC LIMIT 1"
         ).fetchone()
         if row is None:
             return None

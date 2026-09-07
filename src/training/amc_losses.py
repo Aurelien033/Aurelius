@@ -110,10 +110,7 @@ def total_amc_loss(
 ) -> tuple[torch.Tensor, dict[str, Any]]:
     """Weighted sum of all AMC losses."""
     total = (
-        alpha * sft_loss
-        + beta * surprise_loss
-        + gamma * consistency_loss
-        + delta * promotion_loss
+        alpha * sft_loss + beta * surprise_loss + gamma * consistency_loss + delta * promotion_loss
     )
     metrics = {
         "total_loss": float(total.detach().item()),

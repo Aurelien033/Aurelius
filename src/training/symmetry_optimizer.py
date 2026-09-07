@@ -86,9 +86,7 @@ class CenteredRowNorm(Optimizer):
         if not 0.0 <= beta < 1.0:
             raise ValueError(f"beta must be in [0, 1), got {beta}")
         if row_mode not in ("inverse_eps", "unit"):
-            raise ValueError(
-                f"row_mode must be 'inverse_eps' or 'unit', got {row_mode!r}"
-            )
+            raise ValueError(f"row_mode must be 'inverse_eps' or 'unit', got {row_mode!r}")
 
         defaults = dict(
             lr=lr,
@@ -324,13 +322,9 @@ def build_symmetry_optimizer(
         return None
 
     if mode == "centered_row_norm":
-        return CenteredRowNorm(
-            router_params, lr=lr, beta=beta, weight_decay=weight_decay, **kwargs
-        )
+        return CenteredRowNorm(router_params, lr=lr, beta=beta, weight_decay=weight_decay, **kwargs)
     elif mode == "left_spectral":
-        return LeftSpectral(
-            router_params, lr=lr, beta=beta, weight_decay=weight_decay, **kwargs
-        )
+        return LeftSpectral(router_params, lr=lr, beta=beta, weight_decay=weight_decay, **kwargs)
     else:
         raise ValueError(
             f"Unknown symmetry optimizer mode: {mode!r}. "

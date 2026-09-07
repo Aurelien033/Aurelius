@@ -197,7 +197,9 @@ def write_memory_after_step(
     verification = session.sdb.verify(
         proposal,
         verifier="ring1_surprise_gate",
-        decision=VerificationDecision.REJECT if decision == "reject" else VerificationDecision.QUARANTINE,
+        decision=VerificationDecision.REJECT
+        if decision == "reject"
+        else VerificationDecision.QUARANTINE,
         reason="below surprise threshold or verification failed",
         checks={"surprise_score": surprise_score},
     )

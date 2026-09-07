@@ -17,7 +17,7 @@ REF: research_compass_2026-06-20.md, RLVR improvement lit.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -139,10 +139,7 @@ class CompositeFractionalReward:
         if total_weight == 0.0:
             return 0.0
 
-        weighted_sum = sum(
-            fn(prompt, completion, **kwargs) * w
-            for fn, w in self.rewards
-        )
+        weighted_sum = sum(fn(prompt, completion, **kwargs) * w for fn, w in self.rewards)
         return float(weighted_sum / total_weight)
 
 

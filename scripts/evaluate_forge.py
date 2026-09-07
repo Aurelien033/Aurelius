@@ -75,7 +75,9 @@ def run_suite(args: argparse.Namespace) -> dict[str, Any]:
     }
 
     if not args.skip_amc:
-        amc_generator = "oracle" if args.profile == "smoke" and mode in (None, "oracle") else "engine"
+        amc_generator = (
+            "oracle" if args.profile == "smoke" and mode in (None, "oracle") else "engine"
+        )
         amc_backend = args.backend if amc_generator == "engine" else "mock"
         amc_profile = args.profile if args.profile in ("smoke", "ci", "stress") else "ci"
         amc_payload = run_amc_memory(

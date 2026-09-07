@@ -71,9 +71,7 @@ class SkillCrystallizer:
         if source is None or source.trust_level != TrustLevel.TRUSTED:
             return None
 
-        history_summary = "\n".join(
-            f"- {item['query']}" for item in proposal.history[-10:]
-        )
+        history_summary = "\n".join(f"- {item['query']}" for item in proposal.history[-10:])
         prompt = f"""
 Compress this frequently-retrieved fact into a more abstract, general principle.
 

@@ -55,9 +55,7 @@ def validate_amc_forge_config(raw: dict[str, Any], *, repo_root: Path | None = N
         model = AMCTransformer(cfg)
         total = sum(param.numel() for param in model.parameters())
         if not (_PARAM_MIN < total < _PARAM_MAX):
-            errors.append(
-                f"parameter count {total:,} outside [{_PARAM_MIN:,}, {_PARAM_MAX:,}]"
-            )
+            errors.append(f"parameter count {total:,} outside [{_PARAM_MIN:,}, {_PARAM_MAX:,}]")
 
         if model.ssm_layer_count + model.attention_layer_count != cfg.n_layers:
             errors.append("SSM + attention layer counts do not sum to n_layers")
@@ -101,7 +99,9 @@ def validate_amc_forge_config(raw: dict[str, Any], *, repo_root: Path | None = N
     elif not isinstance(compute, dict):
         errors.append("'compute' section must be a mapping")
     else:
-        errors.extend(_validate_compute_section(compute, training if isinstance(training, dict) else {}))
+        errors.extend(
+            _validate_compute_section(compute, training if isinstance(training, dict) else {})
+        )
 
     deepspeed_path = raw.get("deepspeed_config") or (
         compute.get("deepspeed_config") if isinstance(compute, dict) else None
@@ -177,9 +177,7 @@ def _validate_compute_section(compute: dict[str, Any], training: dict[str, Any])
         train_gpus = int(training.get("gpus", training.get("num_gpus", 0)) or 0)
         compute_gpus = int(compute.get("gpus", 0))
         if train_gpus and compute_gpus and train_gpus != compute_gpus:
-            errors.append(
-                f"training.gpus ({train_gpus}) must match compute.gpus ({compute_gpus})"
-            )
+            errors.append(f"training.gpus ({train_gpus}) must match compute.gpus ({compute_gpus})")
     return errors
 
 

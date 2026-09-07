@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -91,10 +91,7 @@ class ForgettingTracker:
         history = self._history[task]
         if history and self.config.ema_alpha > 0:
             # Apply EMA smoothing
-            smoothed = (
-                self.config.ema_alpha * accuracy
-                + (1 - self.config.ema_alpha) * history[-1]
-            )
+            smoothed = self.config.ema_alpha * accuracy + (1 - self.config.ema_alpha) * history[-1]
             history.append(smoothed)
         else:
             history.append(accuracy)
@@ -103,16 +100,20 @@ class ForgettingTracker:
         if len(history) > self.config.max_task_history:
             self._history[task] = history[-self.config.max_task_history :]
 
-        self._snapshots.append(TaskSnapshot(
-            task=task,
-            accuracy=accuracy,
-            examples_seen=examples_seen,
-            step=self._current_step,
-        ))
+        self._snapshots.append(
+            TaskSnapshot(
+                task=task,
+                accuracy=accuracy,
+                examples_seen=examples_seen,
+                step=self._current_step,
+            )
+        )
 
         logger.debug(
             "ForgettingTracker: task=%s accuracy=%.4f (history_len=%d)",
-            task, accuracy, len(self._history[task]),
+            task,
+            accuracy,
+            len(self._history[task]),
         )
 
     def forgetting_score(self, task: str) -> float:
@@ -169,7 +170,8 @@ class ForgettingTracker:
     def get_tasks_needing_replay(self) -> list[str]:
         """Return list of tasks currently needing replay data."""
         return [
-            task for task in self._history
+            task
+            for task in self._history
             if self.forgetting_score(task) > self.config.forgetting_threshold
         ]
 
@@ -206,8 +208,12 @@ class ForgettingTracker:
         state = {
             "history": {k: v for k, v in self._history.items()},
             "snapshots": [
-                {"task": s.task, "accuracy": s.accuracy,
-                 "examples_seen": s.examples_seen, "step": s.step}
+                {
+                    "task": s.task,
+                    "accuracy": s.accuracy,
+                    "examples_seen": s.examples_seen,
+                    "step": s.step,
+                }
                 for s in self._snapshots
             ],
             "current_step": self._current_step,

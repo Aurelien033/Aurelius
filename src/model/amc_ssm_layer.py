@@ -205,9 +205,7 @@ class AMCSSMLayer(nn.Module):
         seq_len: int,
     ) -> AMCReadResult:
         if layer_index != self.layer_index:
-            raise ValueError(
-                f"layer_index {layer_index} != this layer {self.layer_index}"
-            )
+            raise ValueError(f"layer_index {layer_index} != this layer {self.layer_index}")
         if self._last_tensor_state is None:
             raise RuntimeError("no tensor state; run forward first")
         return AMCReadResult(
@@ -247,9 +245,7 @@ class AMCSSMLayer(nn.Module):
         importance: float | None = None,
     ) -> AMCWriteDecision:
         if layer_index != self.layer_index:
-            raise ValueError(
-                f"layer_index {layer_index} != this layer {self.layer_index}"
-            )
+            raise ValueError(f"layer_index {layer_index} != this layer {self.layer_index}")
         _ = (step, content, importance)
         return self.write(
             self._last_tensor_state

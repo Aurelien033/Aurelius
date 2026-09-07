@@ -11,8 +11,9 @@ Reference: "Self-Consistency as a Training Signal" (Aurelius, 2026)
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Callable
+from dataclasses import dataclass
+from typing import Any
+from collections.abc import Callable
 
 import torch
 import torch.nn.functional as F
@@ -87,8 +88,8 @@ class SelfConsistencyLoss:
         n_valid = 0
 
         for b in range(batch_size):
-            single_input = input_ids[b:b+1]
-            single_mask = attention_mask[b:b+1] if attention_mask is not None else None
+            single_input = input_ids[b : b + 1]
+            single_mask = attention_mask[b : b + 1] if attention_mask is not None else None
 
             # Generate N samples
             with torch.no_grad():
@@ -121,7 +122,7 @@ class SelfConsistencyLoss:
                 probs = F.softmax(step_logits, dim=-1)
                 kl = F.kl_div(
                     probs.log(),
-                    consensus[:probs.size(0)],
+                    consensus[: probs.size(0)],
                     reduction="batchmean",
                     log_target=False,
                 )

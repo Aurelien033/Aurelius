@@ -488,9 +488,7 @@ def build_phase_precision_plan(
 ) -> PhasePrecisionPlan:
     """Build a full phase plan from requests (defaults when None)."""
     req_list = tuple(requests) if requests is not None else default_phase_precision_requests()
-    decisions = tuple(
-        resolve_phase_precision(request, runner=runner) for request in req_list
-    )
+    decisions = tuple(resolve_phase_precision(request, runner=runner) for request in req_list)
     provisional = PhasePrecisionPlan(
         schema_version=SCHEMA_VERSION,
         plan_id="pending",

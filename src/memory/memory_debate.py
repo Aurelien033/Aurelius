@@ -37,13 +37,9 @@ class DebateVerdict:
 
     def __post_init__(self) -> None:
         if not (0.0 <= self.judge_confidence <= 1.0):
-            raise ValueError(
-                f"judge_confidence must be in [0, 1], got {self.judge_confidence}"
-            )
+            raise ValueError(f"judge_confidence must be in [0, 1], got {self.judge_confidence}")
         if not isinstance(self.decision, DebateDecision):
-            raise TypeError(
-                f"decision must be DebateDecision, got {type(self.decision).__name__}"
-            )
+            raise TypeError(f"decision must be DebateDecision, got {type(self.decision).__name__}")
 
 
 # Callable signatures for injectable debate agents
@@ -96,8 +92,6 @@ class MemoryDebateController:
     ) -> list[DebateVerdict]:
         """Run the debate protocol on every block, return ordered verdict list."""
         return [
-            self.run_debate(
-                b, propose_fn=propose_fn, skeptic_fn=skeptic_fn, judge_fn=judge_fn
-            )
+            self.run_debate(b, propose_fn=propose_fn, skeptic_fn=skeptic_fn, judge_fn=judge_fn)
             for b in blocks
         ]

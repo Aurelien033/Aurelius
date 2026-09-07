@@ -27,10 +27,11 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class GaussianMechanismConfig:
     """Parameters for the Gaussian mechanism applied to federated bank deltas."""
-    clip_norm: float = 1.0          # L2 clipping norm per device (C)
-    sigma: float = 1.0              # Noise scale (σ)
-    delta: float = 1e-5             # Failure probability
-    num_devices: int = 8            # M in the mean aggregation
+
+    clip_norm: float = 1.0  # L2 clipping norm per device (C)
+    sigma: float = 1.0  # Noise scale (σ)
+    delta: float = 1e-5  # Failure probability
+    num_devices: int = 8  # M in the mean aggregation
 
     def __post_init__(self) -> None:
         if self.clip_norm <= 0:
@@ -92,8 +93,6 @@ def dp_parameterized_table(
     for sigma in sigmas:
         row: dict[str, float] = {"sigma": sigma}
         for delta in deltas:
-            row[f"eps_d{delta:.0e}"] = compute_epsilon(
-                clip_norm, sigma, delta, num_devices
-            )
+            row[f"eps_d{delta:.0e}"] = compute_epsilon(clip_norm, sigma, delta, num_devices)
         rows.append(row)
     return rows

@@ -27,19 +27,19 @@ specialization, HMC is not ready — fall back to LoRA-based specialization.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Callable
+from dataclasses import dataclass
+from collections.abc import Callable
 
 import numpy as np
 
-MechanismFn = Callable[[str], str]          # mechanism name -> generated behavior
+MechanismFn = Callable[[str], str]  # mechanism name -> generated behavior
 
 
 @dataclass
 class HMCConfig:
-    d_hidden: int = 64                       # proxy dimension for the shared space
-    birth_threshold: float = 1.0            # ||accumulated grad|| to trigger birth
-    retrieval_tol: float = 0.80             # min cosine sim to count as "recovered"
+    d_hidden: int = 64  # proxy dimension for the shared space
+    birth_threshold: float = 1.0  # ||accumulated grad|| to trigger birth
+    retrieval_tol: float = 0.80  # min cosine sim to count as "recovered"
     seed: int = 0
 
 
@@ -65,14 +65,14 @@ class HMC:
 
     def __init__(self, cfg: HMCConfig | None = None) -> None:
         self.cfg = cfg or HMCConfig()
-        rng = np.random.default_rng(self.cfg.seed)
+        _rng = np.random.default_rng(self.cfg.seed)
         # Proxy shared space. ZERO by default so the read/write math is provable
         # (W = sum_i f_i (x) r_i => (W.r_i)/||r_i||^2 = f_i exactly). In real
         # wiring this is bound to the actual parameter matrix, where a random
         # base WOULD interfere with retrieval — that is what hmc_verdict guards.
         self.W = np.zeros((self.cfg.d_hidden, self.cfg.d_hidden))
-        self.refs: dict[str, np.ndarray] = {}         # mechanism -> reference vector r_i
-        self.accum_grad: dict[str, np.ndarray] = {}    # error_type -> accumulated gradient
+        self.refs: dict[str, np.ndarray] = {}  # mechanism -> reference vector r_i
+        self.accum_grad: dict[str, np.ndarray] = {}  # error_type -> accumulated gradient
         self.birthed: list[str] = []
 
     # -- core math --
@@ -129,8 +129,7 @@ class HMC:
         return None
 
 
-def hmc_verdict(retrieval_results: list[HMCRetrievalResult],
-                min_acc: float = 0.80) -> dict:
+def hmc_verdict(retrieval_results: list[HMCRetrievalResult], min_acc: float = 0.80) -> dict:
     """Falsifier-gated verdict (Part 3 A.2): recovery rate must clear min_acc."""
     if not retrieval_results:
         return {"verdict": "insufficient", "reason": "no retrieval rows"}

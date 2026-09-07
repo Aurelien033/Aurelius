@@ -397,9 +397,7 @@ class VELResultRecord:
 
         if str(decision) in _PIVOT_DECISIONS:
             if not self.pivot_or_refine_reason or not str(self.pivot_or_refine_reason).strip():
-                raise VELRegistryError(
-                    f"{decision!r} decisions require pivot_or_refine_reason"
-                )
+                raise VELRegistryError(f"{decision!r} decisions require pivot_or_refine_reason")
 
     def to_dict(self, *, include_record_hash: bool = True) -> dict[str, Any]:
         body = _record_body_dict(self)

@@ -133,12 +133,8 @@ def test_promotion_respects_threshold() -> None:
     gate = PromotionGate(d_model=64)
     gate.eval()
     out = layer(torch.randn(2, 4, 64), step=0)
-    count_all, _, _ = tier1_to_tier2_promotion(
-        out, gate, hook, promote_threshold=-0.1
-    )
-    count_none, _, _ = tier1_to_tier2_promotion(
-        out, gate, hook, promote_threshold=1.1
-    )
+    count_all, _, _ = tier1_to_tier2_promotion(out, gate, hook, promote_threshold=-0.1)
+    count_none, _, _ = tier1_to_tier2_promotion(out, gate, hook, promote_threshold=1.1)
     assert count_all >= count_none
 
 
@@ -148,9 +144,7 @@ def test_no_promotion_when_below_threshold() -> None:
     gate = PromotionGate(d_model=64)
     gate.eval()
     out = layer(torch.randn(2, 4, 64), step=0)
-    count, _, promoted = tier1_to_tier2_promotion(
-        out, gate, hook, promote_threshold=1.1
-    )
+    count, _, promoted = tier1_to_tier2_promotion(out, gate, hook, promote_threshold=1.1)
     assert count == 0
     assert promoted == []
 

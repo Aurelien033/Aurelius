@@ -122,11 +122,14 @@ def test_dream_cycle_metadata_uses_hash_not_raw_prompt() -> None:
 def test_dream_cycle_applies_bank_decay_once_per_cycle() -> None:
     bank = _make_bank()
     from src.memory.hlm_bank import HLMPreferenceWrite
-    bank.upsert(HLMPreferenceWrite(
-        key=torch.ones(32),
-        value=torch.ones(32),
-        strength=0.5,
-    ))
+
+    bank.upsert(
+        HLMPreferenceWrite(
+            key=torch.ones(32),
+            value=torch.ones(32),
+            strength=0.5,
+        )
+    )
     pre_strength = bank.strengths[0].item()
     ctrl = DreamBankController(bank, DreamBankConfig(decay_steps_per_cycle=5, min_margin=99.0))
     ctrl.run_cycle(
@@ -154,12 +157,15 @@ def test_dream_cycle_respects_max_writes_per_cycle() -> None:
         score_fn=_dummy_score,
         embed_fn=lambda t: _dummy_embed(t, 32),
     )
-    assert ctrl.run_cycle(
-        seeds=[],
-        generate_fn=_dummy_generate,
-        score_fn=_dummy_score,
-        embed_fn=lambda t: _dummy_embed(t),
-    ).bank_fill <= 10  # at most 10 writes total
+    assert (
+        ctrl.run_cycle(
+            seeds=[],
+            generate_fn=_dummy_generate,
+            score_fn=_dummy_score,
+            embed_fn=lambda t: _dummy_embed(t),
+        ).bank_fill
+        <= 10
+    )  # at most 10 writes total
 
 
 # ── result JSON-safe ────────────────────────────────────────────────────
@@ -177,14 +183,16 @@ def test_dream_cycle_result_is_json_safe() -> None:
         embed_fn=lambda t: _dummy_embed(t, 32),
     )
     # All fields should be JSON-serializable
-    json.dumps({
-        "seeds": result.seeds,
-        "candidates": result.candidates,
-        "pairs": result.pairs,
-        "writes": result.writes,
-        "mean_margin": result.mean_margin,
-        "bank_fill": result.bank_fill,
-    })
+    json.dumps(
+        {
+            "seeds": result.seeds,
+            "candidates": result.candidates,
+            "pairs": result.pairs,
+            "writes": result.writes,
+            "mean_margin": result.mean_margin,
+            "bank_fill": result.bank_fill,
+        }
+    )
 
 
 # ── embedding size handling (Fix #6) ─────────────────────────────────────

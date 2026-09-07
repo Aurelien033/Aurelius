@@ -215,7 +215,9 @@ class Ring1Agent:
     ) -> list[str]:
         template = ACTION_TEMPLATES[domain]
         base = [
-            template.format(entity=f"entity_{step_id}", query=f"query_{step_id}", action=f"action_{step_id}"),
+            template.format(
+                entity=f"entity_{step_id}", query=f"query_{step_id}", action=f"action_{step_id}"
+            ),
             template.format(
                 entity=f"entity_{step_id + 1}",
                 query=f"query_{step_id}_alt",

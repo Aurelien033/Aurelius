@@ -40,7 +40,7 @@ TOOL_CALL_PARSER_REGISTRY["json"] = parse_json
 
 # Register the ReAct loop under its canonical key. Import is deferred
 # until after the registries exist so that cycles cannot form.
-from agent.react_loop import AgentStep, AgentTrace, ReActLoop  # noqa: E402
+from src.agent.react_loop import AgentStep, AgentTrace, ReActLoop  # noqa: E402
 
 AGENT_LOOP_REGISTRY["react"] = ReActLoop
 

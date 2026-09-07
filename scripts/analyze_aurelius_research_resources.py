@@ -343,9 +343,15 @@ def is_valid_resource(value: str) -> bool:
             return False
     if "arxiv.org/abs/" in lower and not re.search(r"arxiv\.org/abs/\d{4}\.\d{4,5}", lower):
         return False
-    if lower.startswith("/users/christienantonio/aurelius") and lower.rstrip("/`") == "/users/christienantonio/aurelius":
+    if (
+        lower.startswith("/users/christienantonio/aurelius")
+        and lower.rstrip("/`") == "/users/christienantonio/aurelius"
+    ):
         return False
-    if lower.startswith("/users/christienantonio/desktop/aurelius") and lower.rstrip("/`") == "/users/christienantonio/desktop/aurelius":
+    if (
+        lower.startswith("/users/christienantonio/desktop/aurelius")
+        and lower.rstrip("/`") == "/users/christienantonio/desktop/aurelius"
+    ):
         return False
     return True
 
@@ -527,7 +533,9 @@ def write_report(
     for root in ROOTS:
         lines.append(f"- `{root}`")
     lines.append("")
-    lines.append("This audit extracts resources already cited or implied inside local Aurelius research files. It does not claim web freshness; web validation should be a follow-up for the highest-priority resources.")
+    lines.append(
+        "This audit extracts resources already cited or implied inside local Aurelius research files. It does not claim web freshness; web validation should be a follow-up for the highest-priority resources."
+    )
     lines.append("")
     lines.append("## Corpus summary")
     lines.append("")
@@ -547,7 +555,9 @@ def write_report(
 
     lines.append("## Highest-priority resource clusters")
     lines.append("")
-    lines.append("These are the resources most repeatedly connected to Aurelius AGI-track work inside the existing corpus.")
+    lines.append(
+        "These are the resources most repeatedly connected to Aurelius AGI-track work inside the existing corpus."
+    )
     lines.append("")
     lines.append("| Rank | Score | Type | Category | Resource | Evidence files |")
     lines.append("|---:|---:|---|---|---|---:|")
@@ -562,42 +572,58 @@ def write_report(
     lines.append("")
     lines.append("### 1. AGI/cognition resources")
     lines.append("")
-    lines.append("Use these to keep Aurelius from narrowing into only a coding assistant. They should feed the cognitive architecture, world-model, metacognition, and long-horizon planning tracks.")
+    lines.append(
+        "Use these to keep Aurelius from narrowing into only a coding assistant. They should feed the cognitive architecture, world-model, metacognition, and long-horizon planning tracks."
+    )
     write_category(lines, by_cat, "agi_cognition")
 
     lines.append("### 2. Cursor Composer-like agent resources")
     lines.append("")
-    lines.append("Use these for the code-action environment: repo search, context assembly, diff application, verifier loop, rollback, repair traces, and SWE-style evaluation.")
+    lines.append(
+        "Use these for the code-action environment: repo search, context assembly, diff application, verifier loop, rollback, repair traces, and SWE-style evaluation."
+    )
     write_category(lines, by_cat, "composer_agent")
 
     lines.append("### 3. RLVR / verifier / repair resources")
     lines.append("")
-    lines.append("Use these for the learning flywheel. This is the highest-leverage path from code agent to AGI-track system because it creates grounded reward rather than imitation-only behavior.")
+    lines.append(
+        "Use these for the learning flywheel. This is the highest-leverage path from code agent to AGI-track system because it creates grounded reward rather than imitation-only behavior."
+    )
     write_category(lines, by_cat, "rlvr_verifier")
 
     lines.append("### 4. Memory / AMC / developmental state resources")
     lines.append("")
-    lines.append("Use these to make Aurelius persistent and developmental: event tape, memory admission, proof-carrying memory, DreamBank, SkillNode, and semantic addressability.")
+    lines.append(
+        "Use these to make Aurelius persistent and developmental: event tape, memory admission, proof-carrying memory, DreamBank, SkillNode, and semantic addressability."
+    )
     write_category(lines, by_cat, "memory_amc")
 
     lines.append("### 5. Inference / efficiency resources")
     lines.append("")
-    lines.append("Use these to make the system runnable locally and release-ready without pretending speculative mechanisms are proven before measurement.")
+    lines.append(
+        "Use these to make the system runnable locally and release-ready without pretending speculative mechanisms are proven before measurement."
+    )
     write_category(lines, by_cat, "inference_efficiency")
 
     lines.append("### 6. Evaluation / safety resources")
     lines.append("")
-    lines.append("Use these for the evidence moat: contamination checks, model cards, red-team gates, falsifier contracts, and benchmark discipline.")
+    lines.append(
+        "Use these for the evidence moat: contamination checks, model cards, red-team gates, falsifier contracts, and benchmark discipline."
+    )
     write_category(lines, by_cat, "eval_safety")
 
     lines.append("### 7. Data / training resources")
     lines.append("")
-    lines.append("Use these to build the trace dataset and training curriculum: verified traces, repair pairs, teacher-filtered examples, and synthetic schema-only bootstraps.")
+    lines.append(
+        "Use these to build the trace dataset and training curriculum: verified traces, repair pairs, teacher-filtered examples, and synthetic schema-only bootstraps."
+    )
     write_category(lines, by_cat, "data_training")
 
     lines.append("## Caution list: resources mentioned in negative/falsified contexts")
     lines.append("")
-    lines.append("Do not treat these as immediate build targets without revalidation. The scanner found more negative than positive context around them.")
+    lines.append(
+        "Do not treat these as immediate build targets without revalidation. The scanner found more negative than positive context around them."
+    )
     lines.append("")
     lines.append("| Resource | Negative hits | Positive hits | Context |")
     lines.append("|---|---:|---:|---|")
@@ -610,11 +636,21 @@ def write_report(
 
     lines.append("## Recommended next-resource actions")
     lines.append("")
-    lines.append("1. Build a formal `Aurelius Resource Registry` from `resources.csv`, not just prose notes. Add status fields: `validated`, `implemented`, `research-gated`, `killed`, `needs-web-check`.")
-    lines.append("2. Web-validate the top 25 resources only. Do not spend time validating low-score or killed resources.")
-    lines.append("3. Promote resources into six active lanes: Composer/agent environment, verifier/RLVR, AGI cognition, AMC memory, inference efficiency, eval/safety.")
-    lines.append("4. For each promoted resource, require an ACDT cell: mechanism, integration hook, verifier, falsifier, cost, and kill gate.")
-    lines.append("5. Treat code/math tasks as the first AGI training arena, but reserve a separate cognition/memory lane so Aurelius does not collapse into a narrow coding model.")
+    lines.append(
+        "1. Build a formal `Aurelius Resource Registry` from `resources.csv`, not just prose notes. Add status fields: `validated`, `implemented`, `research-gated`, `killed`, `needs-web-check`."
+    )
+    lines.append(
+        "2. Web-validate the top 25 resources only. Do not spend time validating low-score or killed resources."
+    )
+    lines.append(
+        "3. Promote resources into six active lanes: Composer/agent environment, verifier/RLVR, AGI cognition, AMC memory, inference efficiency, eval/safety."
+    )
+    lines.append(
+        "4. For each promoted resource, require an ACDT cell: mechanism, integration hook, verifier, falsifier, cost, and kill gate."
+    )
+    lines.append(
+        "5. Treat code/math tasks as the first AGI training arena, but reserve a separate cognition/memory lane so Aurelius does not collapse into a narrow coding model."
+    )
     lines.append("")
 
     lines.append("## Files with densest useful-resource signal")
@@ -687,7 +723,9 @@ def main() -> None:
                 for m in ARXIV_RE.finditer(line):
                     arxiv_id = m.group(1)
                     if "arxiv" in lower_line or "paper" in lower_line or "http" in lower_line:
-                        add_resource(resources, f"https://arxiv.org/abs/{arxiv_id}", path, context, cats)
+                        add_resource(
+                            resources, f"https://arxiv.org/abs/{arxiv_id}", path, context, cats
+                        )
                 for lp in LOCAL_PATH_RE.findall(line):
                     if "aurelius" in lp.lower() or "AI" in lp:
                         add_resource(resources, lp, path, context, cats)

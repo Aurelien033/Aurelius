@@ -16,10 +16,11 @@ PRM) for `score_step`; see `make_mdv_scorer`. Torch-free -> unit-testable.
 
 GATE (roadmap): VGBS must clear greedy + ~12pp on MBPP-500, else keep best-of-N.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable
+from collections.abc import Callable
 
 # expand(prompt, prefix) -> list[str]      candidate next-step continuations
 Expand = Callable[[str, str], list[str]]
@@ -39,10 +40,10 @@ class Beam:
 
 @dataclass
 class VGBSResult:
-    best: str                       # best complete (or deepest) trajectory text
+    best: str  # best complete (or deepest) trajectory text
     best_score: float
     depth_reached: int
-    n_expansions: int               # measured step-equivalents (cost accounting)
+    n_expansions: int  # measured step-equivalents (cost accounting)
     completed: bool
     all_finals: list[Beam] = field(default_factory=list)
 
@@ -81,9 +82,14 @@ def verifier_guided_beam_search(
                 new_prefix = b.prefix + step
                 n_expansions += 1
                 sc = score_step(prompt, new_prefix)
-                candidates.append(Beam(
-                    prefix=new_prefix, score=sc, depth=b.depth + 1,
-                    complete=is_complete(new_prefix)))
+                candidates.append(
+                    Beam(
+                        prefix=new_prefix,
+                        score=sc,
+                        depth=b.depth + 1,
+                        complete=is_complete(new_prefix),
+                    )
+                )
         if not candidates:
             break
         # keep global top-k by score (stable: higher score, then deeper)
@@ -91,18 +97,27 @@ def verifier_guided_beam_search(
         kept = candidates[:beam_width]
         finals.extend(b for b in kept if b.complete)
         live = [b for b in kept if not b.complete]
-        if not live:                      # all beams completed
+        if not live:  # all beams completed
             break
 
     pool = finals if finals else (live if live else [])
     if not pool:
-        return VGBSResult(best=init_prefix, best_score=0.0, depth_reached=0,
-                          n_expansions=n_expansions, completed=False)
+        return VGBSResult(
+            best=init_prefix,
+            best_score=0.0,
+            depth_reached=0,
+            n_expansions=n_expansions,
+            completed=False,
+        )
     best = max(pool, key=lambda x: (x.score, x.depth))
     return VGBSResult(
-        best=best.prefix, best_score=best.score, depth_reached=best.depth,
-        n_expansions=n_expansions, completed=best.complete,
-        all_finals=sorted(finals, key=lambda x: x.score, reverse=True))
+        best=best.prefix,
+        best_score=best.score,
+        depth_reached=best.depth,
+        n_expansions=n_expansions,
+        completed=best.complete,
+        all_finals=sorted(finals, key=lambda x: x.score, reverse=True),
+    )
 
 
 def best_of_n(
@@ -139,8 +154,9 @@ def cost_ratio(beam_width: int = 4, depth: int = 30, n: int = 64, prm_fac: float
     return bon_cost(n, depth) / beam_cost(beam_width, depth, prm_fac)
 
 
-def verified_best_of_n(prompt: str, candidates: list[str],
-                       verify: Callable[[str, str], float]) -> tuple[str, float, list[float]]:
+def verified_best_of_n(
+    prompt: str, candidates: list[str], verify: Callable[[str, str], float]
+) -> tuple[str, float, list[float]]:
     """The CODE-domain form of VGBS. An execution verifier is TERMINAL (0/1 on a
     complete program) — you cannot score a partial code prefix by running it — so
     step-level beam search degenerates to ranking whole candidates by the verifier
@@ -167,6 +183,7 @@ def make_mdv_scorer(domain: str = "code", **verify_kwargs) -> ScoreStep:
     PRM, a learned PRM head is the upgrade path.
     """
     from src.training.multi_domain_verifier import MultiDomainVerifier
+
     mdv = MultiDomainVerifier()
 
     def _score(prompt: str, completion: str) -> float:

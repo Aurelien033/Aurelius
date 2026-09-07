@@ -381,7 +381,7 @@ class ComposerAgent:
             return convo
         budget = self.config.max_tokens_per_turn * 4  # chars (~4 chars/token)
         head = [convo[0]] if convo[0].get("role") == "system" else []
-        rest = convo[len(head):]
+        rest = convo[len(head) :]
         used = sum(len(m.get("content", "")) for m in head)
         kept_rev: list[dict] = []
         for m in reversed(rest):

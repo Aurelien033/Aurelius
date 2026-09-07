@@ -113,8 +113,7 @@ def _default_roadmap() -> dict[str, Any]:
                     1.0,
                     "Use the progress store as the canonical local state file.",
                     evidence=(
-                        "src/monitoring/progress_store.py writes state, events, "
-                        "and metrics JSONL."
+                        "src/monitoring/progress_store.py writes state, events, and metrics JSONL."
                     ),
                 ),
                 _default_milestone(
@@ -490,8 +489,7 @@ def _default_roadmap() -> dict[str, Any]:
                 "severity": "high",
                 "status": "watching",
                 "mitigation": (
-                    "Track KL drift, reward variance, feature entropy, and refusal "
-                    "regression."
+                    "Track KL drift, reward variance, feature entropy, and refusal regression."
                 ),
             },
             {
@@ -830,9 +828,7 @@ def build_snapshot(
             name: _metric_series(metrics, name, limit=200) for name in latest_metric_names
         },
         "recent_events": events,
-        "state_hash": hashlib.sha256(
-            json.dumps(state, sort_keys=True).encode("utf-8")
-        ).hexdigest(),
+        "state_hash": hashlib.sha256(json.dumps(state, sort_keys=True).encode("utf-8")).hexdigest(),
     }
 
 

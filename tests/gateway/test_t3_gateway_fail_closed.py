@@ -5,6 +5,7 @@ Proves:
 1. Rate limiter is fail-closed: denies requests when uninitialized (C-04)
 2. /metrics endpoint requires authentication (C-03, M-06)
 """
+
 import os
 from unittest.mock import MagicMock, patch
 
@@ -16,11 +17,12 @@ from fastapi.testclient import TestClient
 def client():
     """Create test client with fresh app state."""
     # Configure allowed hosts to include testserver
-    with patch.dict(os.environ, {'AURELIUS_ALLOWED_HOSTS': 'localhost,127.0.0.1,testserver'}):
+    with patch.dict(os.environ, {"AURELIUS_ALLOWED_HOSTS": "localhost,127.0.0.1,testserver"}):
         # Import fresh to avoid state pollution
         import importlib
 
         import gateway.aurelius_api as api_module
+
         importlib.reload(api_module)
         # Initialize rate limiter to avoid 503 on all requests
         api_module._rate_limiter = lambda ip: True
@@ -33,11 +35,11 @@ class TestRateLimiterFailClosed:
     def test_uninitialized_rate_limiter_denies_request(self, client):
         """When _rate_limiter is None, requests must be rejected (fail-closed)."""
         import gateway.aurelius_api as api_module
-        
+
         # Ensure rate limiter is uninitialized
-        with patch.object(api_module, '_rate_limiter', None):
+        with patch.object(api_module, "_rate_limiter", None):
             response = client.get("/health")
-            
+
             # Should be 503 (service unavailable) or 429, not 200
             assert response.status_code in [429, 503], (
                 f"Rate limiter fail-open: uninitialized limiter allowed request "
@@ -47,10 +49,10 @@ class TestRateLimiterFailClosed:
     def test_rate_limiter_allows_when_initialized(self, client):
         """When rate limiter is initialized, requests should pass normally."""
         import gateway.aurelius_api as api_module
-        
+
         # Mock initialized rate limiter that allows requests
         mock_limiter = MagicMock(return_value=True)
-        with patch.object(api_module, '_rate_limiter', mock_limiter):
+        with patch.object(api_module, "_rate_limiter", mock_limiter):
             response = client.get("/health")
             # Should succeed (200) since limiter allows
             assert response.status_code == 200
@@ -62,9 +64,9 @@ class TestMetricsAuthentication:
     def test_metrics_requires_auth(self, client):
         """GET /metrics without auth header must return 401 or 403."""
         # Set metrics API key so endpoint is configured but auth is required
-        with patch.dict(os.environ, {'AURELIUS_METRICS_API_KEY': 'test-metrics-key'}):
+        with patch.dict(os.environ, {"AURELIUS_METRICS_API_KEY": "test-metrics-key"}):
             response = client.get("/metrics")
-        
+
         # Should be 401 (unauthorized) or 403 (forbidden), not 200
         assert response.status_code in [401, 403], (
             f"Unauthenticated /metrics access allowed (status {response.status_code}). "

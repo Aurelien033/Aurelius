@@ -64,11 +64,15 @@ def test_upsert_replaces_lowest_strength_when_full() -> None:
     bank = HLMPreferenceBank(cfg)
 
     for i in range(3):
-        bank.upsert(HLMPreferenceWrite(key=torch.ones(16), value=torch.ones(16), strength=float(i + 1)))
+        bank.upsert(
+            HLMPreferenceWrite(key=torch.ones(16), value=torch.ones(16), strength=float(i + 1))
+        )
 
     # Bank full — next upsert with strength 0.1 should evict slot with strength 1.0
     # But the low-strength write (0.1) itself goes into the lowest-strength slot
-    new_slot = bank.upsert(HLMPreferenceWrite(key=torch.ones(16) * 10, value=torch.ones(16) * 10, strength=0.1))
+    new_slot = bank.upsert(
+        HLMPreferenceWrite(key=torch.ones(16) * 10, value=torch.ones(16) * 10, strength=0.1)
+    )
     assert new_slot == 0  # slot 0 had strength 1.0 (lowest)
 
 
@@ -122,7 +126,9 @@ def test_export_import_round_trip_preserves_read_result() -> None:
     dim = 32
     bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=5, bank_dim=dim))
     bank.upsert(HLMPreferenceWrite(key=torch.ones(dim), value=torch.ones(dim) * 2, strength=0.7))
-    bank.upsert(HLMPreferenceWrite(key=torch.ones(dim) * 3, value=torch.ones(dim) * 4, strength=1.0))
+    bank.upsert(
+        HLMPreferenceWrite(key=torch.ones(dim) * 3, value=torch.ones(dim) * 4, strength=1.0)
+    )
 
     query = torch.randn(2, dim)
     orig_result = bank.read(query, top_k=2)
@@ -193,14 +199,16 @@ def test_telemetry_reports_filled_slots() -> None:
 def test_export_import_preserves_metadata() -> None:
     dim = 16
     bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=5, bank_dim=dim))
-    bank.upsert(HLMPreferenceWrite(
-        key=torch.ones(dim),
-        value=torch.ones(dim),
-        strength=1.0,
-        provenance="dream_recent",
-        trust="verified",
-        metadata_hash="abc123def456",
-    ))
+    bank.upsert(
+        HLMPreferenceWrite(
+            key=torch.ones(dim),
+            value=torch.ones(dim),
+            strength=1.0,
+            provenance="dream_recent",
+            trust="verified",
+            metadata_hash="abc123def456",
+        )
+    )
     state = bank.export_state()
     assert "metadata_hashes" in state
     assert "trusts" in state
@@ -219,14 +227,16 @@ def test_export_does_not_contain_raw_prompt_text() -> None:
     dim = 16
     bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=5, bank_dim=dim))
     secret_prompt = "my super secret prompt content xyz"
-    bank.upsert(HLMPreferenceWrite(
-        key=torch.ones(dim),
-        value=torch.ones(dim),
-        strength=1.0,
-        provenance="dreambank",
-        trust="unverified",
-        metadata_hash="hash_of_" + secret_prompt[:4],  # only hash, not raw text
-    ))
+    bank.upsert(
+        HLMPreferenceWrite(
+            key=torch.ones(dim),
+            value=torch.ones(dim),
+            strength=1.0,
+            provenance="dreambank",
+            trust="unverified",
+            metadata_hash="hash_of_" + secret_prompt[:4],  # only hash, not raw text
+        )
+    )
     state = bank.export_state()
     state_str = str(state)
     assert secret_prompt not in state_str
@@ -274,7 +284,9 @@ def test_partial_fill_returns_shape_top_k() -> None:
     bank = HLMPreferenceBank(HLMPreferenceBankConfig(bank_size=10, bank_dim=dim, top_k=top_k))
     # Only write 2 slots (less than top_k=4)
     bank.upsert(HLMPreferenceWrite(key=torch.ones(dim), value=torch.ones(dim), strength=1.0))
-    bank.upsert(HLMPreferenceWrite(key=torch.ones(dim) * 2, value=torch.ones(dim) * 2, strength=0.8))
+    bank.upsert(
+        HLMPreferenceWrite(key=torch.ones(dim) * 2, value=torch.ones(dim) * 2, strength=0.8)
+    )
 
     query = torch.randn(3, dim)  # batch of 3
     result = bank.read(query, top_k=top_k)

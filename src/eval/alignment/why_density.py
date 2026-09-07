@@ -11,26 +11,78 @@ normalizes by length, and flags examples that decide/act without reasoning. Use
 it to FILTER a generated alignment corpus and to score a held-out sample before
 training. It is intentionally conservative and transparent.
 """
+
 from __future__ import annotations
 
 import re
 
 # markers of causal/principled deliberation (why), not just what was done
 _WHY_MARKERS = (
-    "because", "since", "the reason", "in order to", "so that", "otherwise",
-    "the principle", "this violates", "this would", "the risk is", "which could",
-    "is wrong because", "is unsafe because", "the harm", "trade-off", "tradeoff",
-    "on one hand", "on the other hand", "however", "whereas", "even though",
-    "the constitution", "the policy", "reversible", "blast radius", "oversight",
-    "instead", "rather than", "the safer", "i should not", "we should not",
-    "consent", "honest", "deception", "integrity", "accountab",
+    "because",
+    "since",
+    "the reason",
+    "in order to",
+    "so that",
+    "otherwise",
+    "the principle",
+    "this violates",
+    "this would",
+    "the risk is",
+    "which could",
+    "is wrong because",
+    "is unsafe because",
+    "the harm",
+    "trade-off",
+    "tradeoff",
+    "on one hand",
+    "on the other hand",
+    "however",
+    "whereas",
+    "even though",
+    "the constitution",
+    "the policy",
+    "reversible",
+    "blast radius",
+    "oversight",
+    "instead",
+    "rather than",
+    "the safer",
+    "i should not",
+    "we should not",
+    "consent",
+    "honest",
+    "deception",
+    "integrity",
+    "accountab",
 )
 # markers of ethical/normative framing (principle present)
 _PRINCIPLE_MARKERS = (
-    "honest", "deceiv", "deception", "transparen", "consent", "harm", "safety",
-    "safe", "unsafe", "oversight", "accountab", "integrity", "trust", "manipulat",
-    "coerc", "blackmail", "sabotage", "reversible", "irreversible", "escalate",
-    "disclose", "principle", "policy", "constitution", "boundary", "boundaries",
+    "honest",
+    "deceiv",
+    "deception",
+    "transparen",
+    "consent",
+    "harm",
+    "safety",
+    "safe",
+    "unsafe",
+    "oversight",
+    "accountab",
+    "integrity",
+    "trust",
+    "manipulat",
+    "coerc",
+    "blackmail",
+    "sabotage",
+    "reversible",
+    "irreversible",
+    "escalate",
+    "disclose",
+    "principle",
+    "policy",
+    "constitution",
+    "boundary",
+    "boundaries",
 )
 _WORD_RE = re.compile(r"[a-z']+")
 
@@ -62,8 +114,13 @@ def score_dataset(texts: list[str], min_why: float = 1.5) -> dict:
     """Score a corpus. Returns density stats + the fraction that would be kept by
     the why-gate. Use `keep_frac` and `mean_density` as data-quality signals."""
     if not texts:
-        return {"n": 0, "mean_density": 0.0, "median_density": 0.0,
-                "keep_frac": 0.0, "action_only_frac": 0.0}
+        return {
+            "n": 0,
+            "mean_density": 0.0,
+            "median_density": 0.0,
+            "keep_frac": 0.0,
+            "action_only_frac": 0.0,
+        }
     ds = sorted(why_density_score(t) for t in texts)
     n = len(ds)
     kept = sum(d >= min_why for d in ds)

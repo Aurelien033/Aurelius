@@ -119,7 +119,11 @@ def test_launch_amc_training_sanity_run(tmp_path: Path) -> None:
     subprocess.run(cmd, check=True, cwd=_REPO_ROOT)  # noqa: S603 - cmd is built from trusted repo paths and literals
     metrics_path = log_dir / "training.jsonl"
     assert metrics_path.is_file()
-    lines = [json.loads(line) for line in metrics_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        json.loads(line)
+        for line in metrics_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert len(lines) >= 2
     assert "total_loss" in lines[0]
     assert (log_dir / "checkpoints" / "checkpoint-final.pt").is_file()

@@ -10,12 +10,11 @@ Reference: "Fill-in-the-Middle for Structured Outputs" (Aurelius, 2026)
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import random
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +99,7 @@ class FIMConverter:
         visible = dict(arg_items[:n_visible])
         hidden = dict(arg_items[n_visible:])
 
-        prefix_span = f'{name}({", ".join(f"{k}={v}" for k, v in visible.items())}, '
+        prefix_span = f"{name}({', '.join(f'{k}={v}' for k, v in visible.items())}, "
         middle_span = ", ".join(f"{k}={v}" for k, v in hidden.items())
         suffix_span = ")"
 
@@ -146,7 +145,7 @@ class FIMConverter:
         split_idx = self._rng.randint(1, len(lines) - 2)
         prefix = "\n".join(lines[:split_idx])
         middle = lines[split_idx]
-        suffix = "\n".join(lines[split_idx + 1:])
+        suffix = "\n".join(lines[split_idx + 1 :])
 
         fim_text = self._apply_strategy(
             prefix=prompt + "\n" + self.config.fim_prefix_token + prefix,
@@ -197,7 +196,7 @@ class FIMConverter:
         split = len(sentences) // 2
         prefix = ". ".join(sentences[:split])
         middle = sentences[split] if split < len(sentences) else ""
-        suffix = ". ".join(sentences[split + 1:])
+        suffix = ". ".join(sentences[split + 1 :])
 
         fim_text = self._apply_strategy(
             prefix=prompt + "\n" + self.config.fim_prefix_token + prefix,
@@ -283,18 +282,22 @@ class FIMMixedDataset:
                 else:
                     self._converted.append(self.converter.convert_standard(prompt, completion))
             else:
-                self._standard.append(FIMExample(
-                    original_prompt=prompt,
-                    original_completion=completion,
-                    fim_text=prompt + "\n" + completion,
-                    fim_type="standard",
-                ))
+                self._standard.append(
+                    FIMExample(
+                        original_prompt=prompt,
+                        original_completion=completion,
+                        fim_text=prompt + "\n" + completion,
+                        fim_type="standard",
+                    )
+                )
 
         combined = self._converted + self._standard
         random.shuffle(combined)
         logger.info(
             "FIMMixedDataset: %d FIM + %d standard = %d total (FIM ratio=%.2f)",
-            len(self._converted), len(self._standard), len(combined),
+            len(self._converted),
+            len(self._standard),
+            len(combined),
             len(self._converted) / max(len(combined), 1),
         )
         return combined

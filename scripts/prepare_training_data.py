@@ -58,7 +58,7 @@ def get_tokenizer(model_name: str = "NousResearch/Llama-2-7b-hf"):
     try:
         from transformers import AutoTokenizer
 
-        return AutoTokenizer.from_pretrained(model_name)
+        return AutoTokenizer.from_pretrained(model_name)  # nosec B615 — dataset-prep script, known model names
     except Exception as exc:  # noqa: BLE001
         print(f"Warning: failed to load HF tokenizer ({exc}). Using fallback.", file=sys.stderr)
         return _fallback_tokenizer()
@@ -289,7 +289,9 @@ def main() -> None:
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     print(f"\nData prepared at: {out_dir}")
-    print(f"  Train: {train_manifest['total_tokens']:,} tokens ({train_manifest['n_sequences']} seq)")
+    print(
+        f"  Train: {train_manifest['total_tokens']:,} tokens ({train_manifest['n_sequences']} seq)"
+    )
     print(f"  Eval:  {eval_manifest['total_tokens']:,} tokens ({eval_manifest['n_sequences']} seq)")
     print(f"  Manifest: {manifest_path}")
 

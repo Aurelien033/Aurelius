@@ -6,6 +6,7 @@ Proves:
 2. generate() and generate_stream() source calls _apply_top_p_filter (no inline duplication).
 3. Old inline cumulative_probs pattern is absent from both methods.
 """
+
 from __future__ import annotations
 
 import inspect
@@ -62,8 +63,7 @@ class TestTopPFilterCorrectness:
             ref_count = (ref != float("-inf")).sum().item()
 
             assert ours_count == ref_count, (
-                f"top_p={top_p}: our filter kept {ours_count} tokens, "
-                f"HuggingFace kept {ref_count}"
+                f"top_p={top_p}: our filter kept {ours_count} tokens, HuggingFace kept {ref_count}"
             )
 
     def test_top_p_never_masks_all(self):
