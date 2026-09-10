@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Quick integration test: P1-P3 + smoke on 3 instances."""
-import sys, os, json, hashlib, re, subprocess, time, types, random
+import sys, os, json, ast, hashlib, re, subprocess, time, types, random
 from pathlib import Path
 from collections import defaultdict
 
@@ -156,6 +156,35 @@ def load_instance(inst_id):
     fpath = GYM_ROOT / family_dir / subdir / filename
     return json.load(open(fpath))
 
+
+def _extract_schema_literal(text: str) -> object | None:
+    """Brace-match the first {...} argument of a jsonschema.validate call.
+
+    Linear scan; returns the literal object, or None if absent/unparseable.
+    """
+    idx = text.find("jsonschema.validate(")
+    if idx == -1:
+        return None
+    start = text.find("{", idx)
+    if start == -1:
+        return None
+    depth = 0
+    for i in range(start, len(text)):
+        ch = text[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                if i + 1 < len(text) and text[i + 1] == ")":
+                    try:
+                        return ast.literal_eval(text[start : i + 1])
+                    except (ValueError, SyntaxError):
+                        return None
+                return None
+    return None
+
+
 def verify_instance(instance, completion_raw):
     family = instance["metadata"]["family"]
     if family == "F1_mbpp":
@@ -178,9 +207,11 @@ def verify_instance(instance, completion_raw):
             return False
         hidden = instance.get("hidden_tests", [])
         for test in hidden:
-            m = re.search(r'jsonschema\.validate\(.*?,\s*(\{.*\})\)', test)
-            if m:
-                schema_obj = eval(m.group(1))
+            # Linear, regex-free extraction: the original pattern was polynomial
+            # on adversarial input (CodeQL py/polynomial-redos, alert 1824) and
+            # the query cannot see a window bound.
+            schema_obj = _extract_schema_literal(test)
+            if schema_obj is not None:
                 try:
                     jsonschema_validate(instance=parsed, schema=schema_obj)
                 except:
