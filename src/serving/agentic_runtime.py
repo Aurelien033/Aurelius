@@ -50,6 +50,7 @@ def _iter_terminal_turns(prompt: str) -> Iterator[tuple[str, str]]:
             yield pending[0], prompt[pending[1] : m.start()]
             pending = None
 
+
 logger = logging.getLogger(__name__)
 
 
