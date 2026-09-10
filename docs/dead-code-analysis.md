@@ -1,52 +1,64 @@
-# Dead code analysis — 513 files, 4.7 MB
+# Dead code analysis — verified audit (2026-09-10)
 
-This repository has accumulated research code across multiple cycles. Many files in
-`src/model/` (211 of 254, 83%) and `src/training/` (302 of 325, 93%) are not
-imported by their own `__init__.py` nor referenced anywhere else in the codebase.
+> **Supersedes the May-2026 estimate** (513 files / 4.7 MB). Prior cleanup
+> tranches plus four months of drift removed most of it; this audit re-verifies
+> the current tree from scratch instead of reusing the old list.
 
-## src/model/ (211 dead files, 1.9 MB)
+## Method
 
-These files are never imported by `src/model/__init__.py` nor referenced elsewhere:
-act_routing, activation_functions, activation_patching, activation_search,
-activations_norms, activations, adaptive_computation(_v2), adaptive_compute,
-adaptive_span_attn, alibi_attention, aqlm_quant, attention_pruning,
-attention_utils, attention_variants, attn_backend, audio_encoder,
-bigbird_attention, bitnet(_quant), block_sparse_attention, byte_level_model,
-checkpoint_migration, chunked_attention(_v2,_v3), chunked_local_attention,
-colt5_conditional, compatibility, ... (210 total)
+`scripts/audit_dead_code.py` — static reachability audit:
 
-## src/training/ (302 dead files, 2.9 MB)
+1. Parse imports (`ast`) from every tracked `.py` file.
+2. Resolve them to files, including `from X import sub` edges and the legacy
+   namespace aliases registered in `src/namespace_aliases.py`
+   (`aurelius.model` / `model` → `src.model`; same for `alignment` and `serving`).
+3. BFS from every tracked file outside the target directories; whatever in a
+   target directory is never reached has no static importer.
+4. Exonerate the remainder with a word-boundary scan over code/config files
+   (`.py`, yml, toml, cfg, ini, sh, ipynb, sql, json, Makefile, Dockerfile) so
+   dynamic references (`pytest.importorskip`, `importlib`, string lookups) are
+   not misread as dead. Prose docs and scan artifacts are excluded on purpose.
 
-These files are never imported by `src/training/__init__.py` nor referenced elsewhere:
-trainer (38KB), structured_pruning (34KB), model_soup (26KB),
-continual_learning_v3 (21KB), loss_landscape (21KB), anthropic_training (21KB),
-feature_distillation (20KB), adversarial_training_v2 (20KB), online_dpo (19KB),
-federated_dp (19KB), process_reward_model (18KB), maml (17KB), ... (302 total)
+Reproduce:
 
-## Recommendation
+```bash
+.venv/bin/python scripts/audit_dead_code.py --targets src/model src/training
+```
 
-Before deletion, verify:
-1. Check if tests/ references these files
-2. Check if scripts/ or configs/ reference them
-3. Archive to a branch before deleting
-4. Delete in batches, verify no breakage after each
+## Verified results (2026-09-10)
 
-## What's actually active
+- 636 tracked `.py` files under `src/model/` + `src/training/`.
+- **31** have no static importer. Of those, **25 are dynamically referenced**
+  and kept (e.g. `tests/training/test_sift.py` guards its import with
+  `pytest.importorskip`); **6** had zero references anywhere in the tree.
+- **Deleted in this tranche (4)** — zero references in code, configs, or tests:
 
-src/model/ (43 files that ARE used):
-attention.py, config.py, factory.py, family.py, ffn.py, fim_lm.py,
-flash_mla.py, gqa_absorbed.py, head_registry.py, hlm.py, interface_contract.py,
-interface_framework.py, lambda_attention.py, linear_recurrent_unit.py,
-manifest.py, manifest_v2.py, mhc.py, mla_256.py, model_merging.py,
-mod.py, moe.py, moonvit_patch_packer.py, mtp_shared.py,
-multi_token_prediction.py, parallel_attention.py, release_track_router.py,
-remode.py, rms_norm.py, striped_attention.py, transformer.py,
-variant_adapter.py, vision_cross_attention.py, zamba_block.py,
-architectures.py, matryoshka_embedding.py, dsa_attention.py,
-csa_attention.py, hca_attention.py, dp_aware_moe_routing.py,
-diffusion_llm.py, act.py, aqlm_quant.py, compatibility.py,
-checkpoint_migration.py, chunked_local_attention.py, colt5_conditional.py
+  | File | Lines |
+  |------|-------|
+  | `src/model/linear_attention_v2.py` | 575 |
+  | `src/training/stochastic_depth_v2.py` | 345 |
+  | `src/training/spectral_norm_regularizer.py` | 301 |
+  | `src/training/soap_optimizer.py` | 246 |
 
-src/training/ (23 files that ARE used):
-fsdp_lite.py, loss_variance_monitor.py, lr_range_test.py, token_dropout.py,
-tool_call_supervision_loss.py, async_rl_infra.py, (and __init__.py exports)
+  Note: `tests/training/test_adaptive_optimizer.py` exercises
+  `src.training.adaptive_optimizer.SOAPOptimizer` — its own implementation.
+  Nothing imported `soap_optimizer.py`.
+
+- **Kept, flagged as documented-but-unwired (2)** — remove or wire, do not
+  forget they exist:
+  - `src/model/optimized_attention.py` — usage documented in
+    `src/model/CUDA_OPTIMIZATION_IMPLEMENTATION.md`; delete both together if
+    the optimization line is dropped.
+  - `src/training/tst_trainer.py` — `docs/ARCHITECTURE.md` and
+    `docs/V4_INTEGRATION_GUIDE.md` show intended use; `docs/CLAIMS_LEDGER.md`
+    marks its claim (E5) as NOT WIRED.
+
+- Safety: the pre-cleanup tree is preserved on the branch
+  `archive/dead-code-pre-cleanup-2026-09-10`.
+
+## Re-run cadence
+
+Research code accretes. Re-run the audit before each cleanup tranche and treat
+"no static importer + no dynamic reference" as the delete set. If the tests
+that provide the dynamic references above are ever retired, the modules they
+guard become deletable — re-run then.
