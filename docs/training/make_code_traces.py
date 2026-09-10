@@ -53,7 +53,7 @@ def main():
         url = a.api_base.rstrip("/") + "/chat/completions"
         _err = {"shown": False}
         if key.endswith("your-key...") or len(key) < 20:
-            print(f"  ⚠ OPENROUTER_API_KEY looks like a placeholder ({key[:12]}...) — set your REAL key", flush=True)
+            print("  ⚠ OPENROUTER_API_KEY looks like a placeholder — set your REAL key", flush=True)
         def _one(ask):
             body = json.dumps({"model": a.api_model, "messages": [{"role": "user", "content": ask}],
                                "temperature": a.temperature, "max_tokens": a.max_new}).encode()

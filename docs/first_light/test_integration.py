@@ -178,7 +178,15 @@ def verify_instance(instance, completion_raw):
             return False
         hidden = instance.get("hidden_tests", [])
         for test in hidden:
-            m = re.search(r'jsonschema\.validate\(.*?,\s*(\{.*\})\)', test)
+            # Bounded match: the previous pattern was polynomial on adversarial
+            # input (CodeQL py/polynomial-redos, alert 1824). Anchor on the first
+            # call site (find() is linear) and search a bounded window.
+            _idx = test.find("jsonschema.validate(")
+            m = (
+                re.match(r"jsonschema\.validate\(.*?,\s*(\{.*?\})\)", test[_idx : _idx + 5000], re.S)
+                if _idx != -1
+                else None
+            )
             if m:
                 schema_obj = eval(m.group(1))
                 try:
