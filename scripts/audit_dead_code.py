@@ -19,6 +19,11 @@ Method:
 
 Output: human-readable report; ``--json PATH`` also writes the full lists.
 
+Note: this tool reads files whose names come from ``argv`` (developer-controlled)
+and ``git ls-files`` (the repository itself). There is no trust boundary here,
+so the five ``# codeql[py/path-injection]`` suppressions below are intentional
+false-positive dismissals, not sanitization gaps.
+
 Usage:
     python scripts/audit_dead_code.py --targets src/model src/training
 """
@@ -131,6 +136,7 @@ def main() -> int:
     ap.add_argument("--json", dest="json_path", default=None)
     args = ap.parse_args()
 
+    # codeql[py/path-injection]
     root = Path(args.root).resolve()
     targets = [t.rstrip("/") for t in args.targets]
 
@@ -141,6 +147,7 @@ def main() -> int:
     nodes = set(fnames)
     edges: dict[str, set[str]] = {f: set() for f in fnames}
     for f in fnames:
+        # codeql[py/path-injection]
         text = (root / f).read_text(encoding="utf-8", errors="replace")
         for level, module, name in parse_imports(text):
             for rel in resolve(root, root / f, level, module, name):
@@ -174,8 +181,10 @@ def main() -> int:
     for f in sorted(exo):
         p = root / f
         try:
+            # codeql[py/path-injection]
             if p.stat().st_size > 2_000_000:
                 continue
+            # codeql[py/path-injection]
             cache[f] = p.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
@@ -202,6 +211,7 @@ def main() -> int:
         print(f"  {k}  <- {', '.join(refs)}")
 
     if args.json_path:
+        # codeql[py/path-injection]
         Path(args.json_path).write_text(
             json.dumps(
                 {
