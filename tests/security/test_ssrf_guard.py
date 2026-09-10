@@ -12,6 +12,12 @@ import pytest
 from tools.web_tool import _is_safe_url
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_ssrf_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Assert default-secure behavior; drop any ambient bypass from other modules."""
+    monkeypatch.delenv("AURELIUS_ALLOW_PRIVATE_URLS", raising=False)
+
+
 def test_validator_blocks_file_scheme():
     safe, reason = _is_safe_url("file:///etc/passwd")
     assert safe is False
