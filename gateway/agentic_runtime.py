@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -27,10 +27,22 @@ from .tool_executor import current_time, echo
 if TYPE_CHECKING:  # pragma: no cover - import cycle guard for annotations only
     from .api_server import ChatRequest
 
-_TERMINAL_TURN_RE = re.compile(
-    r"<\|(?P<role>system|user|assistant)\|>\n(?P<content>.*?)(?:<\|end\|>\n|<\|end\|>$)",
-    re.DOTALL,
-)
+# Single-pass token scan: linear on adversarial prompts (the previous
+# lazy-body regex was polynomial when role markers appeared without
+# terminators; CodeQL py/polynomial-redos). Yields identical turns.
+_TERMINAL_TOKEN_RE = re.compile(r"<\|(?P<role>system|user|assistant)\|>\n|<\|end\|>")
+
+
+def _iter_terminal_turns(prompt: str) -> Iterator[tuple[str, str]]:
+    """Yield (role, content) for each complete <|role|>...<|end|> turn."""
+    pending: tuple[str, int] | None = None
+    for m in _TERMINAL_TOKEN_RE.finditer(prompt):
+        if m.group("role") is not None:
+            if pending is None:
+                pending = (m.group("role"), m.end())
+        elif pending is not None:
+            yield pending[0], prompt[pending[1] : m.start()]
+            pending = None
 
 logger = logging.getLogger(__name__)
 
@@ -135,9 +147,8 @@ def _render_conversation(messages: list[dict]) -> str:
 def _extract_terminal_prompt_context(prompt: str) -> tuple[str | None, str]:
     system_prompt: str | None = None
     messages: list[dict] = []
-    for match in _TERMINAL_TURN_RE.finditer(prompt):
-        role = match.group("role")
-        content = match.group("content").strip()
+    for role, raw_content in _iter_terminal_turns(prompt):
+        content = raw_content.strip()
         if role == "system" and system_prompt is None:
             system_prompt = content
             continue

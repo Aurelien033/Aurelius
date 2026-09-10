@@ -98,8 +98,7 @@ class ArkConfig:
         if not self.api_key:
             self.api_key = f"ark-{secrets.token_hex(24)}"
             logger.warning(
-                "No ARK_API_KEY set. Generated ephemeral key: %s... Use env var for persistence.",
-                self.api_key[:16],
+                "No ARK_API_KEY set. Generated an ephemeral key; set the env var for persistence."
             )
         if not self.jwt_secret:
             self.jwt_secret = secrets.token_hex(32)
