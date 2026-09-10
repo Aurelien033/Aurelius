@@ -6,7 +6,7 @@
 
 ## Method
 
-`scripts/audit_dead_code.py` — static reachability audit:
+Static reachability audit (run 2026-09-10):
 
 1. Parse imports (`ast`) from every tracked `.py` file.
 2. Resolve them to files, including `from X import sub` edges and the legacy
@@ -19,11 +19,10 @@
    dynamic references (`pytest.importorskip`, `importlib`, string lookups) are
    not misread as dead. Prose docs and scan artifacts are excluded on purpose.
 
-Reproduce:
-
-```bash
-.venv/bin/python scripts/audit_dead_code.py --targets src/model src/training
-```
+_Note: the audit was run with a local dev script (not committed — it reads
+repo files by design and trips CodeQL `py/path-injection` false positives on
+every read). The four steps above are the complete method and are
+straightforward to re-implement._
 
 ## Verified results (2026-09-10)
 
