@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import io
 import json
-import os
 from types import SimpleNamespace
 
-# Allow private URLs in tests (SSRF protection bypassed by mock urlopen)
-os.environ.setdefault("AURELIUS_ALLOW_PRIVATE_URLS", "1")
+import pytest
 
 from src.serving.auth_middleware import AuthConfig, AuthMiddleware
 from src.serving.rate_limiter import RateLimitConfig, TokenBucketLimiter
@@ -19,6 +17,12 @@ from src.serving.web_ui import (
     create_ui_server,
     make_mock_generate_fn,
 )
+
+
+@pytest.fixture(autouse=True)
+def _allow_private_urls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Allow private URLs in tests (SSRF bypass scoped per-test; mock urlopen)."""
+    monkeypatch.setenv("AURELIUS_ALLOW_PRIVATE_URLS", "1")
 
 
 class _NoCloseBytesIO(io.BytesIO):

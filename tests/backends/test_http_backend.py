@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import json
-import os
 import unittest
 import urllib.error
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from src.backends.http_backend import HTTP_BACKEND_REGISTRY, HTTPBackend, HTTPBackendConfig
 
-# Allow localhost in tests (SSRF protection bypassed via mock urlopen)
-os.environ.setdefault("AURELIUS_ALLOW_PRIVATE_URLS", "1")
+
+@pytest.fixture(autouse=True)
+def _allow_private_urls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Allow localhost in tests (SSRF bypass scoped per-test; mock urlopen)."""
+    monkeypatch.setenv("AURELIUS_ALLOW_PRIVATE_URLS", "1")
 
 
 def _make_response(data: dict, status: int = 200):
