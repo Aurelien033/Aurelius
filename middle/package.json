@@ -16,7 +16,7 @@
     "aurelius-data-engine": "file:../crates/data-engine",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^17.4.2",
     "express": "^5.1.0",
     "redis": "^4.7.0",
     "uuid": "^14.0.2",
