@@ -10,6 +10,6 @@
     "build": "napi build --release --platform"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.0.0"
+    "@napi-rs/cli": "^3.9.0"
   }
 }
