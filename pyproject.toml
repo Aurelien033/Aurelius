@@ -62,7 +62,7 @@ serve = [
 ]
 db = [
     "alembic>=1.19.2",
-    "sqlalchemy>=2.0.0",
+    "sqlalchemy>=2.0.52",
 ]
 dev = [
     "pytest>=9.1.1",
