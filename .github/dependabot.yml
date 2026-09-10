@@ -47,6 +47,19 @@ updates:
         patterns:
           - "typescript-eslint"
           - "@typescript-eslint/*"
+    ignore:
+      # Major bumps that need migration work before they can pass CI.
+      # Tracked in issue #258 — remove an entry when its migration lands.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "jsdom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@testing-library/jest-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pino"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "cargo"
     directory: "/"
@@ -55,6 +68,11 @@ updates:
     labels:
       - "dependencies"
       - "rust"
+    ignore:
+      # pyo3 0.29 needs binding migration work (issue #258); dependabot
+      # classifies 0.x->0.y as minor, so pin the whole span.
+      - dependency-name: "pyo3"
+        versions: [">=0.29"]
 
   - package-ecosystem: "docker"
     directory: "/deployment"
