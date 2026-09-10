@@ -103,6 +103,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      - name: Reset stale rustup state (workaround rustup#3530)
+        # Runner images occasionally ship incoherent rustup state, making
+        # component installs fail with "detected conflict: 'bin/cargo-clippy'".
+        # Uninstall-first is the maintainer-endorsed workaround.
+        run: |
+          rustup toolchain uninstall 1.89 >/dev/null 2>&1 || true
+
       - name: Install Rust toolchain
         # Needed to build the data-engine NAPI binding for this platform
         # (crates/data-engine napi targets only ship darwin prebuilts).
