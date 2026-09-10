@@ -26,13 +26,13 @@
     "@eslint/js": "^10.0.1",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
-    "@types/node": "^24.12.2",
+    "@types/node": "^26.5.0",
     "@types/uuid": "^11.0.0",
     "@types/ws": "^8.5.13",
     "eslint": "^10.2.1",
     "tsx": "^4.23.13",
     "typescript": "~6.0.2",
-    "typescript-eslint": "^8.58.2",
+    "typescript-eslint": "^8.69.0",
     "vitest": "^5.0.0"
   }
 }

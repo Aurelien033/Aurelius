@@ -7,11 +7,7 @@ This directory contains concrete CUDA optimization implementations for the vecto
 ### optimized_attention.py
 Drop-in replacement for attention module using SageAttention-2 + KIVI quantization.
 
-### cuda_kernel_bench.py
-Benchmark harness comparing FP16 SDPA vs INT8 SageAttention.
-
-### memory_layout.py
-Optimal tensor layouts for KV cache (transposed for memory coalescing).
+_Note: `cuda_kernel_bench.py` and `memory_layout.py`, referenced in earlier revisions of this document, no longer exist in this directory._
 
 ## Usage
 
