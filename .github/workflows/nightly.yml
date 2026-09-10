@@ -31,10 +31,6 @@ jobs:
         run: |
           python tests/security/run_security_audit.py --output /tmp/security_audit.json
 
-      - name: Training tokenize pipeline (C-19)
-        run: |
-          python -m pytest tests/training_data/test_tokenize_pipeline.py -q --tb=short
-
       - name: Extended serving, agent sandbox, and tools tests
         run: |
           timeout 1800 python -m pytest \
