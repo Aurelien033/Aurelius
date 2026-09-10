@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Quick integration test: P1-P3 + smoke on 3 instances."""
-import sys, os, json, hashlib, re, subprocess, time, types, random
+import sys, os, json, ast, hashlib, re, subprocess, time, types, random
 from pathlib import Path
 from collections import defaultdict
 
@@ -188,7 +188,7 @@ def verify_instance(instance, completion_raw):
                 else None
             )
             if m:
-                schema_obj = eval(m.group(1))
+                schema_obj = ast.literal_eval(m.group(1))
                 try:
                     jsonschema_validate(instance=parsed, schema=schema_obj)
                 except:
