@@ -577,7 +577,7 @@ def _load_auth_from_env() -> AuthMiddleware:
             continue
         parts = key_def.split(":")
         if len(parts) < 2:
-            logger.warning("Skipping malformed AURELIUS_API_KEYS entry: %s", key_def)
+            logger.warning("Skipping malformed AURELIUS_API_KEYS entry (expected 'id:key')")
             continue
         key_id = parts[0]
         raw_key = parts[1]
