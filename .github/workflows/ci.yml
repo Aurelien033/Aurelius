@@ -70,11 +70,25 @@ jobs:
         if: always()
 
   test-broad:
-    name: Run broader test suite (nightly)
+    name: Run broader test suite (${{ matrix.part }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
     if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - part: agent
+            dirs: tests/agent/ tests/security/
+          - part: memory
+            dirs: tests/memory/
+          - part: model
+            dirs: tests/model/
+          - part: inference
+            dirs: tests/serving/ tests/tools/ tests/inference/
+          - part: integration
+            dirs: tests/integration/
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -89,22 +103,35 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Run broader test suite (non-integration)
+      - name: Install Rust toolchain
+        # Needed to build the data-engine NAPI binding for this platform
+        # (crates/data-engine napi targets only ship darwin prebuilts).
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.89"
+
+      - name: Install Node dependencies
+        # Some broader-suite tests (e.g. full-pipeline integration fixtures)
+        # spawn the middle server (npm run dev) and require node_modules.
         run: |
-          # Hourglass: skip multimodal/web/UI-heavy tests for speed
-          timeout 900 python -m pytest \
-            tests/agent/ \
-            tests/memory/ \
-            tests/model/ \
-            tests/security/ \
-            tests/serving/ \
-            tests/tools/ \
-            tests/inference/ \
+          npm ci
+
+      - name: Build data-engine NAPI binding
+        run: |
+          npm run build -w crates/data-engine
+
+      - name: Run broader test suite (${{ matrix.part }})
+        run: |
+          # Hourglass: split per-directory so no single job exceeds the timeout
+          timeout 1500 python -m pytest \
+            ${{ matrix.dirs }} \
             -q --tb=line --maxfail=20
 
-      - name: Run integration tests (with coverage)
+      - name: Run integration tests with coverage
+        # Coverage artifacts only from the integration partition (avoids
+        # 4x duplication of the full integration suite across matrix jobs).
+        if: matrix.part == 'integration'
         run: |
-          # Full integration suite, but skip slow ones
           timeout 1200 python -m pytest \
             tests/integration/ \
             --cov=src --cov-report=xml --cov-append \

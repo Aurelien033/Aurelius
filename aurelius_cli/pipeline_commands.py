@@ -101,12 +101,12 @@ def _walk(node: ast.AST, x: object) -> object:
             return x
         if node.id in _ALLOWED_BUILTINS:
             return _ALLOWED_BUILTINS[node.id]
-        raise ValueError(f"Unknown name {node.id!r}")
+        raise ValueError(f"function {node.id!r} is not allowed")
     if isinstance(node, ast.Attribute):
         if node.attr.startswith("__"):
-            raise ValueError(f"Dunder attribute access not allowed: {node.attr!r}")
+            raise ValueError(f"method {node.attr!r} is not allowed (dunder access)")
         if node.attr not in _ALLOWED_METHODS:
-            raise ValueError(f"Method not allowed: {node.attr!r}")
+            raise ValueError(f"method {node.attr!r} is not allowed")
         obj = _walk(node.value, x)
         return getattr(obj, node.attr)
     if isinstance(node, ast.Subscript):
