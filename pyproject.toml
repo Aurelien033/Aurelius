@@ -54,7 +54,7 @@ apple = [
 # Use internal scorers (src/eval/*_scorer.py) instead.
 eval = []
 serve = [
-    "fastapi>=0.115.0",
+    "fastapi>=0.141.1",
     "uvicorn>=0.46.0",
     "openai>=3.8.0",
     "httpx>=0.28.1",
@@ -74,7 +74,7 @@ dev = [
     "httpx>=0.28.1",
     "pydantic>=2.0.0",
 
-        "fastapi>=0.115.0",
+        "fastapi>=0.141.1",
         "uvicorn>=0.46.0",
         "openai>=3.8.0",
         "psutil>=6.0.0",
