@@ -20,8 +20,13 @@ updates:
           - "pytest*"
           - "ruff*"
 
+  # npm sits at the workspace root: the ROOT package-lock.json is the only
+  # lockfile used by CI (`npm ci`) and by the Docker builds (context `.`).
+  # Per-directory npm entries used to update middle/package-lock.json and
+  # server/package-lock.json instead, leaving the root lockfile stale and
+  # failing every CI run with "lock file does not satisfy" errors.
   - package-ecosystem: "npm"
-    directory: "/frontend"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -30,12 +35,18 @@ updates:
       - "Aurelien033"
     labels:
       - "dependencies"
-      - "frontend"
     groups:
       react-deps:
         patterns:
           - "react*"
           - "@types/react*"
+      types-node:
+        patterns:
+          - "@types/node"
+      typescript-eslint:
+        patterns:
+          - "typescript-eslint"
+          - "@typescript-eslint/*"
 
   - package-ecosystem: "cargo"
     directory: "/"
@@ -44,24 +55,6 @@ updates:
     labels:
       - "dependencies"
       - "rust"
-
-  - package-ecosystem: "npm"
-    directory: "/middle"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    labels:
-      - "dependencies"
-      - "middle"
-
-  - package-ecosystem: "npm"
-    directory: "/server"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    labels:
-      - "dependencies"
-      - "server"
 
   - package-ecosystem: "docker"
     directory: "/deployment"
