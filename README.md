@@ -11,7 +11,26 @@ post-training and a contamination-aware, verifier-gated eval harness.
 Status: research + engineering active; **no tuned checkpoint published yet** — this
 repo does not carry unverified benchmark claims.
 
-## Current Status — 2026-09-06
+## Current Status — 2026-09-11
+
+- **RSI pilot — first measured self-improvement loop at lab scale** (Kaggle P100,
+  Qwen2.5-1.5B-Instruct, calibrated MATH-level pools, 7h51m run, every stage receipted):
+  rejection-SFT self-training is **below the movement floor at 1.5B** — round 1 **+0.8pp**
+  (within noise), round 2 **−7.2pp** with acceptance collapsing 44.1% → 13.8%, unfiltered
+  control **−2.0pp**; pass@k flat (no boundary expansion). Gated-vs-unfiltered ordering
+  replicates the literature in miniature (gates slow degradation). Conclusion: the first
+  productive signal is RL-strength (RLVR/DAPO-class) + verifier/teacher upgrades — not
+  cheap self-SFT. Artifacts (protocol, results, report, 11 primary-source verifications):
+  `research_loop/universal/2026-09-10_rsi_kaggle_pilot/`.
+- **AIE v1 — Aurelius Improvement Engine** — evidence-gated closed-loop optimizer that
+  measures the truth surface from eval artifacts and ranks interventions under damage
+  guards (`python -m aie.run`); every number labeled measured/derived/prior, unmapped
+  data reported as NULL, never zeroed.
+- **Repo hardening (09-10)** — main + nightly CI green; dependabot alerts 34 → 2;
+  code-scanning 260 → 230 (11 fixed, including two real ReDoS rewrites + log
+  key-material removal); `rust_memory` crate now covered by CI.
+
+### Prior status — 2026-09-06
 
 - **9B code audit** — 10 bugs found, fixed, and re-verified in the 9B hybrid codebase
   (sequential-loop "parallel" scan → exact chunked scan; RoPE + KV-cache position
