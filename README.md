@@ -13,14 +13,16 @@ repo does not carry unverified benchmark claims.
 
 ## Current Status — 2026-09-11
 
-- **RSI pilot — first measured self-improvement loop at lab scale** (Kaggle P100,
-  Qwen2.5-1.5B-Instruct, calibrated MATH-level pools, 7h51m run, every stage receipted):
-  rejection-SFT self-training is **below the movement floor at 1.5B** — round 1 **+0.8pp**
-  (within noise), round 2 **−7.2pp** with acceptance collapsing 44.1% → 13.8%, unfiltered
-  control **−2.0pp**; pass@k flat (no boundary expansion). Gated-vs-unfiltered ordering
-  replicates the literature in miniature (gates slow degradation). Conclusion: the first
-  productive signal is RL-strength (RLVR/DAPO-class) + verifier/teacher upgrades — not
-  cheap self-SFT. Artifacts (protocol, results, report, 11 primary-source verifications):
+- **RSI pilot — first measured self-improvement program at lab scale** (Kaggle P100,
+  Qwen2.5-1.5B-Instruct, calibrated MATH-level pools, every stage receipted): four arms
+  measured end-to-end. Rejection-SFT is **below the movement floor** — gated A **+0.8pp**
+  (within noise), committee gate C **+1.2pp**, unfiltered B **−2.0pp**; round 2
+  self-regressed **−7.2pp** with acceptance collapsing 44.1% → 13.8%. **Capstone:
+  swapping only the objective to RLVR (GRPO) produced the first movement on both axes —
+  +2.4pp pass@1 / +6.0pp pass@8** — even with 60.6% of training groups carrying zero
+  reward variance. Measured spectrum: **D +2.4 > C +1.2 ≥ A +0.8 > B −2.0**. Conclusion:
+  the productive channel is RL-strength signal + a live verifier, not cheap self-SFT.
+  Artifacts (protocol, results, report, 11 primary-source verifications):
   `research_loop/universal/2026-09-10_rsi_kaggle_pilot/`.
 - **AIE v1 — Aurelius Improvement Engine** — evidence-gated closed-loop optimizer that
   measures the truth surface from eval artifacts and ranks interventions under damage
