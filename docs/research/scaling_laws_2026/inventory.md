@@ -1,5 +1,12 @@
 # Scaling-Law / Efficiency Paper Inventory
 
+> **Note (2026-09-16):** the vendored third-party paper dumps that this index
+> describes (`<arxiv-id>v<N>.txt`, plus the saved Lilian Weng page) have been
+> removed from the repository as re-downloadable non-code ballast. See
+> `README.md` in this directory for the arXiv ids and re-fetch instructions.
+> The `TXT:` lines in the abstract-snippet section below are historical paths
+> from the original pass and no longer resolve.
+
 Output directory: `/Users/christienantonio/aurelius/docs/research/scaling_laws_2026`
 
 Lilian Weng page: fetched 35125 chars
