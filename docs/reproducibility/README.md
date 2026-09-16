@@ -55,6 +55,14 @@ python docs/reproducibility/scripts/plot_results.py
 | Eval summary | `logs/eval_*/summary.json` |
 | Final checkpoint | `docs/reproducibility/checkpoint/amc_forge_1b_final.pt` (not shipped in git) |
 
+Per-trace memory-event sidecars (`ring1_tranche*/**/traces/**/sidecars/*.ndjson`)
+are bulk run output, not source: they match `.gitignore` (`*.ndjson`,
+`docs/reproducibility/**/*.ndjson`) and are **not** committed. Only the summary
+artifacts stay in the pack — `workflow_summary.json`, `gate_verification_report.json`,
+`metrics/*.json`, `manifest.json` and `dreambank_run/*`. Regenerate the traces with
+`scripts/ring1_trace_collector.py` + `scripts/ring1_tranche{3,4,5}_workflow.py`
+(see `traces/README.md` in each run directory).
+
 ## Configs (four ablation variants)
 
 | File | Description |
