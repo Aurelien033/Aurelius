@@ -1,84 +1,36 @@
+"""Compatibility shim for ``cron.conditional_branch``.
+
+Canonical implementation:
+``src.workflow.conditional_branch``
+
+This module is retained during the ``cron`` -> ``src.workflow`` migration so that
+existing ``from cron.conditional_branch import ...`` statements keep working.
+"""
+
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
-from typing import Any
+import warnings
+
+warnings.warn(
+    "Importing from 'cron' is deprecated. Use 'src.workflow' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from src.workflow.conditional_branch import *  # noqa: E402, F401, F403
+from src.workflow import conditional_branch as _src_module  # noqa: E402
+
+try:
+    from src.workflow.conditional_branch import __all__ as _src_all  # noqa: E402
+except ImportError:
+    __all__ = [name for name in dir(_src_module) if not name.startswith("__")]
+else:
+    __all__ = list(_src_all)
 
 
-class ConditionOperator(Enum):
-    EQUALS = "=="
-    GT = ">"
-    LT = "<"
-    CONTAINS = "in"
-    NOT_EQUALS = "!="
-
-
-@dataclass
-class BranchCondition:
-    field: str
-    operator: ConditionOperator
-    value: Any
-
-    def evaluate(self, context: dict[str, Any]) -> bool:
-        actual = context.get(self.field)
-        if actual is None:
-            return False
-        if self.operator == ConditionOperator.EQUALS:
-            return actual == self.value
-        elif self.operator == ConditionOperator.NOT_EQUALS:
-            return actual != self.value
-        elif self.operator == ConditionOperator.GT:
-            return actual > self.value
-        elif self.operator == ConditionOperator.LT:
-            return actual < self.value
-        elif self.operator == ConditionOperator.CONTAINS:
-            return self.value in actual if isinstance(actual, (list, str)) else False
-        return False
-
-
-@dataclass
-class BranchResult:
-    action: str | None
-    triggered: bool = False
-    condition_name: str | None = None
-
-
-@dataclass
-class _BranchRule:
-    condition: BranchCondition
-    true_action: str
-    false_action: str
-    name: str = ""
-
-
-class ConditionalBranch:
-    def __init__(self) -> None:
-        self._rules: list[_BranchRule] = []
-
-    def add_condition(
-        self, condition: BranchCondition, true_action: str, false_action: str, name: str = ""
-    ) -> None:
-        self._rules.append(
-            _BranchRule(
-                condition=condition, true_action=true_action, false_action=false_action, name=name
-            )
-        )
-
-    def evaluate(self, context: dict[str, Any]) -> BranchResult:
-        result = BranchResult(action=None)
-        for rule in self._rules:
-            if rule.condition.evaluate(context):
-                result = BranchResult(
-                    action=rule.true_action, triggered=True, condition_name=rule.name
-                )
-            else:
-                result = BranchResult(
-                    action=rule.false_action, triggered=False, condition_name=rule.name
-                )
-        return result
-
-    def condition_count(self) -> int:
-        return len(self._rules)
-
-
-CONDITIONAL_BRANCH = ConditionalBranch()
+def __getattr__(name: str) -> object:
+    """Forward private/undecorated names to the canonical implementation."""
+    try:
+        return getattr(_src_module, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None

@@ -1,50 +1,36 @@
-"""WebSocket handler for real-time agent streaming."""
+"""Compatibility shim for ``gateway.websocket``.
+
+Canonical implementation:
+``src.serving.websocket``
+
+This module is retained during the ``gateway`` -> ``src.serving`` migration so that
+existing ``from gateway.websocket import ...`` statements keep working.
+"""
 
 from __future__ import annotations
 
-import json
-import logging
-from typing import Any
+import warnings
+
+warnings.warn(
+    "Importing from 'gateway' is deprecated. Use 'src.serving' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from src.serving.websocket import *  # noqa: E402, F401, F403
+from src.serving import websocket as _src_module  # noqa: E402
 
 try:
-    from fastapi import WebSocket as FastAPIWebSocket  # type: ignore[import-untyped]
+    from src.serving.websocket import __all__ as _src_all  # noqa: E402
 except ImportError:
-    FastAPIWebSocket = None  # type: ignore[assignment,misc]
+    __all__ = [name for name in dir(_src_module) if not name.startswith("__")]
+else:
+    __all__ = list(_src_all)
 
-logger = logging.getLogger("ark.serving.ws")
 
-
-async def handle_agent_ws(websocket: Any, memory_manager: Any = None) -> None:
-    await websocket.accept()
-    logger.info("WebSocket connection accepted")
-
+def __getattr__(name: str) -> object:
+    """Forward private/undecorated names to the canonical implementation."""
     try:
-        while True:
-            data = await websocket.receive_text()
-            message = json.loads(data)
-            task = message.get("task", "")
-            mode = message.get("mode", "chat")
-
-            await websocket.send_json({"type": "status", "content": "processing"})
-
-            if mode == "memory" and memory_manager is not None:
-                results = memory_manager.contextualize(task, top_k=5)
-                for r in results:
-                    await websocket.send_json({"type": "memory", "content": r})
-            else:
-                tokens = f"Processing: {task}".split()
-                for token in tokens:
-                    await websocket.send_json({"type": "token", "content": token + " "})
-                    import asyncio
-
-                    await asyncio.sleep(0.02)
-
-            await websocket.send_json({"type": "done", "content": ""})
-
-    except Exception as exc:
-        logger.debug("WebSocket disconnected: %s", exc)
-    finally:
-        try:
-            await websocket.close()
-        except Exception:  # noqa: S110
-            pass
+        return getattr(_src_module, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None

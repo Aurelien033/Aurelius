@@ -1,48 +1,36 @@
-"""Workflow dead-letter queue for failed step handling."""
+"""Compatibility shim for ``cron.dead_letter_queue``.
+
+Canonical implementation:
+``src.workflow.dead_letter_queue``
+
+This module is retained during the ``cron`` -> ``src.workflow`` migration so that
+existing ``from cron.dead_letter_queue import ...`` statements keep working.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
+import warnings
+
+warnings.warn(
+    "Importing from 'cron' is deprecated. Use 'src.workflow' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from src.workflow.dead_letter_queue import *  # noqa: E402, F401, F403
+from src.workflow import dead_letter_queue as _src_module  # noqa: E402
+
+try:
+    from src.workflow.dead_letter_queue import __all__ as _src_all  # noqa: E402
+except ImportError:
+    __all__ = [name for name in dir(_src_module) if not name.startswith("__")]
+else:
+    __all__ = list(_src_all)
 
 
-@dataclass
-class DeadLetteredStep:
-    """A workflow step that failed and was moved to DLQ."""
-
-    step_id: str
-    workflow_id: str
-    error: str
-    payload: dict
-    failed_at: str = ""
-    retry_count: int = 0
-
-    def __post_init__(self) -> None:
-        if not self.failed_at:
-            self.failed_at = datetime.now(UTC).isoformat()
-
-
-@dataclass
-class DeadLetterQueue:
-    """Holds failed workflow steps for later inspection/retry."""
-
-    _queue: list[DeadLetteredStep] = field(default_factory=list, repr=False)
-
-    def enqueue(self, step: DeadLetteredStep) -> None:
-        self._queue.append(step)
-
-    def requeue(self, workflow_id: str) -> list[DeadLetteredStep]:
-        requeued = [s for s in self._queue if s.workflow_id == workflow_id]
-        self._queue = [s for s in self._queue if s.workflow_id != workflow_id]
-        for s in requeued:
-            s.retry_count += 1
-        return requeued
-
-    def pending(self) -> int:
-        return len(self._queue)
-
-    def clear(self) -> None:
-        self._queue.clear()
-
-
-DEAD_LETTER_QUEUE = DeadLetterQueue()
+def __getattr__(name: str) -> object:
+    """Forward private/undecorated names to the canonical implementation."""
+    try:
+        return getattr(_src_module, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None

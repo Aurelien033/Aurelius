@@ -1,62 +1,36 @@
-import heapq
-import time
-from dataclasses import dataclass, field
-from enum import IntEnum
+"""Compatibility shim for ``gateway.request_queue``.
+
+Canonical implementation:
+``src.serving.request_queue``
+
+This module is retained during the ``gateway`` -> ``src.serving`` migration so that
+existing ``from gateway.request_queue import ...`` statements keep working.
+"""
+
+from __future__ import annotations
+
+import warnings
+
+warnings.warn(
+    "Importing from 'gateway' is deprecated. Use 'src.serving' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from src.serving.request_queue import *  # noqa: E402, F401, F403
+from src.serving import request_queue as _src_module  # noqa: E402
+
+try:
+    from src.serving.request_queue import __all__ as _src_all  # noqa: E402
+except ImportError:
+    __all__ = [name for name in dir(_src_module) if not name.startswith("__")]
+else:
+    __all__ = list(_src_all)
 
 
-class QueuePriority(IntEnum):
-    CRITICAL = 0
-    HIGH = 1
-    NORMAL = 2
-    LOW = 3
-    BACKGROUND = 4
-
-
-@dataclass
-class QueuedRequest:
-    request_id: str
-    priority: QueuePriority = QueuePriority.NORMAL
-    payload: dict = field(default_factory=dict)
-    enqueue_time: float = field(default_factory=time.monotonic)
-    deadline: float | None = None
-
-
-class RequestQueue:
-    def __init__(self, maxsize: int = 1000):
-        self.maxsize = maxsize
-        self._heap: list[tuple] = []
-
-    def enqueue(self, req: QueuedRequest) -> bool:
-        if len(self._heap) >= self.maxsize:
-            return False
-        heapq.heappush(self._heap, (req.priority, req.enqueue_time, req))
-        return True
-
-    def dequeue(self) -> QueuedRequest | None:
-        if not self._heap:
-            return None
-        _, _, req = heapq.heappop(self._heap)
-        return req
-
-    def peek(self) -> QueuedRequest | None:
-        if not self._heap:
-            return None
-        return self._heap[0][2]
-
-    def drop_expired(self) -> int:
-        now = time.monotonic()
-        before = len(self._heap)
-        self._heap = [
-            entry for entry in self._heap if entry[2].deadline is None or entry[2].deadline > now
-        ]
-        heapq.heapify(self._heap)
-        return before - len(self._heap)
-
-    def size(self) -> int:
-        return len(self._heap)
-
-    def is_empty(self) -> bool:
-        return len(self._heap) == 0
-
-
-REQUEST_QUEUE_REGISTRY: dict[str, type[RequestQueue]] = {"default": RequestQueue}
+def __getattr__(name: str) -> object:
+    """Forward private/undecorated names to the canonical implementation."""
+    try:
+        return getattr(_src_module, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
