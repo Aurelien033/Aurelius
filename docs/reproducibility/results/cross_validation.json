@@ -1,0 +1,44 @@
+{
+  "checks": [
+    {
+      "detail": "validate_amc_forge_config.py ok",
+      "name": "forge_config",
+      "status": "PASS"
+    },
+    {
+      "detail": "reproducibility bundle tests passed",
+      "name": "bundle_structure",
+      "status": "PASS"
+    },
+    {
+      "detail": "no /Users or /home literals in bundle scripts",
+      "name": "hardcoded_paths",
+      "status": "PASS"
+    },
+    {
+      "detail": "20 config\u00d7benchmark rows",
+      "name": "ablation_row_count",
+      "status": "PASS"
+    },
+    {
+      "detail": "baseline=0.583 \u2192 tier1_only=0.723 \u2192 tier12=0.863 \u2192 full_amc=0.953",
+      "name": "ablation_monotonicity",
+      "status": "PASS"
+    },
+    {
+      "detail": "within \u00b10.08 of reference means",
+      "name": "ablation_score_drift",
+      "status": "PASS"
+    },
+    {
+      "detail": "6/6 probes passed",
+      "name": "security_audit",
+      "status": "PASS"
+    }
+  ],
+  "host": "Sapphire.local",
+  "passed": true,
+  "profile": "smoke",
+  "python_version": "3.12.12",
+  "timestamp": "2026-05-23T22:17:38.154030+00:00"
+}
