@@ -18,6 +18,7 @@ from src.alignment.rm_trainer import (
 )
 from src.model.config import AureliusConfig
 from src.model.transformer import AureliusTransformer
+from tests._helpers import make_small_cfg
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -26,16 +27,7 @@ from src.model.transformer import AureliusTransformer
 
 @pytest.fixture(scope="module")
 def small_cfg() -> AureliusConfig:
-    return AureliusConfig(
-        n_layers=2,
-        d_model=64,
-        n_heads=2,
-        n_kv_heads=2,
-        head_dim=32,
-        d_ff=128,
-        vocab_size=256,
-        max_seq_len=512,
-    )
+    return make_small_cfg()
 
 
 @pytest.fixture(scope="module")

@@ -15,6 +15,7 @@ from src.training.contrastive import (
     pool_hidden_states,
     simcse_loss,
 )
+from tests._helpers import make_small_cfg
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -23,16 +24,7 @@ from src.training.contrastive import (
 
 @pytest.fixture(scope="module")
 def tiny_cfg() -> AureliusConfig:
-    return AureliusConfig(
-        n_layers=2,
-        d_model=64,
-        n_heads=2,
-        n_kv_heads=2,
-        head_dim=32,
-        d_ff=128,
-        vocab_size=256,
-        max_seq_len=512,
-    )
+    return make_small_cfg()
 
 
 @pytest.fixture(scope="module")
