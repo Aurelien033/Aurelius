@@ -104,7 +104,7 @@ def word_count(text: str) -> str:
 
 
 def current_time() -> str:
-    return datetime.datetime.now().isoformat()
+    return datetime.datetime.now(datetime.UTC).isoformat()
 
 
 def echo(message: str) -> str:
