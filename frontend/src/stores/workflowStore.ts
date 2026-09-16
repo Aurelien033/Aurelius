@@ -44,7 +44,7 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
 
       startWorkflow: async (id) => {
         const res = await api.post<{ success?: boolean }>(`/api/workflows/${id}/start`, {})
-        if (res.data?.success) {
+        if (res?.success) {
           set((s) => ({
             workflows: s.workflows.map((w) =>
               w.id === id ? { ...w, status: 'running', currentStep: 1, startedAt: new Date().toISOString() } : w,
@@ -64,8 +64,8 @@ export const useWorkflowStore = create<WorkflowStoreState>()(
         set({ loading: true, error: null })
         try {
           const res = await api.get<{ workflows: Workflow[] }>('/api/status')
-          if (res.data?.workflows) {
-            set({ workflows: res.data.workflows, loading: false })
+          if (res?.workflows) {
+            set({ workflows: res.workflows, loading: false })
           }
         } catch (err) {
           set({ error: err instanceof Error ? err.message : 'Failed to load workflows', loading: false })
