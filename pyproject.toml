@@ -79,7 +79,7 @@ dev = [
         "openai>=3.8.0",
         "psutil>=6.0.0",
         "einops>=0.8.0",
-        "msgpack>=1.2.1",]
+        "msgpack>=1.2.2",]
 
 xgrammar = [
     # Optional structured-output decoding. Moved out of dev/serve because
