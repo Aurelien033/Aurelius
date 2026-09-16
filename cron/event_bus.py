@@ -1,91 +1,36 @@
-import time
-import uuid
-from collections.abc import Callable
-from dataclasses import dataclass, field
+"""Compatibility shim for ``cron.event_bus``.
+
+Canonical implementation:
+``src.workflow.event_bus``
+
+This module is retained during the ``cron`` -> ``src.workflow`` migration so that
+existing ``from cron.event_bus import ...`` statements keep working.
+"""
+
+from __future__ import annotations
+
+import warnings
+
+warnings.warn(
+    "Importing from 'cron' is deprecated. Use 'src.workflow' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from src.workflow.event_bus import *  # noqa: E402, F401, F403
+from src.workflow import event_bus as _src_module  # noqa: E402
+
+try:
+    from src.workflow.event_bus import __all__ as _src_all  # noqa: E402
+except ImportError:
+    __all__ = [name for name in dir(_src_module) if not name.startswith("__")]
+else:
+    __all__ = list(_src_all)
 
 
-@dataclass(frozen=True)
-class Event:
-    name: str
-    payload: dict
-    source: str = ""
-    timestamp_s: float = field(default_factory=time.monotonic)
-
-
-@dataclass
-class Subscription:
-    sub_id: str
-    event_pattern: str
-    handler: Callable
-    max_deliveries: int = -1
-    delivered: int = 0
-
-
-class EventBus:
-    MAX_LOG = 1000
-
-    def __init__(self) -> None:
-        self._subs: dict[str, Subscription] = {}
-        self._log: list[Event] = []
-
-    def subscribe(
-        self,
-        event_pattern: str,
-        handler: Callable,
-        max_deliveries: int = -1,
-    ) -> str:
-        sub_id = uuid.uuid4().hex[:8]
-        self._subs[sub_id] = Subscription(
-            sub_id=sub_id,
-            event_pattern=event_pattern,
-            handler=handler,
-            max_deliveries=max_deliveries,
-        )
-        return sub_id
-
-    def unsubscribe(self, sub_id: str) -> bool:
-        if sub_id in self._subs:
-            del self._subs[sub_id]
-            return True
-        return False
-
-    @staticmethod
-    def _match(pattern: str, name: str) -> bool:
-        if pattern == "*":
-            return True
-        return pattern == name
-
-    def publish(self, event: Event) -> int:
-        self._log.append(event)
-        if len(self._log) > self.MAX_LOG:
-            self._log = self._log[-self.MAX_LOG :]
-
-        called = 0
-        exhausted: list[str] = []
-        # iterate over snapshot to allow safe mutation
-        for sub_id, sub in list(self._subs.items()):
-            if not self._match(sub.event_pattern, event.name):
-                continue
-            sub.handler(event)
-            sub.delivered += 1
-            called += 1
-            if sub.max_deliveries > 0 and sub.delivered >= sub.max_deliveries:
-                exhausted.append(sub_id)
-        for sid in exhausted:
-            self._subs.pop(sid, None)
-        return called
-
-    def publish_named(self, name: str, payload: dict, source: str = "") -> int:
-        return self.publish(Event(name=name, payload=payload, source=source))
-
-    def active_subscriptions(self) -> list[Subscription]:
-        return list(self._subs.values())
-
-    def event_log(self) -> list[Event]:
-        return list(self._log)
-
-    def clear_log(self) -> None:
-        self._log.clear()
-
-
-EVENT_BUS_REGISTRY: dict[str, type[EventBus]] = {"default": EventBus}
+def __getattr__(name: str) -> object:
+    """Forward private/undecorated names to the canonical implementation."""
+    try:
+        return getattr(_src_module, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None

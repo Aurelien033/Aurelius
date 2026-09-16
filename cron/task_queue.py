@@ -1,44 +1,36 @@
-"""Task queue for dependency-based task scheduling."""
+"""Compatibility shim for ``cron.task_queue``.
+
+Canonical implementation:
+``src.workflow.task_queue``
+
+This module is retained during the ``cron`` -> ``src.workflow`` migration so that
+existing ``from cron.task_queue import ...`` statements keep working.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+import warnings
+
+warnings.warn(
+    "Importing from 'cron' is deprecated. Use 'src.workflow' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from src.workflow.task_queue import *  # noqa: E402, F401, F403
+from src.workflow import task_queue as _src_module  # noqa: E402
+
+try:
+    from src.workflow.task_queue import __all__ as _src_all  # noqa: E402
+except ImportError:
+    __all__ = [name for name in dir(_src_module) if not name.startswith("__")]
+else:
+    __all__ = list(_src_all)
 
 
-@dataclass
-class Task:
-    id: str
-    deps: list[str] | None = None
-    data: Any = None
-
-
-@dataclass
-class TaskQueue:
-    """Queue tasks respecting dependency ordering."""
-
-    _pending: dict[str, Task] = field(default_factory=dict, repr=False)
-    _completed: set[str] = field(default_factory=set, repr=False)
-
-    def add(self, task: Task) -> None:
-        self._pending[task.id] = task
-
-    def ready(self) -> list[Task]:
-        return [
-            t
-            for t in self._pending.values()
-            if not t.deps or all(d in self._completed for d in t.deps)
-        ]
-
-    def complete(self, task_id: str) -> None:
-        self._pending.pop(task_id, None)
-        self._completed.add(task_id)
-
-    def pending_count(self) -> int:
-        return len(self._pending)
-
-    def clear_completed(self) -> None:
-        self._completed.clear()
-
-
-TASK_QUEUE = TaskQueue()
+def __getattr__(name: str) -> object:
+    """Forward private/undecorated names to the canonical implementation."""
+    try:
+        return getattr(_src_module, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None

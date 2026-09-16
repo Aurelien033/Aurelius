@@ -1,155 +1,36 @@
-"""
-workflow_visualizer.py — Text/DOT/Mermaid visualizations of workflow DAGs.
-Stdlib-only. Exports WORKFLOW_VISUALIZER_REGISTRY.
+"""Compatibility shim for ``cron.workflow_visualizer``.
+
+Canonical implementation:
+``src.workflow.workflow_visualizer``
+
+This module is retained during the ``cron`` -> ``src.workflow`` migration so that
+existing ``from cron.workflow_visualizer import ...`` statements keep working.
 """
 
 from __future__ import annotations
 
-import enum
-from collections import deque
-from dataclasses import dataclass
+import warnings
+
+warnings.warn(
+    "Importing from 'cron' is deprecated. Use 'src.workflow' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from src.workflow.workflow_visualizer import *  # noqa: E402, F401, F403
+from src.workflow import workflow_visualizer as _src_module  # noqa: E402
+
+try:
+    from src.workflow.workflow_visualizer import __all__ as _src_all  # noqa: E402
+except ImportError:
+    __all__ = [name for name in dir(_src_module) if not name.startswith("__")]
+else:
+    __all__ = list(_src_all)
 
 
-class NodeStyle(enum.Enum):
-    DEFAULT = "default"
-    HIGHLIGHTED = "highlighted"
-    FAILED = "failed"
-    COMPLETED = "completed"
-
-
-# Map NodeStyle -> DOT fillcolor
-_FILLCOLOR: dict[NodeStyle, str] = {
-    NodeStyle.DEFAULT: "white",
-    NodeStyle.HIGHLIGHTED: "yellow",
-    NodeStyle.FAILED: "red",
-    NodeStyle.COMPLETED: "green",
-}
-
-
-@dataclass(frozen=True)
-class VisualizerConfig:
-    indent: int = 2
-    show_metadata: bool = False
-
-
-class WorkflowVisualizer:
-    """Generates text/DOT/Mermaid visualizations of workflow DAGs."""
-
-    def __init__(self, config: VisualizerConfig | None = None) -> None:
-        self.config: VisualizerConfig = config if config is not None else VisualizerConfig()
-
-    # ------------------------------------------------------------------
-    # DOT output
-    # ------------------------------------------------------------------
-
-    def to_dot(
-        self,
-        nodes: list[str],
-        edges: list[tuple[str, str]],
-        node_styles: dict[str, NodeStyle] | None = None,
-    ) -> str:
-        """
-        Generate a DOT language digraph string.
-
-        Each node: "node_id" [label="node_id", style=filled, fillcolor=<color>];
-        Each edge: "src" -> "dst";
-        """
-        if node_styles is None:
-            node_styles = {}
-
-        lines: list[str] = ["digraph {"]
-
-        for node in nodes:
-            style = node_styles.get(node, NodeStyle.DEFAULT)
-            color = _FILLCOLOR[style]
-            lines.append(f'    "{node}" [label="{node}", style=filled, fillcolor={color}];')
-
-        for src, dst in edges:
-            lines.append(f'    "{src}" -> "{dst}";')
-
-        lines.append("}")
-        return "\n".join(lines)
-
-    # ------------------------------------------------------------------
-    # ASCII / text tree output
-    # ------------------------------------------------------------------
-
-    def to_ascii(
-        self,
-        nodes: list[str],
-        edges: list[tuple[str, str]],
-    ) -> str:
-        """
-        Simple text tree. Roots (nodes with no incoming edges) are printed
-        first; children are indented by config.indent spaces. Uses
-        topological (BFS) order.
-        """
-        if not nodes:
-            return ""
-
-        # Build adjacency and in-degree structures
-        children: dict[str, list[str]] = {n: [] for n in nodes}
-        in_degree: dict[str, int] = {n: 0 for n in nodes}
-
-        for src, dst in edges:
-            if dst in in_degree:
-                in_degree[dst] += 1
-            if src in children:
-                children[src].append(dst)
-
-        # Roots = nodes with no incoming edges
-        roots = [n for n in nodes if in_degree[n] == 0]
-
-        lines: list[str] = []
-        indent_str = " " * self.config.indent
-
-        # BFS from roots, tracking depth
-        queue: deque = deque()
-        for root in roots:
-            queue.append((root, 0))
-
-        visited: set = set()
-        while queue:
-            node, depth = queue.popleft()
-            if node in visited:
-                continue
-            visited.add(node)
-            lines.append(indent_str * depth + node)
-            for child in children[node]:
-                queue.append((child, depth + 1))
-
-        # Handle any nodes not reachable from roots (cycles / isolated)
-        for node in nodes:
-            if node not in visited:
-                lines.append(node)
-
-        return "\n".join(lines)
-
-    # ------------------------------------------------------------------
-    # Mermaid output
-    # ------------------------------------------------------------------
-
-    def to_mermaid(
-        self,
-        nodes: list[str],
-        edges: list[tuple[str, str]],
-    ) -> str:
-        """
-        Generate a Mermaid flowchart LR diagram.
-
-        Each node: id[id]
-        Each edge: src --> dst
-        """
-        lines: list[str] = ["flowchart LR"]
-
-        for node in nodes:
-            lines.append(f"    {node}[{node}]")
-
-        for src, dst in edges:
-            lines.append(f"    {src} --> {dst}")
-
-        return "\n".join(lines)
-
-
-# Public registry
-WORKFLOW_VISUALIZER_REGISTRY: dict = {"default": WorkflowVisualizer}
+def __getattr__(name: str) -> object:
+    """Forward private/undecorated names to the canonical implementation."""
+    try:
+        return getattr(_src_module, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
