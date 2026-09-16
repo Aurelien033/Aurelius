@@ -7,7 +7,7 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { authenticated } = useAuth()
+  const { isAuthenticated: authenticated } = useAuth()
   const location = useLocation()
 
   if (!authenticated && location.pathname !== '/login') {
