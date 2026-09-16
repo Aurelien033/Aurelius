@@ -24,6 +24,13 @@ import { ApiError, AuthError, NetworkError, TimeoutError } from './errors';
 
 export interface ClientConfig {
   baseUrl?: string;
+  /**
+   * Service-to-service API key. DO NOT read this from
+   * localStorage — long-lived secrets are forbidden in
+   * browser storage. The BFF cookie session is the
+   * user-facing auth; this field is for service callers
+   * only.
+   */
   apiKey?: string;
   timeout?: number;
   retries?: number;
@@ -40,7 +47,11 @@ export class AureliusClient {
 
   constructor(config: ClientConfig = {}) {
     this.baseUrl = config.baseUrl || '';
-    this.apiKey = config.apiKey || (typeof localStorage !== 'undefined' ? localStorage.getItem('aurelius-api-key') || '' : '');
+    // H8 fix: do NOT read apiKey from localStorage. The
+    // production flow is cookie-based; the BFF sends the
+    // session cookie with credentials: 'include'. Service
+    // callers may pass apiKey explicitly via ClientConfig.
+    this.apiKey = config.apiKey || '';
     this.timeout = config.timeout || DEFAULT_TIMEOUT;
     this.retries = config.retries ?? DEFAULT_RETRIES;
   }
