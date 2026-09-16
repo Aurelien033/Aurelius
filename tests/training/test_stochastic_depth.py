@@ -16,6 +16,7 @@ from src.training.stochastic_depth import (
     stochastic_depth_forward,
     wrap_with_stochastic_depth,
 )
+from tests._helpers import make_small_cfg
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -23,16 +24,7 @@ from src.training.stochastic_depth import (
 
 
 def _small_config() -> AureliusConfig:
-    return AureliusConfig(
-        n_layers=2,
-        d_model=64,
-        n_heads=2,
-        n_kv_heads=2,
-        head_dim=32,
-        d_ff=128,
-        vocab_size=256,
-        max_seq_len=512,
-    )
+    return make_small_cfg()
 
 
 def _small_model() -> AureliusTransformer:

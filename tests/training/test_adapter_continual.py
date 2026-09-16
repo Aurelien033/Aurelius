@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 import torch
 
-from src.model.config import AureliusConfig
 from src.model.transformer import AureliusTransformer
 from src.training.adapter_continual import (
     AdapterContinualConfig,
@@ -16,6 +15,7 @@ from src.training.adapter_continual import (
     compute_task_overlap,
     freeze_adapters,
 )
+from tests._helpers import make_small_cfg
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -24,16 +24,7 @@ from src.training.adapter_continual import (
 
 @pytest.fixture
 def small_cfg():
-    return AureliusConfig(
-        n_layers=2,
-        d_model=64,
-        n_heads=2,
-        n_kv_heads=2,
-        head_dim=32,
-        d_ff=128,
-        vocab_size=256,
-        max_seq_len=512,
-    )
+    return make_small_cfg()
 
 
 @pytest.fixture
