@@ -1,1 +1,0 @@
-"""ACP IDE adapter implementations."""

@@ -1,96 +1,36 @@
-import random
-from dataclasses import dataclass
+"""Compatibility shim for ``gateway.load_balancer``.
 
-from src._compat import StrEnum
+Canonical implementation:
+``src.serving.load_balancer``
 
+This module is retained during the ``gateway`` -> ``src.serving`` migration so that
+existing ``from gateway.load_balancer import ...`` statements keep working.
+"""
 
-class LBStrategy(StrEnum):
-    ROUND_ROBIN = "round_robin"
-    LEAST_CONNECTIONS = "least_connections"
-    WEIGHTED_ROUND_ROBIN = "weighted_round_robin"
-    RANDOM = "random"
+from __future__ import annotations
 
+import warnings
 
-@dataclass
-class BackendNode:
-    name: str
-    url: str
-    weight: int = 1
-    active_connections: int = 0
-    healthy: bool = True
+warnings.warn(
+    "Importing from 'gateway' is deprecated. Use 'src.serving' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
+from src.serving.load_balancer import *  # noqa: E402, F401, F403
+from src.serving import load_balancer as _src_module  # noqa: E402
 
-class LoadBalancer:
-    def __init__(self, strategy: LBStrategy = LBStrategy.ROUND_ROBIN):
-        self.strategy = strategy
-        self._nodes: list[BackendNode] = []
-        self._rr_index: int = 0
-
-    def add_backend(self, node: BackendNode) -> None:
-        self._nodes.append(node)
-
-    def remove_backend(self, name: str) -> None:
-        self._nodes = [n for n in self._nodes if n.name != name]
-
-    def next_backend(self) -> BackendNode | None:
-        healthy = [n for n in self._nodes if n.healthy]
-        if not healthy:
-            return None
-
-        if self.strategy == LBStrategy.ROUND_ROBIN:
-            {n.name for n in healthy}
-            start = self._rr_index % len(self._nodes)
-            for i in range(len(self._nodes)):
-                node = self._nodes[(start + i) % len(self._nodes)]
-                if node.healthy:
-                    self._rr_index = (self._nodes.index(node) + 1) % len(self._nodes)
-                    return node
-            return None
-
-        elif self.strategy == LBStrategy.LEAST_CONNECTIONS:
-            return min(healthy, key=lambda n: n.active_connections)
-
-        elif self.strategy == LBStrategy.WEIGHTED_ROUND_ROBIN:
-            total = sum(n.weight for n in healthy)
-            r = random.uniform(0, total)  # noqa: S311
-            cumulative = 0.0
-            for node in healthy:
-                cumulative += node.weight
-                if r <= cumulative:
-                    return node
-            return healthy[-1]
-
-        elif self.strategy == LBStrategy.RANDOM:
-            return random.choice(healthy)  # noqa: S311
-
-        return None
-
-    def mark_connection_open(self, name: str) -> None:
-        for n in self._nodes:
-            if n.name == name:
-                n.active_connections += 1
-                return
-
-    def mark_connection_closed(self, name: str) -> None:
-        for n in self._nodes:
-            if n.name == name:
-                n.active_connections = max(0, n.active_connections - 1)
-                return
-
-    def mark_unhealthy(self, name: str) -> None:
-        for n in self._nodes:
-            if n.name == name:
-                n.healthy = False
-                return
-
-    def mark_healthy(self, name: str) -> None:
-        for n in self._nodes:
-            if n.name == name:
-                n.healthy = True
-                return
-
-    def healthy_count(self) -> int:
-        return sum(1 for n in self._nodes if n.healthy)
+try:
+    from src.serving.load_balancer import __all__ as _src_all  # noqa: E402
+except ImportError:
+    __all__ = [name for name in dir(_src_module) if not name.startswith("__")]
+else:
+    __all__ = list(_src_all)
 
 
-LOAD_BALANCER_REGISTRY: dict[str, LBStrategy] = {s.value: s for s in LBStrategy}
+def __getattr__(name: str) -> object:
+    """Forward private/undecorated names to the canonical implementation."""
+    try:
+        return getattr(_src_module, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None

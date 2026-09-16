@@ -1,81 +1,36 @@
-import hashlib
-import re
-import time
-from dataclasses import dataclass, field
+"""Compatibility shim for ``gateway.response_dedup``.
 
-from src._compat import StrEnum
+Canonical implementation:
+``src.serving.response_dedup``
 
+This module is retained during the ``gateway`` -> ``src.serving`` migration so that
+existing ``from gateway.response_dedup import ...`` statements keep working.
+"""
 
-class DedupStrategy(StrEnum):
-    EXACT_HASH = "exact_hash"
-    PREFIX_HASH = "prefix_hash"
-    SEMANTIC_HASH = "semantic_hash"
+from __future__ import annotations
 
+import warnings
 
-@dataclass
-class DedupEntry:
-    key: str
-    response: str
-    hit_count: int = 0
-    created_at: float = field(default_factory=time.monotonic)
+warnings.warn(
+    "Importing from 'gateway' is deprecated. Use 'src.serving' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
+from src.serving.response_dedup import *  # noqa: E402, F401, F403
+from src.serving import response_dedup as _src_module  # noqa: E402
 
-class ResponseDedup:
-    def __init__(
-        self,
-        strategy: DedupStrategy = DedupStrategy.EXACT_HASH,
-        max_entries: int = 1024,
-        ttl_s: float = 300.0,
-    ):
-        self.strategy = strategy
-        self.max_entries = max_entries
-        self.ttl_s = ttl_s
-        self._store: dict[str, DedupEntry] = {}
-        self._total_hits: int = 0
-
-    def _compute_key(self, prompt: str) -> str:
-        if self.strategy == DedupStrategy.EXACT_HASH:
-            return hashlib.sha256(prompt.encode()).hexdigest()[:16]
-        elif self.strategy == DedupStrategy.PREFIX_HASH:
-            return hashlib.sha256(prompt[:256].encode()).hexdigest()[:16]
-        elif self.strategy == DedupStrategy.SEMANTIC_HASH:
-            normalized = re.sub(r"\s+", " ", prompt.lower()).strip()
-            return hashlib.sha256(normalized.encode()).hexdigest()[:16]
-        raise ValueError(f"Unknown strategy: {self.strategy}")
-
-    def lookup(self, prompt: str) -> str | None:
-        key = self._compute_key(prompt)
-        entry = self._store.get(key)
-        if entry is None:
-            return None
-        if time.monotonic() - entry.created_at > self.ttl_s:
-            del self._store[key]
-            return None
-        entry.hit_count += 1
-        self._total_hits += 1
-        return entry.response
-
-    def store(self, prompt: str, response: str) -> None:
-        key = self._compute_key(prompt)
-        if key not in self._store and len(self._store) >= self.max_entries:
-            oldest_key = min(self._store, key=lambda k: self._store[k].created_at)
-            del self._store[oldest_key]
-        self._store[key] = DedupEntry(key=key, response=response)
-
-    def invalidate(self, prompt: str) -> None:
-        key = self._compute_key(prompt)
-        self._store.pop(key, None)
-
-    def stats(self) -> dict:
-        return {
-            "size": len(self._store),
-            "hits": self._total_hits,
-            "strategy": self.strategy.value,
-        }
-
-    def clear(self) -> None:
-        self._store.clear()
-        self._total_hits = 0
+try:
+    from src.serving.response_dedup import __all__ as _src_all  # noqa: E402
+except ImportError:
+    __all__ = [name for name in dir(_src_module) if not name.startswith("__")]
+else:
+    __all__ = list(_src_all)
 
 
-RESPONSE_DEDUP_REGISTRY: dict[str, type[ResponseDedup]] = {"default": ResponseDedup}
+def __getattr__(name: str) -> object:
+    """Forward private/undecorated names to the canonical implementation."""
+    try:
+        return getattr(_src_module, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None

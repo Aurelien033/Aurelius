@@ -1,42 +1,36 @@
-"""Workflow scheduler with cron-like interval support."""
+"""Compatibility shim for ``cron.scheduler``.
+
+Canonical implementation:
+``src.workflow.scheduler``
+
+This module is retained during the ``cron`` -> ``src.workflow`` migration so that
+existing ``from cron.scheduler import ...`` statements keep working.
+"""
 
 from __future__ import annotations
 
-import time
-from collections.abc import Callable
-from dataclasses import dataclass, field
+import warnings
+
+warnings.warn(
+    "Importing from 'cron' is deprecated. Use 'src.workflow' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from src.workflow.scheduler import *  # noqa: E402, F401, F403
+from src.workflow import scheduler as _src_module  # noqa: E402
+
+try:
+    from src.workflow.scheduler import __all__ as _src_all  # noqa: E402
+except ImportError:
+    __all__ = [name for name in dir(_src_module) if not name.startswith("__")]
+else:
+    __all__ = list(_src_all)
 
 
-@dataclass
-class WorkflowSchedule:
-    name: str
-    interval_seconds: float
-    handler: Callable[[], None]
-    _last_run: float = 0.0
-
-    def due(self, now: float) -> bool:
-        return (now - self._last_run) >= self.interval_seconds
-
-    def run(self) -> None:
-        self.handler()
-        self._last_run = time.monotonic()
-
-
-@dataclass
-class WorkflowScheduler:
-    schedules: list[WorkflowSchedule] = field(default_factory=list)
-
-    def add(self, schedule: WorkflowSchedule) -> None:
-        self.schedules.append(schedule)
-
-    def tick(self) -> None:
-        now = time.monotonic()
-        for s in self.schedules:
-            if s.due(now):
-                s.run()
-
-    def remove(self, name: str) -> None:
-        self.schedules = [s for s in self.schedules if s.name != name]
-
-
-WORKFLOW_SCHEDULER = WorkflowScheduler()
+def __getattr__(name: str) -> object:
+    """Forward private/undecorated names to the canonical implementation."""
+    try:
+        return getattr(_src_module, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None

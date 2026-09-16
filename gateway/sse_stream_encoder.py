@@ -1,79 +1,36 @@
-"""Server-Sent Events (SSE) wire encoding for streaming completions.
+"""Compatibility shim for ``gateway.sse_stream_encoder``.
 
-Implements the framing rules from the HTML Living Standard / WHATWG SSE
-section (``text/event-stream``): ``event:``, ``data:``, optional ``id:``,
-and records terminated by a blank line.
+Canonical implementation:
+``src.serving.sse_stream_encoder``
 
-This is a **pure encoder** — no sockets, no asyncio — so inference workers can
-share one implementation.
+This module is retained during the ``gateway`` -> ``src.serving`` migration so that
+existing ``from gateway.sse_stream_encoder import ...`` statements keep working.
 """
 
 from __future__ import annotations
 
+import warnings
 
-class SSEStreamEncoder:
-    """Encode logical chunks into UTF-8 SSE frames."""
+warnings.warn(
+    "Importing from 'gateway' is deprecated. Use 'src.serving' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-    def __init__(self, *, utf8_errors: str = "replace") -> None:
-        if utf8_errors not in ("strict", "replace", "ignore", "surrogateescape"):
-            raise ValueError(f"unsupported utf8_errors={utf8_errors!r}")
-        self._utf8_errors = utf8_errors
+from src.serving.sse_stream_encoder import *  # noqa: E402, F401, F403
+from src.serving import sse_stream_encoder as _src_module  # noqa: E402
 
-    def encode_event(
-        self,
-        *,
-        data: str,
-        event: str | None = None,
-        event_id: str | None = None,
-    ) -> bytes:
-        """Return one complete SSE message (including trailing blank line)."""
-        if not isinstance(data, str):
-            raise TypeError("data must be str")
-        if event is not None and not isinstance(event, str):
-            raise TypeError("event must be str or None")
-        if event_id is not None and not isinstance(event_id, str):
-            raise TypeError("event_id must be str or None")
-
-        lines: list[str] = []
-        if event is not None:
-            _reject_if_newline("event", event)
-            lines.append(f"event: {event}")
-        if event_id is not None:
-            _reject_if_newline("id", event_id)
-            lines.append(f"id: {event_id}")
-
-        for part in data.split("\n"):
-            _reject_if_newline("data_line", part)
-            lines.append(f"data: {part}")
-
-        lines.append("")  # blank line terminator
-        text = "\n".join(lines) + "\n"
-        return text.encode("utf-8", errors=self._utf8_errors)
-
-    def encode_comment(self, comment: str) -> bytes:
-        """Encode a keep-alive / diagnostic comment line (no blank-line end)."""
-        if not isinstance(comment, str):
-            raise TypeError("comment must be str")
-        for line in comment.split("\n"):
-            _reject_if_newline("comment_line", line)
-        body = "\n".join(f": {line}" for line in comment.split("\n"))
-        return (body + "\n").encode("utf-8", errors=self._utf8_errors)
+try:
+    from src.serving.sse_stream_encoder import __all__ as _src_all  # noqa: E402
+except ImportError:
+    __all__ = [name for name in dir(_src_module) if not name.startswith("__")]
+else:
+    __all__ = list(_src_all)
 
 
-def _reject_if_newline(field: str, value: str) -> None:
-    if "\r" in value or "\n" in value:
-        raise ValueError(f"{field} must not contain CR/LF — refusing ambiguous framing")
-    if "\x00" in value:
-        raise ValueError(f"{field} must not contain NUL bytes")
-
-
-def split_sse_records(blob: bytes) -> list[bytes]:
-    """Split a byte blob on SSE record separators ``\\n\\n`` (test helper)."""
-    if not isinstance(blob, (bytes, bytearray)):
-        raise TypeError("blob must be bytes")
-    raw = bytes(blob).replace(b"\r\n", b"\n")
-    parts = raw.split(b"\n\n")
-    return [p for p in parts if p.strip() != b""]
-
-
-__all__ = ["SSEStreamEncoder", "split_sse_records"]
+def __getattr__(name: str) -> object:
+    """Forward private/undecorated names to the canonical implementation."""
+    try:
+        return getattr(_src_module, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
