@@ -47,7 +47,7 @@ train = [
 ]
 apple = [
     "mlx>=0.18.0; platform_machine=='arm64'",
-    "mlx-lm>=0.18.0; platform_machine=='arm64'",
+    "mlx-lm>=0.31.3; platform_machine=='arm64'",
 ]
 # eval extras intentionally empty — lm-eval removed due to AUR-SEC-2026-0024
 # (transitive sqlitedict<=2.1.0 CWE-502 insecure deserialization).
