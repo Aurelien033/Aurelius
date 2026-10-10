@@ -4,6 +4,7 @@
 // The Aurelius architecture remains the intellectual property of the authors.
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useApiStore } from '../stores/apiStore'
 
 interface UseApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -86,11 +87,19 @@ export function useApi<T = unknown>(
       setError(null);
       try {
         const url = path.startsWith('/api/') ? path : `/api${path}`;
-        const apiKey = localStorage.getItem('aurelius-api-key') || '';
+        // H8 fix: do NOT read aurelius-api-key from localStorage.
+        // The BFF session cookie is the auth credential and
+        // is sent automatically via credentials: 'include'.
+        // The apiKey is set by useApi explicitly for service
+        // callers; it is not persisted in browser storage.
+        // Read from the apiStore on every request so that
+        // service callers can set it via setApiKey().
+        const apiKey = useApiStore.getState()?.apiKey || ''
         const response = await fetchWithRetry(
           url,
           {
             method: opts?.method || 'GET',
+            credentials: 'include',
             headers: {
               'Content-Type': 'application/json',
               ...(apiKey ? { 'X-API-Key': apiKey } : {}),

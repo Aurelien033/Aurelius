@@ -37,7 +37,7 @@ export function ActivityFeed({ limit = 20, showHeader = true, compact = false }:
   }, [limit])
 
   useEffect(() => {
-    ws.on('activity:new', (payload) => {
+    ws.on?.('activity:new', (payload) => {
       const p = payload as { command: string; timestamp: number }
       setEntries((prev) => {
         const next = [{ id: `live-${Date.now()}`, command: p.command, success: true, output: '', timestamp: p.timestamp || Date.now() }, ...prev]

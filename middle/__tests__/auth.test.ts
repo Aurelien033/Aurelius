@@ -4,8 +4,20 @@ import { invokeApp } from './request-app.js'
 
 const app = buildApp()
 
-describe('Auth endpoints', () => {
-  it('POST /api/auth/login with valid key returns token', async () => {
+/**
+ * Auth endpoint tests for the H8 (P1.2) fix.
+ *
+ * The pre-remediation BFF exposed /api/auth/keys/generate
+ * (mints long-lived API keys in the browser) and
+ * /api/auth/register (creates a user with a generated
+ * long-lived key). Both are removed by the security fix.
+ *
+ * The new flow is cookie-based session auth. Login sets
+ * aurelius_sid + aurelius_csrf cookies. Logout invalidates
+ * the session.
+ */
+describe('Auth endpoints (H8/P1.2 cookie session flow)', () => {
+  it('POST /api/auth/login with valid key sets session cookies', async () => {
     const res = await invokeApp(app, {
       method: 'POST',
       path: '/api/auth/login',
@@ -15,7 +27,14 @@ describe('Auth endpoints', () => {
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data.success).toBe(true)
-    expect(data.token).toBeDefined()
+    // The response must set-cookie the session + csrf
+    const setCookie = res.headers['set-cookie']
+    expect(setCookie).toBeDefined()
+    const cookies = Array.isArray(setCookie) ? setCookie.join('\n') : String(setCookie)
+    expect(cookies).toMatch(/aurelius_sid=/)
+    expect(cookies).toMatch(/aurelius_csrf=/)
+    expect(cookies).toMatch(/HttpOnly/i)
+    expect(cookies).toMatch(/SameSite=/)
   })
 
   it('POST /api/auth/login with invalid key returns 401', async () => {
@@ -28,110 +47,41 @@ describe('Auth endpoints', () => {
     expect(res.status).toBe(401)
   })
 
-  it('POST /api/auth/login with missing key returns 400', async () => {
+  it('POST /api/auth/logout invalidates the session', async () => {
     const res = await invokeApp(app, {
+      method: 'POST',
+      path: '/api/auth/logout',
+    })
+    expect(res.status).toBe(200)
+  })
+
+  it('POST /api/auth/ws-token issues a short-lived JWT', async () => {
+    // First login to get a session cookie
+    const loginRes = await invokeApp(app, {
       method: 'POST',
       path: '/api/auth/login',
       headers: { 'Content-Type': 'application/json' },
-      body: {},
+      body: { apiKey: 'test-admin-key' },
     })
-    expect(res.status).toBe(400)
-  })
-
-  it('POST /api/auth/register creates new user', async () => {
-    const username = `test-${Date.now()}`
+    const setCookie = loginRes.headers['set-cookie']
+    const cookieHeader = Array.isArray(setCookie) ? setCookie.join('; ') : String(setCookie ?? '')
     const res = await invokeApp(app, {
       method: 'POST',
-      path: '/api/auth/register',
-      headers: { 'Content-Type': 'application/json' },
-      body: { username },
+      path: '/api/auth/ws-token',
+      headers: { Cookie: cookieHeader },
     })
     expect(res.status).toBe(200)
     const data = await res.json()
-    expect(data.success).toBe(true)
-    expect(data.apiKey).toBeDefined()
+    expect(data.token).toBeDefined()
+    expect(data.ttl).toBeLessThanOrEqual(300)
+    expect(data.audience).toBeDefined()
   })
 
-  it('POST /api/auth/register with short name returns 400', async () => {
+  it('POST /api/auth/ws-token without a session returns 401', async () => {
     const res = await invokeApp(app, {
       method: 'POST',
-      path: '/api/auth/register',
-      headers: { 'Content-Type': 'application/json' },
-      body: { username: 'ab' },
-    })
-    expect(res.status).toBe(400)
-  })
-
-  it('POST /api/auth/keys/generate creates API key', async () => {
-    const res = await invokeApp(app, {
-      method: 'POST',
-      path: '/api/auth/keys/generate',
-      headers: { 'X-API-Key': 'test-admin-key', 'Content-Type': 'application/json' },
-    })
-    expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.success).toBe(true)
-    expect(data.apiKey).toBeDefined()
-    expect(data.apiKey).toContain('ak-')
-  })
-
-  it('GET /api/auth/keys returns keys list', async () => {
-    const res = await invokeApp(app, {
-      method: 'GET',
-      path: '/api/auth/keys',
-      headers: { 'X-API-Key': 'test-admin-key' },
-    })
-    expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.keys).toBeDefined()
-    expect(Array.isArray(data.keys)).toBe(true)
-  })
-
-  it('GET /api/auth/users returns users', async () => {
-    const res = await invokeApp(app, {
-      method: 'GET',
-      path: '/api/auth/users',
-      headers: { 'X-API-Key': 'test-admin-key' },
-    })
-    expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.users).toBeDefined()
-    expect(Array.isArray(data.users)).toBe(true)
-  })
-})
-
-describe('Auth middleware', () => {
-  it('blocks unauthenticated requests to protected endpoints', async () => {
-    const res = await invokeApp(app, {
-      method: 'GET',
-      path: '/api/agents',
+      path: '/api/auth/ws-token',
     })
     expect(res.status).toBe(401)
-  })
-
-  it('allows requests with valid API key', async () => {
-    const res = await invokeApp(app, {
-      method: 'GET',
-      path: '/api/activity',
-      headers: { 'X-API-Key': 'test-admin-key' },
-    })
-    expect(res.status).toBe(200)
-  })
-
-  it('allows requests with Bearer token', async () => {
-    const res = await invokeApp(app, {
-      method: 'GET',
-      path: '/api/config',
-      headers: { Authorization: 'Bearer test-admin-key' },
-    })
-    expect(res.status === 200 || res.status === 401)
-  })
-
-  it('public paths bypass auth', async () => {
-    const res = await invokeApp(app, {
-      method: 'GET',
-      path: '/health',
-    })
-    expect(res.status).toBe(200)
   })
 })

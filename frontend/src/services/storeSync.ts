@@ -26,7 +26,7 @@ interface NotificationResponse {
 export async function syncHealthToStore(): Promise<void> {
   const apiStore = useApiStore.getState()
   try {
-    const { data } = await api.get<HealthResponse>('/health')
+    const data = await api.get<HealthResponse>('/health')
     if (data) {
       apiStore.setHealth({
         status: data.status,
@@ -43,7 +43,7 @@ export async function syncHealthToStore(): Promise<void> {
 export async function syncNotificationsToStore(): Promise<void> {
   const notifStore = useNotificationStore.getState()
   try {
-    const { data } = await api.get<NotificationResponse>('/notifications')
+    const data = await api.get<NotificationResponse>('/notifications')
     if (data?.notifications) {
       for (const n of data.notifications) {
         notifStore.addNotification({
