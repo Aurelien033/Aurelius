@@ -2,7 +2,7 @@
 FROM node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f AS builder
 WORKDIR /app
 
-RUN apk add --no-cache build-base cargo rust
+RUN apk add --no-cache build-base cargo rust python3
 
 COPY package.json package-lock.json ./
 COPY middle/package.json middle/package.json

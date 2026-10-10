@@ -2,6 +2,15 @@
 
 All notable changes to Aurelius are documented in this file.
 
+## 2026-10-10
+
+- **Repository health — CI/CD pipelines restored**:
+  - `deployment/Dockerfile`: COPY line listed 8 paths deleted by the 09-16 refactor (`optional-skills/`, `environments/`, six `scripts/*.py` files), breaking the CD + deploy docker builds since 2026-09-16 (`/scripts/aurelius_constants.py`: not found). Now copies only the 10 existing paths.
+  - `deployment/frontend.Dockerfile`: added `python3 make g++` to the Alpine builder — `better-sqlite3` (middle workspace) compiles from source via node-gyp, which needs the toolchain that node:22-alpine lacks.
+  - `middle/Dockerfile`: added `python3` alongside `build-base` (same node-gyp requirement).
+  - `Cargo.lock`: rustls 0.23.40 → 0.23.45 + rustls-webpki 0.103.13 → 0.103.15 (RUSTSEC-2026-0285, TLS 1.3 handshake across encryption-level boundaries) — fixes the rust.yml security audit, red since 2026-10-01. Verified locally: cargo audit exits 0, zero vulnerabilities.
+- **Repository organization**: `docs/reports/README.md` index for the 11 point-in-time research reports; pyproject description refreshed to the current 9B Qwen3.5-9B flagship.
+
 ## 2026-09-06
 
 - **Repository hygiene**: username rename S3nna13 → Aurelien033 propagated to all references (README, CODEOWNERS, CONTRIBUTING, ROADMAP, notebooks, runbooks, env files); restores Dependabot assignee resolution.

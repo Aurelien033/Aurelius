@@ -2,6 +2,10 @@
 FROM node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f AS builder
 WORKDIR /app
 
+# better-sqlite3 (middle workspace) compiles from source on musl via node-gyp,
+# which needs Python, make and a C++ toolchain — none are in node:22-alpine.
+RUN apk add --no-cache python3 make g++
+
 COPY package.json package-lock.json ./
 COPY frontend/package.json frontend/package.json
 COPY middle/package.json middle/package.json
