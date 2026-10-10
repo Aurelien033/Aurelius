@@ -6,9 +6,9 @@ WORKDIR /app
 RUN pip install --no-cache-dir uv
 
 # Copy package metadata first for layer caching
-COPY pyproject.toml .
-COPY README.md .
-COPY src/ agent/ aurelius_cli/ gateway/ acp_adapter/ cron/ plugins/ tools/ skills/ optional-skills/ environments/ scripts/run_agent.py scripts/batch_runner.py scripts/aurelius_constants.py scripts/aurelius_state.py scripts/model_tools.py scripts/toolsets.py ./
+COPY pyproject.toml ./
+COPY README.md ./
+COPY src/ agent/ aurelius_cli/ gateway/ acp_adapter/ cron/ plugins/ tools/ skills/ scripts/ ./
 
 # Install dependencies
 RUN uv sync --no-dev
