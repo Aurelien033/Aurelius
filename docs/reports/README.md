@@ -18,6 +18,7 @@ with their date in mind. The live status lives in the repo README and `CHANGELOG
 |---|---|---|
 | [AURELIUS_RESEARCH_SYNTHESIS_20260522.md](AURELIUS_RESEARCH_SYNTHESIS_20260522.md) | 2026-05-22 | Research ingest + architecture brainstorm (research-only) |
 | [AURELIUS_ENGINE_COMBINATIONS_20260522.md](AURELIUS_ENGINE_COMBINATIONS_20260522.md) | 2026-05-22 | Engine & architecture proposals, part 2 (research-only) |
+| [PROGRESS-2026-11-17.md](PROGRESS-2026-11-17.md) | 2026-11-17 | Public-safe progress since the 2026-10-08 README status |
 
 ## MVP traceability
 

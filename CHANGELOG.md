@@ -2,6 +2,16 @@
 
 All notable changes to Aurelius are documented in this file.
 
+## 2026-11-17
+
+- **Documentation**: README reorganized around project direction, stable status
+  anchors, and a verified badge set (the broken CodeQL badge path is fixed).
+  Added `docs/reports/PROGRESS-2026-11-17.md` and indexed it in the reports index.
+- **Public model state**: [Aurelien33/Aurelius-9B](https://huggingface.co/Aurelien33/Aurelius-9B)
+  is public and non-gated (merged bf16, Apache-2.0). The public card claims an
+  observed-loss screen only. No accuracy-gain, general-capability, or
+  safety-certification claim is made.
+
 ## 2026-10-10
 
 - **Repository health — CI/CD pipelines restored**:
