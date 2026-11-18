@@ -167,8 +167,8 @@ make ci             # lint + typecheck + security + all tests
 
 CI gates: pytest focused suite (Python 3.12 + 3.13), ruff lint and format,
 py_compile, bandit (baseline-gated), pip-audit, cargo audit, frontend and middle
-typecheck/lint/test, plus CodeQL and DevSkim security scanning. The latest CI and
-Nightly runs were green on 2026-11-17.
+typecheck/lint/test, plus CodeQL and DevSkim security scanning. Current gate status
+is shown by the badges above and in the [Actions tab](https://github.com/Aurelien033/Aurelius/actions).
 
 ## Documentation
 
