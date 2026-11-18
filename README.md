@@ -70,6 +70,9 @@ Anchor links in this section are stable across status-date updates.
 - **Agentic tooling** — the evaluation harness, audit logger, and head store are
   tested artifacts. The latter two are libraries or staged files, not wired into
   serving or training.
+- **Security backlog** — 125 open Dependabot alerts on `main` at 2026-11-17
+  (8 critical, 56 high, 52 moderate, 9 low). Remediation is open. The older
+  "34 → 2" figure below is a 2026-09 snapshot, not current state.
 
 ### Measured results (published)
 
@@ -79,7 +82,7 @@ Anchor links in this section are stable across status-date updates.
 | Falsification series E1–E10 | The default α range capped GDN memory at ~2–3 tokens (0.5¹⁷ ≈ 7.6e-6). Fixed in model defaults: **100% vs 2.3% recall at delay 17**. |
 | 9B hybrid code audit | 10 bugs found, fixed, and re-verified (chunked scan, RoPE/KV-cache positions, beta gate, OPD loop, real eval harness). 5/5 integration tests, 8/8 scan cases. |
 | AIE v1 — Aurelius Improvement Engine | Evidence-gated closed-loop optimizer. Every number is labeled measured / derived / prior; unmapped data is reported as NULL, never zeroed. |
-| Repository engineering | Dependabot alerts 34 → 2; code-scanning findings 260 → 230; repo-wide simplification to −41.4% LOC (2026-09-16) with gates green. |
+| Repository engineering (2026-09 snapshot) | Dependabot alerts 34 → 2; code-scanning findings 260 → 230; repo-wide simplification to −41.4% LOC (2026-09-16) with gates green. Current alert count is listed in "In flight". |
 
 ### Prior packages (provenance)
 
